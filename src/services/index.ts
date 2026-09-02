@@ -1,0 +1,54 @@
+import { createCmcGateway, type CmcGateway } from '../api/cmc/index.js';
+import { COIN_INDEX_REFRESH_MS } from '../config/constants.js';
+import { createLogger } from '../infra/logger.js';
+import { CoinIndex } from '../domain/coinIndex.js';
+import { ScanService } from './scanService.js';
+import { SearchService } from './searchService.js';
+
+export { ScanService } from './scanService.js';
+export { SearchService } from './searchService.js';
+export type { ScanOptions } from './scanService.js';
+
+const log = createLogger('services');
+
+export interface Services {
+  cmc: CmcGateway;
+  index: CoinIndex;
+  scan: ScanService;
+  search: SearchService;
+  /** 拉全量 map 建索引。0 credits；失败不影响其它功能，只是名称搜索少一条通路。 */
+  refreshIndex(): Promise<void>;
+  /** 启动后台定时刷新（unref，不阻塞退出）。 */
+  startIndexRefresh(): void;
+}
+
+/** 组合根：所有服务在这里装配，handler 只依赖这个接口。 */
+export function createServices(cmc: CmcGateway = createCmcGateway()): Services {
+  const index = new CoinIndex();
+  let timer: NodeJS.Timeout | undefined;
+
+  const refreshIndex = async () => {
+    const started = Date.now();
+    try {
+      const entries = await cmc.core.fullMap();
+      index.load(entries);
+      log.info('coin index loaded', { entries: index.size, elapsed: Date.now() - started });
+    } catch (err) {
+      log.warn('coin index refresh failed', { err: String(err) });
+    }
+  };
+
+  return {
+    cmc,
+    index,
+    scan: new ScanService(cmc, index),
+    search: new SearchService(cmc, index),
+    refreshIndex,
+    startIndexRefresh() {
+      if (timer) return;
+      void refreshIndex();
+      timer = setInterval(() => void refreshIndex(), COIN_INDEX_REFRESH_MS);
+      timer.unref();
+    },
+  };
+}

@@ -1,0 +1,29 @@
+{
+  "name": "dexscan-telegram-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Telegram bot: 地址进，尽调卡片出。Powered by CoinMarketCap DEX API.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test test/*.test.ts",
+    "probe": "tsx scripts/probe.ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "telegraf": "^4.16.3",
+    "undici": "^7.29.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}
