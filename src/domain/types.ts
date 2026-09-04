@@ -224,3 +224,18 @@ export interface TokenReport {
   degraded: string[];
   generatedAt: number;
 }
+
+/** K 线蜡烛（/v1/k-line/candles）。价格或市值口径由请求的 pm 决定。 */
+export interface Candle {
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volumeUsd: number;
+  /** epoch ms */
+  ts: number;
+  traders?: number;
+}
+
+export type KlineInterval = '1min' | '5min' | '15min' | '30min' | '1h' | '4h' | '1d';
+export type KlineMode = 'p' | 'm';

@@ -20,6 +20,11 @@ const schema = z.object({
   CACHE_TTL_HOLDERS_MS: numeric(120_000),
   CACHE_TTL_SECURITY_MS: numeric(600_000),
   CACHE_TTL_META_MS: numeric(3_600_000),
+  CACHE_TTL_CHART_MS: numeric(300_000),
+
+  /** 图表 PNG 的公网地址前缀。缺省时从 Railway 的 RAILWAY_PUBLIC_DOMAIN 推导；都没有则不出图。 */
+  PUBLIC_BASE_URL: z.string().optional().default(''),
+  RAILWAY_PUBLIC_DOMAIN: z.string().optional().default(''),
 
   RATE_LIMIT_PRIVATE_PER_MIN: numeric(20),
   RATE_LIMIT_GROUP_PER_MIN: numeric(6),
@@ -50,3 +55,10 @@ function load(): Env {
 export const env: Env = load();
 
 export const isWebhookMode = Boolean(env.TELEGRAM_WEBHOOK_DOMAIN);
+
+/** 对外可访问的 HTTP 根地址（无尾部斜杠），用于图表链接。 */
+export const publicBaseUrl: string | undefined = env.PUBLIC_BASE_URL
+  ? env.PUBLIC_BASE_URL.replace(/\/+$/, '')
+  : env.RAILWAY_PUBLIC_DOMAIN
+    ? `https://${env.RAILWAY_PUBLIC_DOMAIN}`
+    : undefined;

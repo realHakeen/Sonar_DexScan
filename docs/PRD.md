@@ -82,6 +82,13 @@
 - 按钮点击：候选 / 切链 / 展开 → 消息立即变为「🔍 Scanning SYMBOL · 链…」并撤掉按钮；刷新 → 卡片保留、按钮变「⏳ Refreshing…」。同一条消息扫描中再点只回 toast，不重复请求。
 - 所有详情端点并发（`Promise.allSettled`），单次扫描固定 5 个并发请求，兜底请求仅在缺失时追加。
 
+### F6b K 线预览图
+- 数据：`/v1/k-line/candles`，`pm=m` 市值口径，1h × 168（7 天）；新币不足 4 根时退到 15min × 96。坏蜡烛（open/close ≤ 0、low/high 离群 50×）过滤或钳位。
+- 渲染：服务端 SVG → PNG（`@resvg/resvg-js`），1000×500，含蜡烛、成交量、ATH 标注、最新价标签、涨跌幅头部。
+- 托管：进程自带 HTTP 路由 `/chart/{chain}/{address}.png`，PNG 内存缓存 5 分钟；URL 带 5 分钟时间桶让 Telegram 预览缓存失效。
+- 消息：正文开头零宽不可见链接 + `link_preview_options.show_above_text`，图显示在卡片顶部；未配置公网地址（`PUBLIC_BASE_URL` / Railway `RAILWAY_PUBLIC_DOMAIN`）时静默不出图。
+- 成本：每张图 1 credit（缓存期内不重复）。
+
 ### F7 风险规则引擎
 阈值可配置（`.env`）。规则：
 
@@ -110,6 +117,7 @@
 | `/v1/dex/holders/list` | POST `{tokenAddress,platform,tag}` | 集中度/标签兜底；/th 复用 | `tags` 是 JSON 字符串；`percent` 已是百分比；`walletAddress` |
 | `/v1/cryptocurrency/map` | GET `symbol` / 全量分页 | 正版识别、本地索引 | 0 credits；`slug` 过滤在部分 Key 上不生效并返回全量，禁止按 slug 查 |
 | `/v2/cryptocurrency/quotes/latest` | GET `id` | 流通市值、排名、赛道 | `tags[{name}]` |
+| `/v1/k-line/candles` | GET `platform`, `address`, `interval`, `limit`, `pm` | K 线图 | 返回 `[[o,h,l,c,v,ts(ms),traders]]`；代币地址即可；v4 `ohlcv/*` 全部 500 |
 
 通用：`status.error_code` 是字符串（成功 `"0"`）；v1 端点 `platform` 直接用 search 的 `plt` 原样，大小写不敏感，数字 id 不行；`/v4/dex/spot-pairs/latest` 必须带 dex id，不能按代币列池子（已弃用）；`/v4/dex/networks/list` 上游 500（已容错）。
 
@@ -162,7 +170,7 @@
 | 新币模板 | 上线 < 24h 或在 pump.fun bonding curve 上的代币：显示 curve 进度（`bcr`）、5m/1h 动量、dev 持仓与是否清仓、Top 5 持有人；此时不触发"流动性过低" | 高 |
 | 卡片结论行 | 头部一句风险评分 + 最重要两条 | 高 |
 | `/th` `/nh` `/tt` `/fb` | 持有人 / 名人持有 / 交易者 / 首批买家（`holders/list` 已接） | 中 |
-| `/c` K 线 | `/v4/dex/pairs/ohlcv/*` | 中 |
+| `/c` K 线命令（切换周期） | 卡片顶部已有 7d 图，命令版可选 1h/24h/7d/30d | 低 |
 | 订阅推送 | 流动性事件（`/v1/dex/liquidity-change/list` 已登记）、价格告警 | 中 |
 | Logo 预览 | 链接预览技巧把 logo 放卡片顶部 | 低 |
 | 图标集中化 | `render/icons.ts` 单文件管理 emoji | 低 |

@@ -103,7 +103,7 @@ export function bar(pct: number | undefined, width = 10): string {
 }
 
 /** 等宽标签列：Telegram 只有 <code> 能对齐，标签补空格到固定宽度。 */
-export function label(text: string, width = 6): string {
+export function label(text: string, width = 7): string {
   return `<code>${text.padEnd(width)}</code>`;
 }
 

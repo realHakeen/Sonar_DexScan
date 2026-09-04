@@ -58,47 +58,40 @@ export function renderScanCard(report: TokenReport): string {
   }
   out.push(code(p.address));
 
-  // ── Market ──（按手机 ~36 列设计，每行一个概念）
+  // ── Market ──（一行一个指标，手机 36 列内）
   out.push('', bold('📊 Market'));
   const market: string[] = [];
   market.push(`${label('Price')} ${bold(formatPrice(p.priceUsd))}  ${changeEmoji(p.priceChange24hPct)} ${formatPercent(p.priceChange24hPct)}`);
 
-  // 口径说明：
-  // - MC 来自主 API，是该币在**全部链**部署加总的流通市值
-  // - FDV 来自 DEX token 接口，是**当前链**的 price × 该链总供应
-  // 多链代币两者明显不一致时拆成三行并标明口径
+  // 口径：MC 来自主 API（全链流通市值）；FDV 来自 DEX token 接口（本链 price × 总供应）。
+  // 多链代币两者明显不一致时，各自标明口径。
   const chainFdv = p.fdvUsd;
   const coreFdv = report.core?.fdvUsd;
-  const fdv = chainFdv ?? coreFdv;
   const mcap = report.core?.marketCapUsd ?? p.listingMarketCapUsd;
+  const multiChain =
+    chainFdv !== undefined && coreFdv !== undefined && coreFdv > 0 && Math.abs(coreFdv - chainFdv) / coreFdv > 0.05;
   if (mcap !== undefined) {
-    const multiChain =
-      chainFdv !== undefined && coreFdv !== undefined && coreFdv > 0 && Math.abs(coreFdv - chainFdv) / coreFdv > 0.05;
     const fdvForCirc = coreFdv ?? chainFdv;
     const circ = fdvForCirc && fdvForCirc > 0 ? Math.round((mcap / fdvForCirc) * 100) : undefined;
-    const circText = circ !== undefined && circ < 100 ? ` (${circ}% circ.)` : '';
-    if (multiChain) {
-      market.push(`${label('MC')} ${formatUsdShort(mcap)} all chains${circText}`);
-      market.push(`${label('FDV')} ${formatUsdShort(coreFdv)} all chains`);
-      market.push(`${label('FDV')} ${formatUsdShort(chainFdv)} ${escapeHtml(chain.name)}`);
-    } else {
-      market.push(`${label('MC')} ${formatUsdShort(mcap)} · FDV ${formatUsdShort(fdv)}${circText}`);
-    }
-  } else {
-    market.push(`${label('FDV')} ${formatUsdShort(fdv)}`);
+    market.push(`${label('MC')} ${formatUsdShort(mcap)}${multiChain ? ' all chains' : ''}${circ !== undefined && circ < 100 ? ` (${circ}% circ.)` : ''}`);
+  }
+  if (multiChain) {
+    market.push(`${label('FDV')} ${formatUsdShort(coreFdv)} all chains`);
+    market.push(`${label('FDV')} ${formatUsdShort(chainFdv)} ${escapeHtml(chain.name)}`);
+  } else if (chainFdv !== undefined || coreFdv !== undefined) {
+    market.push(`${label('FDV')} ${formatUsdShort(chainFdv ?? coreFdv)}`);
   }
 
+  market.push(`${label('Liq')} ${formatUsdShort(p.liquidityUsd)}`);
   const volLiq = formatRatio(p.volume24hUsd, p.liquidityUsd);
-  market.push(`${label('Liq')} ${formatUsdShort(p.liquidityUsd)} · Vol ${formatUsdShort(p.volume24hUsd)}${volLiq ? ` (${volLiq})` : ''}`);
+  market.push(`${label('Vol')} ${formatUsdShort(p.volume24hUsd)}${volLiq ? `  (${volLiq} liq)` : ''}`);
 
-  if (p.traders24h !== undefined || p.buys24h !== undefined) {
-    const parts: string[] = [];
-    if (p.traders24h !== undefined) parts.push(formatCount(p.traders24h));
-    if (p.buys24h !== undefined || p.sells24h !== undefined) parts.push(`↑${formatCount(p.buys24h)} ↓${formatCount(p.sells24h)}`);
-    else if (p.txns24h !== undefined) parts.push(`${formatCount(p.txns24h)} txns`);
-    market.push(`${label('Trades')} ${parts.join(' · ')}`);
+  if (p.traders24h !== undefined) market.push(`${label('Traders')} ${formatCount(p.traders24h)}`);
+  if (p.buys24h !== undefined || p.sells24h !== undefined) {
+    market.push(`${label('Txns')} ↑${formatCount(p.buys24h)} ↓${formatCount(p.sells24h)}`);
+  } else if (p.txns24h !== undefined) {
+    market.push(`${label('Txns')} ${formatCount(p.txns24h)}`);
   }
-
   if (p.buyVolume24hUsd !== undefined || p.sellVolume24hUsd !== undefined) {
     const pressure = sharePct(p.buyVolume24hUsd, p.sellVolume24hUsd);
     market.push(`${label('Flow')} +${formatUsdShort(p.buyVolume24hUsd)} / −${formatUsdShort(p.sellVolume24hUsd)}${pressure !== undefined ? ` · ${pressure}% buy` : ''}`);

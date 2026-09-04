@@ -124,7 +124,14 @@ async function renderReport(
   forceFull = false,
 ): Promise<void> {
   const compact = isGroup(ctx) && !forceFull;
-  const text = compact ? renderCompactCard(report) : renderScanCard(report);
+  let text = compact ? renderCompactCard(report) : renderScanCard(report);
+
+  // K 线预览：正文开头放一个零宽不可见链接，让 Telegram 把图渲染在卡片上方
+  const chartUrl = ctx.services.chart.register(report.primary);
+  const preview = chartUrl
+    ? { link_preview_options: { is_disabled: false, url: chartUrl, show_above_text: true, prefer_large_media: true } }
+    : {};
+  if (chartUrl) text = `<a href="${chartUrl}">&#8205;</a>${text}`;
 
   const keyboard = compact
     ? Markup.inlineKeyboard([
@@ -144,6 +151,7 @@ async function renderReport(
 
   await ctx.telegram.editMessageText(ctx.chat!.id, messageId, undefined, text, {
     ...HTML,
+    ...preview,
     ...keyboard,
   });
 }

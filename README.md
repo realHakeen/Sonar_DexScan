@@ -71,6 +71,7 @@ Dependency direction: `bot → services → domain / api → infra`. `domain` an
 | F4 | Group mode + rate limiting | `bot/handlers/message.ts`, `bot/middlewares/throttle.ts` |
 | F5 | Link parsing (zero API cost) | `domain/inputParser.ts` |
 | F6 | Placeholder → `editMessageText`, concurrent fetches, refresh button | `bot/handlers/scanFlow.ts`, `services/scanService.ts` |
+| — | K-line chart preview above the card (market-cap candles, ATH, volume) | `render/chart.ts`, `services/chartService.ts`, `infra/httpServer.ts` |
 
 ### Deliberate implementation details
 
@@ -93,6 +94,7 @@ Dependency direction: `bot → services → domain / api → infra`. `domain` an
 /v1/dex/holders/tag_count     GET                           [{ tag, hc, tb, hr }]
 /v1/dex/holders/count         GET                           holder-count fallback (only when trend is empty)
 /v1/dex/holders/list          POST { tokenAddress, platform, tag }  concentration / tag fallback; reused by /th /nh
+/v1/k-line/candles            GET platform + address + interval + pm=m   [o,h,l,c,v,ts,traders] for the chart image (v4 ohlcv/* returns 500)
 /v1/cryptocurrency/map        GET symbol                    official-contract comparison (✅ CMC listed)
 /v2/cryptocurrency/quotes/latest GET id                     real market cap / rank / sector tags
 ```
@@ -136,7 +138,9 @@ The bot is a single long-running process (long polling), which is exactly what R
 | `CMC_MAX_RETRIES` | `1` |
 | `LOG_LEVEL` | `info` |
 
-Leave `TELEGRAM_WEBHOOK_DOMAIN` unset. Railway injects `PORT` automatically; the bot uses it only to serve `/health` for the platform healthcheck.
+Leave `TELEGRAM_WEBHOOK_DOMAIN` unset. Railway injects `PORT` automatically; the bot uses it to serve `/health` and the K-line chart images.
+
+**Enable chart previews**: Settings → Networking → **Generate Domain**. Railway then injects `RAILWAY_PUBLIC_DOMAIN` and the bot starts attaching a 7-day candlestick chart (`/v1/k-line/candles`, rendered server-side) above every card. Without a public domain the bot runs normally, just without charts. Self-hosting elsewhere: set `PUBLIC_BASE_URL` to your https origin and make sure `ttf-dejavu` (or any TTF font) is installed for text rendering.
 
 **4. Deploy.** First build takes ~1–2 min. Check *Deployments → Logs* for `Bot started (long polling)` and `coin index loaded`.
 

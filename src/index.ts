@@ -3,7 +3,7 @@ installEnvProxy();
 
 import { env, isWebhookMode } from './config/env.js';
 import { createLogger } from './infra/logger.js';
-import { startHealthServer } from './infra/health.js';
+import { startHttpServer } from './infra/httpServer.js';
 import { buildBot, warmup } from './bot/index.js';
 
 const log = createLogger('main');
@@ -45,12 +45,19 @@ async function main(): Promise<void> {
     // 平台（Railway 等）注入了 PORT 就顺带提供 /health，供 healthcheck 与监控使用
     if (process.env['PORT']) {
       const startedAt = Date.now();
-      startHealthServer(env.PORT, () => ({
-        ok: true,
-        uptimeSec: Math.round((Date.now() - startedAt) / 1000),
-        indexEntries: built.services.index.size,
-        indexAgeSec: built.services.index.isLoaded ? Math.round(built.services.index.ageMs / 1000) : null,
-      }));
+      startHttpServer(env.PORT, {
+        health: () => ({
+          ok: true,
+          uptimeSec: Math.round((Date.now() - startedAt) / 1000),
+          indexEntries: built.services.index.size,
+          indexAgeSec: built.services.index.isLoaded ? Math.round(built.services.index.ageMs / 1000) : null,
+          chartsEnabled: built.services.chart.enabled,
+        }),
+        chart: (slug, address) => built.services.chart.render(slug, address),
+      });
+      if (!built.services.chart.enabled) {
+        log.warn('charts disabled: set PUBLIC_BASE_URL (or expose the Railway service) to show K-line previews');
+      }
     }
   }
 }

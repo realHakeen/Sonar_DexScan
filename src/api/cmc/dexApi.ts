@@ -17,7 +17,10 @@ import {
   toTokenDetail,
 } from './mappers.js';
 import type {
+  Candle,
   HolderEntry,
+  KlineInterval,
+  KlineMode,
   HolderTag,
   HolderTagDistribution,
   HoldersOverview,
@@ -142,6 +145,30 @@ export class DexApi {
   async holdersList(loc: TokenLocator, tag: HolderTag = 'tag_all'): Promise<HolderEntry[]> {
     const data = await this.client.post<unknown>(ENDPOINTS.dex.holdersList, holdersParams(loc, tag), this.holdersOpts);
     return asArray(data).map(toHolderEntry);
+  }
+
+  /**
+   * K 线。代币地址即可，不需要池子。pm='m' 返回市值口径（price × 总供应）。
+   * 返回按时间升序；上游给的是 [o,h,l,c,v,ts,traders] 数组。
+   */
+  async klineCandles(
+    loc: TokenLocator,
+    opts: { interval?: KlineInterval; limit?: number; pm?: KlineMode } = {},
+  ): Promise<Candle[]> {
+    const data = await this.client.get<unknown>(
+      ENDPOINTS.dex.klineCandles,
+      { ...v1Params(loc), interval: opts.interval ?? '1h', limit: opts.limit ?? 168, pm: opts.pm ?? 'p', unit: 'usd' },
+      { cacheTtlMs: env.CACHE_TTL_CHART_MS, softFail: true },
+    );
+    if (!Array.isArray(data)) return [];
+    const out: Candle[] = [];
+    for (const row of data) {
+      if (!Array.isArray(row) || row.length < 6) continue;
+      const [o, h, l, c, v, ts, tr] = row.map((x) => (typeof x === 'string' ? Number(x) : x)) as number[];
+      if (![o, h, l, c, ts].every((n) => typeof n === 'number' && Number.isFinite(n))) continue;
+      out.push({ open: o!, high: h!, low: l!, close: c!, volumeUsd: Number.isFinite(v) ? v! : 0, ts: ts! < 1e12 ? ts! * 1000 : ts!, traders: Number.isFinite(tr) ? tr : undefined });
+    }
+    return out.sort((a, b) => a.ts - b.ts);
   }
 
   /** 启动时拉一次用于校准链注册表（实测上游 500，已容错）。 */

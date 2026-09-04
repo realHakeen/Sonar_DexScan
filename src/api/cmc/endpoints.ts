@@ -38,6 +38,14 @@ export const ENDPOINTS = {
     spotPairs: '/v4/dex/spot-pairs/latest',
     /** GET → 实测 500（上游），warmup 已容错。 */
     networks: '/v4/dex/networks/list',
+    /**
+     * GET platform / address(代币或池子) / interval(1min…1h…1d…) / limit / from / to / unit(usd|native|quote) / pm(p 价格 | m 市值)
+     * → [[open, high, low, close, volume, ts(ms), traders], …]，1 credit。已实测。
+     * v4 的 /dex/pairs/ohlcv/* 全部 500，用这个代替。
+     */
+    klineCandles: '/v1/k-line/candles',
+    /** 同上，返回 [[price, volume, ts], …]。 */
+    klinePoints: '/v1/k-line/points',
 
     // ---- Holder 系列，参数一律 platform(plt 原样) + tokenAddress ----
     /** POST { tokenAddress, platform, tag } → { data: { holders: HolderDetailVO[] } }；tags 是 JSON 字符串。 */

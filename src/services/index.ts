@@ -2,6 +2,7 @@ import { createCmcGateway, type CmcGateway } from '../api/cmc/index.js';
 import { COIN_INDEX_REFRESH_MS } from '../config/constants.js';
 import { createLogger } from '../infra/logger.js';
 import { CoinIndex } from '../domain/coinIndex.js';
+import { ChartService } from './chartService.js';
 import { ScanService } from './scanService.js';
 import { SearchService } from './searchService.js';
 
@@ -14,6 +15,7 @@ const log = createLogger('services');
 export interface Services {
   cmc: CmcGateway;
   index: CoinIndex;
+  chart: ChartService;
   scan: ScanService;
   search: SearchService;
   /** 拉全量 map 建索引。0 credits；失败不影响其它功能，只是名称搜索少一条通路。 */
@@ -41,6 +43,7 @@ export function createServices(cmc: CmcGateway = createCmcGateway()): Services {
   return {
     cmc,
     index,
+    chart: new ChartService(cmc),
     scan: new ScanService(cmc, index),
     search: new SearchService(cmc, index),
     refreshIndex,
