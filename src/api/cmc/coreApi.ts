@@ -1,8 +1,15 @@
 import { env } from '../../config/env.js';
-import type { CoreMarketData } from '../../domain/types.js';
+import { aggregatePerpPairs, toLiquidationStats } from '../../domain/derivatives.js';
+import type { CoreMarketData, LiquidationStats, PerpStats } from '../../domain/types.js';
 import type { CmcClient } from './client.js';
 import { ENDPOINTS } from './endpoints.js';
-import type { CmcInfoEntry, CmcMapEntry, CmcQuoteEntry } from './types.js';
+import type {
+  CmcDerivativePairsResponse,
+  CmcInfoEntry,
+  CmcLiquidationEntry,
+  CmcMapEntry,
+  CmcQuoteEntry,
+} from './types.js';
 
 /**
  * 主 API（非 DEX）门面。核心优势就来自这里：
@@ -61,7 +68,34 @@ export class CoreApi {
       totalSupply: entry.total_supply ?? undefined,
       categories: normalizeTags(entry.tags),
       numMarketPairs: (entry as { num_market_pairs?: number }).num_market_pairs,
+      spotVolume24hUsd: usd?.volume_24h ?? undefined,
+      cexVolume24hUsd: usd?.cex_volume_24h ?? undefined,
+      dexVolume24hUsd: usd?.dex_volume_24h ?? undefined,
     };
+  }
+
+  /**
+   * 永续合约视角：OI / 合约成交量 / 费率。1 credit，白名单聚合在 domain/derivatives.ts。
+   * 该币没有任何永续合约时上游返回空列表 → undefined（不是错误）。
+   */
+  async perpStats(cmcId: number): Promise<PerpStats | undefined> {
+    const data = await this.client.get<CmcDerivativePairsResponse>(
+      ENDPOINTS.derivatives.pairsByCrypto,
+      { crypto_id: cmcId, limit: 200 },
+      { cacheTtlMs: env.CACHE_TTL_DERIVATIVES_MS, softFail: true },
+    );
+    return aggregatePerpPairs(data?.market_pairs);
+  }
+
+  /** 爆仓 1h / 4h / 24h 多空，CMC 已跨所汇总（9 家）。1 credit。 */
+  async liquidations(cmcId: number): Promise<LiquidationStats | undefined> {
+    const data = await this.client.get<{ cryptocurrencies?: CmcLiquidationEntry[] }>(
+      ENDPOINTS.derivatives.liquidationsByCrypto,
+      { crypto_id: cmcId },
+      { cacheTtlMs: env.CACHE_TTL_DERIVATIVES_MS, softFail: true },
+    );
+    const entry = data?.cryptocurrencies?.find((c) => c.crypto_id === cmcId) ?? data?.cryptocurrencies?.[0];
+    return toLiquidationStats(entry);
   }
 
   /** 赛道分类与官方链接的兜底来源（quotes 未带 tags 时使用）。 */

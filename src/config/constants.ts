@@ -41,3 +41,38 @@ export const COIN_INDEX_REFRESH_MS = 60 * 60 * 1000;
 export const COIN_INDEX_RESOLVE_LIMIT = 3;
 
 export const PLACEHOLDER_TEXT = '🔍 Scanning…';
+
+/**
+ * 永续合约数据的交易所白名单（2026-09-04 按 /v5/exchange/derivatives/list 实测圈定）。
+ * 不能用 exchange_score 过滤：BTCC / Tapbit / Weex / Fameex 评分 7.7–8.8 却报出全网前几的假 OI；
+ * 而 Hyperliquid 的 liquidity_score 是 0，edgeX / dYdX 没有评分。只能人工维护。
+ * fundingIntervalH：CMC 原样透传各所费率不做归一，链上永续多为 1h 制，CEX 多为 8h 制。
+ */
+export interface PerpExchangeSpec {
+  name: string;
+  kind: 'cex' | 'dex';
+  fundingIntervalH: number;
+}
+export const PERP_EXCHANGE_WHITELIST: Readonly<Record<string, PerpExchangeSpec>> = {
+  binance: { name: 'Binance', kind: 'cex', fundingIntervalH: 8 },
+  okx: { name: 'OKX', kind: 'cex', fundingIntervalH: 8 },
+  bybit: { name: 'Bybit', kind: 'cex', fundingIntervalH: 8 },
+  bitget: { name: 'Bitget', kind: 'cex', fundingIntervalH: 8 },
+  gate: { name: 'Gate', kind: 'cex', fundingIntervalH: 8 },
+  kucoin: { name: 'KuCoin', kind: 'cex', fundingIntervalH: 8 },
+  mexc: { name: 'MEXC', kind: 'cex', fundingIntervalH: 8 },
+  bingx: { name: 'BingX', kind: 'cex', fundingIntervalH: 8 },
+  kraken: { name: 'Kraken', kind: 'cex', fundingIntervalH: 8 },
+  'crypto-com-exchange': { name: 'Crypto.com', kind: 'cex', fundingIntervalH: 8 },
+  htx: { name: 'HTX', kind: 'cex', fundingIntervalH: 8 },
+  deribit: { name: 'Deribit', kind: 'cex', fundingIntervalH: 8 },
+  hyperliquid: { name: 'Hyperliquid', kind: 'dex', fundingIntervalH: 1 },
+  'aster-pro': { name: 'Aster', kind: 'dex', fundingIntervalH: 8 },
+  lighter: { name: 'Lighter', kind: 'dex', fundingIntervalH: 1 },
+  edgex: { name: 'edgeX', kind: 'dex', fundingIntervalH: 4 },
+};
+
+/** 白名单内兜底：某所 OI 超过同币白名单中位数的这个倍数即剔除（防单所单币抽风）。 */
+export const PERP_OI_OUTLIER_MULTIPLIER = 20;
+/** 卡片上列出的 OI 前 N 家交易所。 */
+export const PERP_TOP_VENUES = 3;

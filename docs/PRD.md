@@ -57,15 +57,18 @@
 | 区块 | 内容 |
 |---|---|
 | 头部 | `SYMBOL ✅ · Name`；链 · CMC 排名 · 上线时长 · 已放弃所有权；CEX 上所家数（现货数）+ 前 3 家；赛道（≤3）；合约地址（可复制） |
-| Market | Price + 24h 涨跌；MC / FDV（多链时拆三行：MC all chains、FDV all chains、FDV 本链）+ 流通比；Liq / Vol + 倍数（≥1× 才显示）；Trades：交易人数 · ↑买笔 ↓卖笔；Flow：买量 / 卖量 · 买压 % |
+| Market | Price + 24h 涨跌；MC / FDV（多链时拆三行：MC all chains、FDV all chains、FDV 本链）+ 流通比；Liq / Vol + 倍数（≥1× 才显示）；Spot：全链现货 CEX / DEX 拆分 + CEX 占比（CEX 侧有量才显示）；Trades：交易人数 · ↑买笔 ↓卖笔；Flow：买量 / 卖量 · 买压 % |
 | Holders | 总数；Top10 / Top50 进度条；标签 🎯🧑‍💻🐳🤖🧠📣 持有人数（持仓占比 ≥ 0.1% 时显示），超过 2 个拆两行 |
 | Security | 来源 · 评级；税率 · 蜜罐状态；命中项逐条（🚨/⚠️/ℹ️ 按 r/y/g），未命中项只给数量 |
 | Pools | 紧跟 Market：前 3 个池子，DEX 缩写 / 报价币 · 流动性 · 首池占比（括号）· 锁仓 🔒 / 销毁 🔥 |
+| Perps | 仅有 cid 的币：OI 合计 · 交易所数；Top 3 所 OI 占比；合约成交量 + 合约/现货倍数；费率（折算 8h）· 年化 · 参考所（非 8h 制标注 native 周期）；Liq 24h 与 1h 的总额 · 多 / 空。任一项缺失整行省略，全缺不出区块 |
 | Risks | 按 🚨 → ⚠️ → ℹ️ 排序，最多 8 条；Security 已逐项列出的合约级 warn 不重复；单一 LP 已在 Pools 显示不重复 |
 | Links | DexScan · Explorer · Trade · Website · X · TG |
 | 脚注 | 有降级项时：`⚠️ Partial data — unavailable: …. Tap Refresh to retry.` |
 
 按钮：`🔄 Refresh` · `📈 Trade on DexScan`；有次要链时一行「Switch to X」。
+
+**Perps 口径**（2026-09-04 定）：OI 与合约成交量只对 `config/constants.ts#PERP_EXCHANGE_WHITELIST` 的 16 家求和（12 CEX：Binance / OKX / Bybit / Bitget / Gate / KuCoin / MEXC / BingX / Kraken / Crypto.com / HTX / Deribit；4 DEX：Hyperliquid / Aster / Lighter / edgeX）。不能用 `exchange_score` 过滤：BTCC / Tapbit / Weex / Fameex 评分 7.7–8.8 却报全网前几的假 OI，而 Hyperliquid 的 liquidity_score 为 0、edgeX / dYdX 无评分。实测 9 家爆仓所只覆盖白名单 OI 的 63%–83%，缺口主要是 MEXC，所以 OI 不收窄到 9 家。白名单内再剔除 `outlier_detected` / `exclusions` 非空的合约对，并在最大所 OI 超过第二名 20 倍时视为抽风剔除。费率不跨所平均（结算周期不同），只显示 OI 最大所的值并折算到 8h。爆仓是 CMC 汇总的 9 家（Binance / Bitfinex / Hyperliquid / Bybit / Gate / OKX / HTX / Aster / Kraken），是下限。
 
 **口径约束**（必须遵守）：`pc24h` / `sts.pc` 是小数，×100 后展示；`mc` / `mcap` 是 price × total supply，标签必须是 FDV；MC 来自主 API，是全链口径；持有人数以 holders 端点为准，`token.hld` 仅兜底；**Liq = 所有池子双边 TVL 合计**（DexScreener 定义），CMC 自己的 `liq` / `liqUsd` ≈ 单边（DexScan 网站显示值，约为前者一半），只作对照不展示。
 
@@ -118,6 +121,9 @@
 | `/v1/cryptocurrency/map` | GET `symbol` / 全量分页 | 正版识别、本地索引 | 0 credits；`slug` 过滤在部分 Key 上不生效并返回全量，禁止按 slug 查 |
 | `/v2/cryptocurrency/quotes/latest` | GET `id` | 流通市值、排名、赛道 | `tags[{name}]` |
 | `/v1/k-line/candles` | GET `platform`, `address`, `interval`, `limit`, `pm` | K 线图 | 返回 `[[o,h,l,c,v,ts(ms),traders]]`；代币地址即可；v4 `ohlcv/*` 全部 500 |
+| `/v5/cryptocurrency/derivatives/market-pairs/list/latest` | GET `crypto_id`, `limit`(≤200 仍 1 credit) | OI / 合约成交量 / 费率 | 参数名是 `crypto_id` 不是文档的 `id`；每条 `quotes[0]{open_interest,volume_24h}`、`exchange_reported_quotes[0]{funding_rate,index_basis}`；顶层无汇总；`sort` 不支持 open_interest；灌水严重需白名单 |
+| `/v5/derivatives/liquidations/cryptocurrency/list/latest` | GET `crypto_id`(可逗号批量) | 爆仓 1h/4h/24h 多空 | CMC 已跨所汇总但只 9 家；按所端点忽略 `crypto_id`，拆不到某币某所 |
+| `/v5/exchange/derivatives/list` | GET `limit`, `sort` | 白名单维护参考 | 135 家；`exchange_score` / `open_interest_usd` / `derivative_volume_usd`，不进扫描链路 |
 
 通用：`status.error_code` 是字符串（成功 `"0"`）；v1 端点 `platform` 直接用 search 的 `plt` 原样，大小写不敏感，数字 id 不行；`/v4/dex/spot-pairs/latest` 必须带 dex id，不能按代币列池子（已弃用）；`/v4/dex/networks/list` 上游 500（已容错）。
 
@@ -126,7 +132,7 @@
 | 项 | 要求 | 实现 |
 |---|---|---|
 | 超时与重试 | 单请求 10s（直连可 6s），重试 1 次指数退避 | `client.ts`；4xx 不重试 |
-| 缓存 | search 30s、行情 15s、持仓 2min、安全 10min、元数据 1h；并发去重 | 进程内 TTL 缓存 |
+| 缓存 | search 30s、行情 15s、持仓 2min、安全 10min、元数据 1h、衍生品 60s；并发去重 | 进程内 TTL 缓存 |
 | 限流 | 见 F4 | 固定窗口 + 冷却 |
 | 代理 | 遵守 `HTTP(S)_PROXY` / `NO_PROXY` | 启动时接管 Node fetch |
 | 日志 | JSON 行、带 reqId、级别可配 | `LOG_LEVEL` |
@@ -141,7 +147,7 @@
 | `TELEGRAM_BOT_TOKEN` / `CMC_API_KEY` | 必填 | |
 | `TELEGRAM_WEBHOOK_DOMAIN` / `_PATH` / `PORT` | 空 / `/tg/webhook` / 3000 | 填域名切 webhook |
 | `CMC_TIMEOUT_MS` / `CMC_MAX_RETRIES` | 10000 / 1 | |
-| `CACHE_TTL_*_MS` | 见 §6 | |
+| `CACHE_TTL_*_MS` | 见 §6 | `CACHE_TTL_DERIVATIVES_MS` 默认 60000，上游 60s 更新 |
 | `RATE_LIMIT_PRIVATE_PER_MIN` / `GROUP_PER_MIN` / `GROUP_COOLDOWN_MS` | 20 / 6 / 8000 | |
 | `RISK_TOP10_PCT` / `TOP50_PCT` / `SINGLE_LP_PCT` / `MIN_LIQUIDITY_USD` / `MAX_TAX_PCT` | 60 / 85 / 70 / 5000 / 10 | |
 | `LOG_LEVEL` | info | |

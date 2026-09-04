@@ -39,3 +39,12 @@ test('紧凑百分比与紧凑金额', () => {
   assert.equal(formatUsdShort(130_200_000), '$130.2M');
   assert.equal(formatUsdShort(801_000), '$801K');
 });
+
+test('formatFunding / formatApr：小数输入，带符号', async () => {
+  const { formatFunding, formatApr } = await import('../src/render/format.js');
+  assert.equal(formatFunding(0.0001), '+0.0100%');
+  assert.equal(formatFunding(-0.00005), '-0.0050%');
+  assert.equal(formatFunding(undefined), '—');
+  assert.equal(formatApr(0.0733), '+7.3%');
+  assert.equal(formatApr(-1.5), '-150%');
+});

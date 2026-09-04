@@ -49,6 +49,9 @@ export interface CmcQuoteEntry {
     {
       price?: number | null;
       volume_24h?: number | null;
+      /** 现货成交量的 CEX / DEX 拆分，CMC 已汇总。 */
+      cex_volume_24h?: number | null;
+      dex_volume_24h?: number | null;
       percent_change_24h?: number | null;
       market_cap?: number | null;
       fully_diluted_market_cap?: number | null;
@@ -68,4 +71,62 @@ export interface CmcInfoEntry {
   'tag-names'?: string[];
   urls?: Record<string, string[]>;
   platform?: { name?: string; token_address?: string } | null;
+}
+
+/** /v5/cryptocurrency/derivatives/market-pairs 的单条合约对（字段名以 2026-09-04 实测为准）。 */
+export interface CmcDerivativePair {
+  market_id?: number;
+  market_pair_symbol?: string;
+  /** 实测全部为 'perpetual'。 */
+  category?: string;
+  outlier_detected?: boolean;
+  exclusions?: string[] | null;
+  exchange?: { exchange_id?: number; exchange_name?: string; exchange_slug?: string };
+  market_pair_base?: { crypto_id?: number; symbol?: string; exchange_symbol?: string };
+  market_pair_quote?: { crypto_id?: number; symbol?: string; exchange_symbol?: string };
+  exchange_reported_quotes?: Array<{
+    convert_symbol?: string;
+    price?: number | null;
+    volume_24h_quote?: number | null;
+    open_interest?: number | null;
+    index_price?: number | null;
+    index_basis?: number | null;
+    /** 每个结算周期的费率（小数，如 0.0001 = 0.01%），周期因交易所而异。 */
+    funding_rate?: number | null;
+    last_updated?: string;
+  }>;
+  quotes?: Array<{
+    convert_symbol?: string;
+    price?: number | null;
+    volume_24h?: number | null;
+    open_interest?: number | null;
+    last_updated?: string;
+  }>;
+}
+
+export interface CmcDerivativePairsResponse {
+  crypto_id?: number;
+  symbol?: string;
+  num_market_pairs?: number;
+  market_pairs?: CmcDerivativePair[];
+}
+
+/** /v5/derivatives/liquidations/cryptocurrency 的单币条目。金额 USD。 */
+export interface CmcLiquidationEntry {
+  crypto_id?: number;
+  symbol?: string;
+  cmc_rank?: number;
+  quotes?: Array<{
+    symbol?: string;
+    total_liquidations_1h?: number | null;
+    long_liquidations_1h?: number | null;
+    short_liquidations_1h?: number | null;
+    total_liquidations_4h?: number | null;
+    long_liquidations_4h?: number | null;
+    short_liquidations_4h?: number | null;
+    total_liquidations_24h?: number | null;
+    long_liquidations_24h?: number | null;
+    short_liquidations_24h?: number | null;
+    last_updated?: string;
+  }>;
 }

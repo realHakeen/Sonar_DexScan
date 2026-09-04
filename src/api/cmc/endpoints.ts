@@ -66,6 +66,30 @@ export const ENDPOINTS = {
     quotes: '/v2/cryptocurrency/quotes/latest',
     info: '/v2/cryptocurrency/info',
   },
+  /**
+   * v5 衍生品端点（2026-09-04 实测）。参数名与文档不同：按币是 crypto_id，按所是 exchange_slug / exchange_id。
+   * 全部按次计费 1 credit，上游 60s 更新一次。
+   */
+  derivatives: {
+    /**
+     * GET crypto_id / limit(≤200 仍 1 credit) → { crypto_id, num_market_pairs, market_pairs[] }
+     * market_pairs[]: market_pair_symbol, category('perpetual'), outlier_detected, exclusions[],
+     *   exchange{exchange_id, exchange_name, exchange_slug}, market_pair_base{crypto_id, symbol, exchange_symbol},
+     *   exchange_reported_quotes[{price, volume_24h_quote, open_interest, index_price, index_basis, funding_rate}],
+     *   quotes[{convert_symbol:'USD', price, volume_24h, open_interest}]
+     * 顶层没有 OI / 成交量汇总，只能客户端求和；sort 不支持 open_interest。
+     * 灌水严重（HMSTR 在 Deepcoin 报 $1.4B OI），必须按 PERP_EXCHANGE_WHITELIST 过滤。
+     */
+    pairsByCrypto: '/v5/cryptocurrency/derivatives/market-pairs/list/latest',
+    /**
+     * GET crypto_id(可逗号批量) → { cryptocurrencies[{ crypto_id, symbol, cmc_rank,
+     *   quotes[{ total/long/short_liquidations_1h|4h|24h, last_updated }] }] }
+     * CMC 已跨所汇总，但只覆盖 9 家（binance, bitfinex, hyperliquid, bybit, gate, okx, htx, aster-pro, kraken）。
+     */
+    liquidationsByCrypto: '/v5/derivatives/liquidations/cryptocurrency/list/latest',
+    /** GET limit / sort → exchanges[{ exchange_slug, exchange_score, quotes[{ open_interest_usd, derivative_volume_usd }] }]，135 家。 */
+    exchanges: '/v5/exchange/derivatives/list',
+  },
 } as const;
 
 /** pairs/quotes 的 aux 组合（仅在单池刷新时用）。 */
