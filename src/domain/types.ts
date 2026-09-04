@@ -18,6 +18,8 @@ export interface TokenCandidate {
   /** 上游 plt 原样（"Ethereum" / "BSC" / "Solana"），喂给所有 v1 端点的 platform 参数。 */
   platform?: string;
   networkId?: number;
+  /** 平台原生币的 CMC coin id（search 的 plti / token 的 pcid），用于链 logo。 */
+  platformCryptoId?: number;
   address: string;
   logo?: string;
   website?: string;

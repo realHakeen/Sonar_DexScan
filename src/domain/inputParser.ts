@@ -3,8 +3,17 @@ import { looksLikeAddress } from './detectChain.js';
 
 export type ParsedInput =
   | { kind: 'address'; address: string; chainSlug?: string; source: 'raw' | 'link' }
-  | { kind: 'query'; query: string }
+  /** explicit = 用户用 $TICKER 形式明确要查（群里允许触发） */
+  | { kind: 'query'; query: string; explicit?: boolean }
   | { kind: 'none' };
+
+/** $marscoin / $PEPE 这类 cashtag。2–15 位字母数字下划线，前面不能是字母数字（避免 US$100 之类误判）。 */
+const CASHTAG_RE = /(?:^|[^A-Za-z0-9])\$([A-Za-z][A-Za-z0-9_]{1,14})\b/;
+
+export function extractCashtag(text: string): string | undefined {
+  const m = CASHTAG_RE.exec(text);
+  return m?.[1];
+}
 
 /** 从链接域名直接推断链，零 API 消耗。 */
 const HOST_TO_CHAIN: Record<string, string> = {
@@ -132,7 +141,11 @@ export function parseInput(text: string): ParsedInput {
     }
   }
 
-  const query = trimmed.replace(/^[$#/@]+/, '').trim();
+  // $TICKER：明确的查询意图，句子里带着也算
+  const cashtag = extractCashtag(trimmed);
+  if (cashtag) return { kind: 'query', query: cashtag, explicit: true };
+
+  const query = trimmed.replace(/^[#/@]+/, '').trim();
   return isPlausibleQuery(query) ? { kind: 'query', query } : { kind: 'none' };
 }
 

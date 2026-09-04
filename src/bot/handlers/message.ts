@@ -23,9 +23,10 @@ messageHandlers.on(message('text'), async (ctx, next) => {
   if (parsed.kind === 'none') return next();
 
   if (isGroup(ctx) && !mentioned) {
-    // 群里裸名称不触发（"这个 pepe 不错" 不该查询），必须是地址或链接
+    // 群里裸名称不触发（"这个 pepe 不错" 不该查询）；地址、链接、$TICKER 才算明确意图
     const isExplicit =
-      parsed.kind === 'address' && (parsed.source === 'link' || looksLikeAddress(parsed.address));
+      (parsed.kind === 'address' && (parsed.source === 'link' || looksLikeAddress(parsed.address))) ||
+      (parsed.kind === 'query' && parsed.explicit === true);
     if (!isExplicit) return next();
   }
 

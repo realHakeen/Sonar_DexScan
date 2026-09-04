@@ -119,10 +119,10 @@ async function renderReport(ctx: BotContext, messageId: number, report: TokenRep
   // 群聊与私聊一样直接给完整卡片（紧凑卡 + "Full report" 按钮已按产品决定去掉）
   let text = renderScanCard(report);
 
-  // K 线预览：正文开头放一个零宽不可见链接，让 Telegram 把图渲染在卡片上方
+  // K 线预览：正文开头放一个零宽不可见链接，Telegram 把图渲染在卡片底部（show_above_text: false）
   const chartUrl = ctx.services.chart.register(report.primary);
   const preview = chartUrl
-    ? { link_preview_options: { is_disabled: false, url: chartUrl, show_above_text: true, prefer_large_media: true } }
+    ? { link_preview_options: { is_disabled: false, url: chartUrl, show_above_text: false, prefer_large_media: true } }
     : {};
   if (chartUrl) text = `<a href="${chartUrl}">&#8205;</a>${text}`;
 

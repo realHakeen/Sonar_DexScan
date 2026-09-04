@@ -15,6 +15,24 @@ interface ChartMeta {
   fdvUsd?: number;
   priceUsd?: number;
   liquidityUsd?: number;
+  logoUrl?: string;
+  chainLogoUrl?: string;
+}
+
+/** 抓一张小图转成 data: URI，失败返回 undefined。logo 不是必需品，任何问题都静默。 */
+async function fetchDataUri(url: string | undefined): Promise<string | undefined> {
+  if (!url || !/^https?:\/\//.test(url)) return undefined;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(3000), headers: { Accept: 'image/png,image/jpeg,image/*' } });
+    if (!res.ok) return undefined;
+    const type = res.headers.get('content-type') ?? '';
+    if (!/^image\/(png|jpeg|jpg)/.test(type)) return undefined;
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length === 0 || buf.length > 512 * 1024) return undefined;
+    return `data:${type.split(';')[0]};base64,${buf.toString('base64')}`;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -25,6 +43,8 @@ interface ChartMeta {
 export class ChartService {
   private readonly meta = new TtlCache<ChartMeta>(30 * 60 * 1000, 5000);
   private readonly png = new TtlCache<Buffer>(env.CACHE_TTL_CHART_MS, 500);
+  /** logo 图很少变，缓存 1 小时；空字符串表示"抓过但没有"。 */
+  private readonly logos = new TtlCache<string>(60 * 60 * 1000, 2000);
 
   constructor(private readonly cmc: CmcGateway) {}
 
@@ -41,6 +61,8 @@ export class ChartService {
       fdvUsd: c.fdvUsd,
       priceUsd: c.priceUsd,
       liquidityUsd: c.liquidityUsd,
+      logoUrl: c.logo,
+      chainLogoUrl: chainRegistry.logoUrl(c.networkSlug, c.platformCryptoId),
     });
     const bucket = Math.floor(Date.now() / env.CACHE_TTL_CHART_MS);
     return `${publicBaseUrl}/chart/${encodeURIComponent(c.networkSlug)}/${encodeURIComponent(c.address)}.png?v=${bucket}`;
@@ -87,6 +109,8 @@ export class ChartService {
       return null;
     }
 
+    const [logoDataUri, chainLogoDataUri] = await Promise.all([this.logo(meta.logoUrl), this.logo(meta.chainLogoUrl)]);
+
     const started = Date.now();
     const png = renderChartPng({
       symbol: meta.symbol,
@@ -97,9 +121,20 @@ export class ChartService {
       fdvUsd: meta.fdvUsd,
       priceUsd: meta.priceUsd,
       liquidityUsd: meta.liquidityUsd,
+      logoDataUri,
+      chainLogoDataUri,
     });
     log.debug('chart rendered', { networkSlug, address, candles: candles.length, bytes: png.length, elapsed: Date.now() - started });
     return png;
+  }
+
+  private async logo(url: string | undefined): Promise<string | undefined> {
+    if (!url) return undefined;
+    const cached = this.logos.get(url);
+    if (cached !== undefined) return cached || undefined;
+    const uri = await fetchDataUri(url);
+    this.logos.set(url, uri ?? '');
+    return uri;
   }
 
   private metaKey(networkSlug: string, address: string): string {
@@ -116,7 +151,10 @@ export class ChartService {
     const c = detail.candidate;
     // 注意：token 接口返回的 plt 是长名（"BNB Smart Chain (BEP20)"），k-line 端点不认；
     // 这里必须用注册表的规范名（"BSC"），不能用 c.platform
-    const meta: ChartMeta = { symbol: c.symbol, platform, fdvUsd: c.fdvUsd, priceUsd: c.priceUsd, liquidityUsd: c.liquidityUsd };
+    const meta: ChartMeta = {
+      symbol: c.symbol, platform, fdvUsd: c.fdvUsd, priceUsd: c.priceUsd, liquidityUsd: c.liquidityUsd,
+      logoUrl: c.logo, chainLogoUrl: chainRegistry.logoUrl(networkSlug, c.platformCryptoId),
+    };
     this.meta.set(this.metaKey(networkSlug, address), meta);
     return meta;
   }

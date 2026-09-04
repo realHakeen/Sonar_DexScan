@@ -43,7 +43,7 @@ export function renderScanCard(report: TokenReport): string {
 
   // ── 头部 ──
   out.push(`${bold(`${p.symbol}${p.officialVerified ? ' ✅' : ''}`)} · ${escapeHtml(p.name)}`);
-  const meta: string[] = [`⛓ ${escapeHtml(chain.name)}`];
+  const meta: string[] = [`${chainRegistry.emoji(p.networkSlug)} ${escapeHtml(chain.name)}`];
   const rank = report.core?.cmcRank ?? p.cmcRank;
   if (rank) meta.push(`🏅 #${rank}`);
   const age = formatAge(p.listedAt);
@@ -57,6 +57,7 @@ export function renderScanCard(report: TokenReport): string {
     out.push(`🏷 ${escapeHtml(cats.join(' / '))}`);
   }
   out.push(code(p.address));
+  out.push('', renderLinks(report));
 
   // ── Market ──（一行一个指标，手机 36 列内）
   out.push('', bold('📊 Market'));
@@ -67,9 +68,12 @@ export function renderScanCard(report: TokenReport): string {
   // 多链代币两者明显不一致时，各自标明口径。
   const chainFdv = p.fdvUsd;
   const coreFdv = report.core?.fdvUsd;
-  const mcap = report.core?.marketCapUsd ?? p.listingMarketCapUsd;
+  // 刚收录的币主 API 常给 market_cap = 0，那是"未知"不是"零"
+  const mcapRaw = report.core?.marketCapUsd ?? p.listingMarketCapUsd;
+  const mcap = mcapRaw !== undefined && mcapRaw > 0 ? mcapRaw : undefined;
+  // 全链 FDV 与本链 FDV 的差异超过 15% 才算多链（价格时点差异通常在 10% 内；真正多链的都在 30% 以上）
   const multiChain =
-    chainFdv !== undefined && coreFdv !== undefined && coreFdv > 0 && Math.abs(coreFdv - chainFdv) / coreFdv > 0.05;
+    chainFdv !== undefined && coreFdv !== undefined && coreFdv > 0 && Math.abs(coreFdv - chainFdv) / coreFdv > 0.15;
   if (mcap !== undefined) {
     const fdvForCirc = coreFdv ?? chainFdv;
     const circ = fdvForCirc && fdvForCirc > 0 ? Math.round((mcap / fdvForCirc) * 100) : undefined;
@@ -82,7 +86,6 @@ export function renderScanCard(report: TokenReport): string {
     market.push(`${label('FDV')} ${formatUsdShort(chainFdv ?? coreFdv)}`);
   }
 
-  market.push(`${label('Liq')} ${formatUsdShort(p.liquidityUsd)}`);
   const volLiq = formatRatio(p.volume24hUsd, p.liquidityUsd);
   market.push(`${label('Vol')} ${formatUsdShort(p.volume24hUsd)}${volLiq ? `  (${volLiq} liq)` : ''}`);
 
@@ -96,7 +99,16 @@ export function renderScanCard(report: TokenReport): string {
     const pressure = sharePct(p.buyVolume24hUsd, p.sellVolume24hUsd);
     market.push(`${label('Flow')} +${formatUsdShort(p.buyVolume24hUsd)} / −${formatUsdShort(p.sellVolume24hUsd)}${pressure !== undefined ? ` · ${pressure}% buy` : ''}`);
   }
+  // Liq 放最后一行，紧接下面的 Pools 区块（口径 = 所有池子双边 TVL 合计）
+  const poolTotal = Math.max(p.poolCount ?? 0, report.pools.length);
+  market.push(`${label('Liq')} ${formatUsdShort(p.liquidityUsd)}${poolTotal > 0 ? ` total · ${poolTotal} pool${poolTotal === 1 ? '' : 's'}` : ''}`);
   out.push(...tree(market));
+
+  // ── Pools ──（紧跟 Market 的 Liq）
+  if (report.pools.length) {
+    out.push('', bold(`💧 Pools (${poolTotal})`));
+    out.push(...tree(renderPoolRows(report.pools)));
+  }
 
   // ── Holders ──
   const h = report.holders;
@@ -123,14 +135,6 @@ export function renderScanCard(report: TokenReport): string {
     out.push(...tree(renderSecurityRows(sec)));
   }
 
-  // ── Pools ──
-  if (report.pools.length) {
-    // 上游可能只返回前几个池子（pls）但报告总数（nps）
-    const total = Math.max(p.poolCount ?? 0, report.pools.length);
-    out.push('', bold(`💧 Pools (${total})`));
-    out.push(...tree(renderPoolRows(report.pools)));
-  }
-
   // ── Risks ──
   const risks = visibleRisks(report);
   if (risks.length) {
@@ -138,11 +142,9 @@ export function renderScanCard(report: TokenReport): string {
     out.push(...tree(risks.slice(0, 8).map((r) => escapeHtml(r.message))));
   }
 
-  // ── Links ──
-  out.push('', renderLinks(report));
   if (report.degraded.length) {
     const names = [...new Set(report.degraded.map((d) => DEGRADED_LABEL[d] ?? d))];
-    out.push(`<i>⚠️ Partial data — unavailable: ${escapeHtml(names.join(', '))}. Tap Refresh to retry.</i>`);
+    out.push('', `<i>⚠️ Partial data — unavailable: ${escapeHtml(names.join(', '))}. Tap Refresh to retry.</i>`);
   }
 
   return out.join('\n');
@@ -240,7 +242,7 @@ function renderPoolRows(pools: PoolInfo[]): string[] {
   const total = pools.reduce((s, x) => s + (x.liquidityUsd ?? 0), 0);
   return pools.slice(0, 3).map((pool, i) => {
     const name = `${escapeHtml(shortDex(pool.dexName ?? 'Unknown DEX'))}${pool.quoteSymbol ? ` / ${escapeHtml(pool.quoteSymbol)}` : ''}`;
-    const share = i === 0 && total > 0 && pools.length > 1 && pool.liquidityUsd !== undefined ? ` ${Math.round((pool.liquidityUsd / total) * 100)}%` : '';
+    const share = i === 0 && total > 0 && pools.length > 1 && pool.liquidityUsd !== undefined ? ` (${Math.round((pool.liquidityUsd / total) * 100)}%)` : '';
     const extras: string[] = [];
     if (pool.lockedRatePct !== undefined) extras.push(`🔒${pool.lockedRatePct.toFixed(0)}%`);
     if (pool.burnedRatePct !== undefined) extras.push(`🔥${pool.burnedRatePct.toFixed(0)}%`);

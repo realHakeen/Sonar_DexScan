@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { parseInput } from '../src/domain/inputParser.js';
+import { extractCashtag, parseInput } from '../src/domain/inputParser.js';
 
 const USDT = '0xdAC17F958D2ee523a2206206994597C13D831ec7';
 
@@ -35,4 +35,20 @@ test('$ 前缀的 ticker 当作名称搜索', () => {
 
 test('长句子不当作查询，避免群里误触发', () => {
   assert.equal(parseInput('今天行情怎么样大家怎么看').kind, 'none');
+});
+
+test('$TICKER cashtag：单独或混在句子里都识别，并标记 explicit', () => {
+  const a = parseInput('$marscoin');
+  assert.equal(a.kind, 'query');
+  assert.equal(a.kind === 'query' && a.query, 'marscoin');
+  assert.equal(a.kind === 'query' && a.explicit, true);
+  const b = parseInput('大家看看 $PEPE 怎么样');
+  assert.equal(b.kind === 'query' && b.query, 'PEPE');
+  assert.equal(b.kind === 'query' && b.explicit, true);
+});
+
+test('cashtag 不误判金额', () => {
+  assert.equal(extractCashtag('US$100 million'), undefined);
+  assert.equal(extractCashtag('costs $5'), undefined);
+  assert.equal(extractCashtag('$1inch'), undefined, '首字符必须是字母');
 });

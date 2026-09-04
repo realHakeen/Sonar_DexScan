@@ -60,7 +60,7 @@
 | Market | Price + 24h 涨跌；MC / FDV（多链时拆三行：MC all chains、FDV all chains、FDV 本链）+ 流通比；Liq / Vol + 倍数（≥1× 才显示）；Trades：交易人数 · ↑买笔 ↓卖笔；Flow：买量 / 卖量 · 买压 % |
 | Holders | 总数；Top10 / Top50 进度条；标签 🎯🧑‍💻🐳🤖🧠📣 持有人数（持仓占比 ≥ 0.1% 时显示），超过 2 个拆两行 |
 | Security | 来源 · 评级；税率 · 蜜罐状态；命中项逐条（🚨/⚠️/ℹ️ 按 r/y/g），未命中项只给数量 |
-| Pools | 前 3 个池子：DEX 缩写 / 报价币 · 流动性 · 首池占比 · 锁仓 🔒 / 销毁 🔥 |
+| Pools | 紧跟 Market：前 3 个池子，DEX 缩写 / 报价币 · 流动性 · 首池占比（括号）· 锁仓 🔒 / 销毁 🔥 |
 | Risks | 按 🚨 → ⚠️ → ℹ️ 排序，最多 8 条；Security 已逐项列出的合约级 warn 不重复；单一 LP 已在 Pools 显示不重复 |
 | Links | DexScan · Explorer · Trade · Website · X · TG |
 | 脚注 | 有降级项时：`⚠️ Partial data — unavailable: …. Tap Refresh to retry.` |
@@ -86,7 +86,7 @@
 - 数据：`/v1/k-line/candles`，`pm=m` 市值口径，1h × 168（7 天）；新币不足 4 根时退到 15min × 96。坏蜡烛（open/close ≤ 0、low/high 离群 50×）过滤或钳位。
 - 渲染：服务端 SVG → PNG（`@resvg/resvg-js`），1000×500，含蜡烛、成交量、ATH 标注、最新价标签、涨跌幅头部。
 - 托管：进程自带 HTTP 路由 `/chart/{chain}/{address}.png`，PNG 内存缓存 5 分钟；URL 带 5 分钟时间桶让 Telegram 预览缓存失效。
-- 消息：正文开头零宽不可见链接 + `link_preview_options.show_above_text`，图显示在卡片顶部；未配置公网地址（`PUBLIC_BASE_URL` / Railway `RAILWAY_PUBLIC_DOMAIN`）时静默不出图。
+- 消息：正文开头零宽不可见链接 + `link_preview_options`（`show_above_text: false`），图显示在卡片底部；未配置公网地址（`PUBLIC_BASE_URL` / Railway `RAILWAY_PUBLIC_DOMAIN`）时静默不出图。
 - 成本：每张图 1 credit（缓存期内不重复）。
 
 ### F7 风险规则引擎

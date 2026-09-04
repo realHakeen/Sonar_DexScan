@@ -10,6 +10,10 @@ export interface ChainSpec {
   platform?: string;
   /** dex.coinmarketcap.com/token/{dexscanSlug}/{address} 里用的段。缺省用 slug。 */
   dexscanSlug?: string;
+  /** 文本里代替 ⛓ 的配色圆点（正文放不了 logo，这是不买 Fragment 自定义 emoji 前的近似）。 */
+  emoji?: string;
+  /** 平台原生币在 CMC 的 coin id（search 的 plti），用于取链 logo。 */
+  platformCryptoId?: number;
   /** 区块浏览器地址页模板，{address} 会被替换。 */
   explorer?: string;
   /** DexScreener 链接里使用的 chain id，用于 F5 反解析。 */
@@ -21,37 +25,37 @@ export interface ChainSpec {
  * 启动时可用 DexApi.networks() 校准（见 chainRegistry.calibrate）。
  */
 const CHAINS: ChainSpec[] = [
-  { slug: 'ethereum', name: 'Ethereum', family: 'evm', explorer: 'https://etherscan.io/token/{address}', dexscreenerId: 'ethereum' },
-  { slug: 'bnb', name: 'BNB Chain', family: 'evm', platform: 'BSC', dexscanSlug: 'bsc', explorer: 'https://bscscan.com/token/{address}', dexscreenerId: 'bsc' },
-  { slug: 'base', name: 'Base', family: 'evm', explorer: 'https://basescan.org/token/{address}', dexscreenerId: 'base' },
-  { slug: 'arbitrum', name: 'Arbitrum', family: 'evm', explorer: 'https://arbiscan.io/token/{address}', dexscreenerId: 'arbitrum' },
-  { slug: 'polygon', name: 'Polygon', family: 'evm', explorer: 'https://polygonscan.com/token/{address}', dexscreenerId: 'polygon' },
-  { slug: 'optimism', name: 'Optimism', family: 'evm', explorer: 'https://optimistic.etherscan.io/token/{address}', dexscreenerId: 'optimism' },
-  { slug: 'avalanche', name: 'Avalanche', family: 'evm', explorer: 'https://snowscan.xyz/token/{address}', dexscreenerId: 'avalanche' },
-  { slug: 'linea', name: 'Linea', family: 'evm', explorer: 'https://lineascan.build/token/{address}', dexscreenerId: 'linea' },
-  { slug: 'scroll', name: 'Scroll', family: 'evm', explorer: 'https://scrollscan.com/token/{address}', dexscreenerId: 'scroll' },
-  { slug: 'blast', name: 'Blast', family: 'evm', explorer: 'https://blastscan.io/token/{address}', dexscreenerId: 'blast' },
-  { slug: 'zksync', name: 'zkSync Era', family: 'evm', explorer: 'https://era.zksync.network/token/{address}', dexscreenerId: 'zksync' },
-  { slug: 'mantle', name: 'Mantle', family: 'evm', explorer: 'https://mantlescan.xyz/token/{address}', dexscreenerId: 'mantle' },
-  { slug: 'sonic', name: 'Sonic', family: 'evm', explorer: 'https://sonicscan.org/token/{address}', dexscreenerId: 'sonic' },
-  { slug: 'berachain', name: 'Berachain', family: 'evm', explorer: 'https://berascan.com/token/{address}', dexscreenerId: 'berachain' },
-  { slug: 'hyperevm', name: 'HyperEVM', family: 'evm', explorer: 'https://hyperevmscan.io/token/{address}', dexscreenerId: 'hyperevm' },
-  { slug: 'unichain', name: 'Unichain', family: 'evm', explorer: 'https://uniscan.xyz/token/{address}', dexscreenerId: 'unichain' },
+  { slug: 'ethereum', name: 'Ethereum', family: 'evm', emoji: '🔷', platformCryptoId: 1027, explorer: 'https://etherscan.io/token/{address}', dexscreenerId: 'ethereum' },
+  { slug: 'bnb', name: 'BNB Chain', family: 'evm', emoji: '🟡', platformCryptoId: 1839, platform: 'BSC', dexscanSlug: 'bsc', explorer: 'https://bscscan.com/token/{address}', dexscreenerId: 'bsc' },
+  { slug: 'base', name: 'Base', family: 'evm', emoji: '🔵', platformCryptoId: 27716, explorer: 'https://basescan.org/token/{address}', dexscreenerId: 'base' },
+  { slug: 'arbitrum', name: 'Arbitrum', family: 'evm', emoji: '🔵', platformCryptoId: 11841, explorer: 'https://arbiscan.io/token/{address}', dexscreenerId: 'arbitrum' },
+  { slug: 'polygon', name: 'Polygon', family: 'evm', emoji: '🟪', platformCryptoId: 28321, explorer: 'https://polygonscan.com/token/{address}', dexscreenerId: 'polygon' },
+  { slug: 'optimism', name: 'Optimism', family: 'evm', emoji: '🔴', platformCryptoId: 11840, explorer: 'https://optimistic.etherscan.io/token/{address}', dexscreenerId: 'optimism' },
+  { slug: 'avalanche', name: 'Avalanche', family: 'evm', emoji: '🔺', platformCryptoId: 5805, explorer: 'https://snowscan.xyz/token/{address}', dexscreenerId: 'avalanche' },
+  { slug: 'linea', name: 'Linea', family: 'evm', emoji: '⬛', platformCryptoId: 27657, explorer: 'https://lineascan.build/token/{address}', dexscreenerId: 'linea' },
+  { slug: 'scroll', name: 'Scroll', family: 'evm', emoji: '🟠', platformCryptoId: 26998, explorer: 'https://scrollscan.com/token/{address}', dexscreenerId: 'scroll' },
+  { slug: 'blast', name: 'Blast', family: 'evm', emoji: '🟨', platformCryptoId: 28480, explorer: 'https://blastscan.io/token/{address}', dexscreenerId: 'blast' },
+  { slug: 'zksync', name: 'zkSync Era', family: 'evm', emoji: '⬜', platformCryptoId: 24091, explorer: 'https://era.zksync.network/token/{address}', dexscreenerId: 'zksync' },
+  { slug: 'mantle', name: 'Mantle', family: 'evm', emoji: '⬛', platformCryptoId: 27075, explorer: 'https://mantlescan.xyz/token/{address}', dexscreenerId: 'mantle' },
+  { slug: 'sonic', name: 'Sonic', family: 'evm', emoji: '🟠', platformCryptoId: 32684, explorer: 'https://sonicscan.org/token/{address}', dexscreenerId: 'sonic' },
+  { slug: 'berachain', name: 'Berachain', family: 'evm', emoji: '🟤', platformCryptoId: 24647, explorer: 'https://berascan.com/token/{address}', dexscreenerId: 'berachain' },
+  { slug: 'hyperevm', name: 'HyperEVM', family: 'evm', emoji: '🟢', platformCryptoId: 32196, explorer: 'https://hyperevmscan.io/token/{address}', dexscreenerId: 'hyperevm' },
+  { slug: 'unichain', name: 'Unichain', family: 'evm', emoji: '🩷', platformCryptoId: 7083, explorer: 'https://uniscan.xyz/token/{address}', dexscreenerId: 'unichain' },
   { slug: 'cronos', name: 'Cronos', family: 'evm', explorer: 'https://cronoscan.com/token/{address}', dexscreenerId: 'cronos' },
   { slug: 'fantom', name: 'Fantom', family: 'evm', explorer: 'https://ftmscan.com/token/{address}', dexscreenerId: 'fantom' },
   { slug: 'pulsechain', name: 'PulseChain', family: 'evm', explorer: 'https://scan.pulsechain.com/token/{address}', dexscreenerId: 'pulsechain' },
-  { slug: 'solana', name: 'Solana', family: 'solana', explorer: 'https://solscan.io/token/{address}', dexscreenerId: 'solana' },
-  { slug: 'tron', name: 'Tron', family: 'tron', explorer: 'https://tronscan.org/#/token20/{address}', dexscreenerId: 'tron' },
-  { slug: 'ton', name: 'TON', family: 'ton', explorer: 'https://tonviewer.com/{address}', dexscreenerId: 'ton' },
-  { slug: 'sui', name: 'Sui', family: 'sui', explorer: 'https://suiscan.xyz/mainnet/coin/{address}', dexscreenerId: 'sui' },
-  { slug: 'aptos', name: 'Aptos', family: 'aptos', explorer: 'https://explorer.aptoslabs.com/coin/{address}', dexscreenerId: 'aptos' },
+  { slug: 'solana', name: 'Solana', family: 'solana', emoji: '🟣', platformCryptoId: 5426, explorer: 'https://solscan.io/token/{address}', dexscreenerId: 'solana' },
+  { slug: 'tron', name: 'Tron', family: 'tron', emoji: '🔴', platformCryptoId: 1958, explorer: 'https://tronscan.org/#/token20/{address}', dexscreenerId: 'tron' },
+  { slug: 'ton', name: 'TON', family: 'ton', emoji: '💎', platformCryptoId: 11419, explorer: 'https://tonviewer.com/{address}', dexscreenerId: 'ton' },
+  { slug: 'sui', name: 'Sui', family: 'sui', emoji: '🌊', platformCryptoId: 20947, explorer: 'https://suiscan.xyz/mainnet/coin/{address}', dexscreenerId: 'sui' },
+  { slug: 'aptos', name: 'Aptos', family: 'aptos', emoji: '⚫', platformCryptoId: 21794, explorer: 'https://explorer.aptoslabs.com/coin/{address}', dexscreenerId: 'aptos' },
   { slug: 'injective', name: 'Injective', family: 'cosmos', explorer: 'https://explorer.injective.network/asset/{address}', dexscreenerId: 'injective' },
   { slug: 'osmosis', name: 'Osmosis', family: 'cosmos', explorer: 'https://www.mintscan.io/osmosis/assets', dexscreenerId: 'osmosis' },
   { slug: 'sei', name: 'Sei', family: 'cosmos', platform: 'Sei v2', explorer: 'https://seitrace.com/token/{address}', dexscreenerId: 'seiv2' },
   // —— 以下来自 2026-09-02 search 返回的 plt 清单，只登记名称与链系，浏览器地址不确定的留空 ——
-  { slug: 'robinhood', name: 'Robinhood Chain', family: 'evm', platform: 'Robinhood', dexscreenerId: 'robinhood' },
-  { slug: 'monad', name: 'Monad', family: 'evm', dexscreenerId: 'monad' },
-  { slug: 'abstract', name: 'Abstract', family: 'evm', platform: 'Abstract Chain', explorer: 'https://abscan.org/token/{address}', dexscreenerId: 'abstract' },
+  { slug: 'robinhood', name: 'Robinhood Chain', family: 'evm', emoji: '🟢', platformCryptoId: 40670, platform: 'Robinhood', dexscreenerId: 'robinhood' },
+  { slug: 'monad', name: 'Monad', family: 'evm', emoji: '🟣', platformCryptoId: 30495, dexscreenerId: 'monad' },
+  { slug: 'abstract', name: 'Abstract', family: 'evm', emoji: '🟢', platformCryptoId: 35634, platform: 'Abstract Chain', explorer: 'https://abscan.org/token/{address}', dexscreenerId: 'abstract' },
   { slug: 'soneium', name: 'Soneium', family: 'evm', explorer: 'https://soneium.blockscout.com/token/{address}', dexscreenerId: 'soneium' },
   { slug: 'ink', name: 'Ink', family: 'evm', explorer: 'https://explorer.inkonchain.com/token/{address}', dexscreenerId: 'ink' },
   { slug: 'megaeth', name: 'MegaETH', family: 'evm', dexscreenerId: 'megaeth' },
@@ -169,6 +173,17 @@ class ChainRegistry {
 
   displayName(slug: string): string {
     return this.get(slug).name;
+  }
+
+  /** 链的配色圆点；未登记的链退回 ⛓。 */
+  emoji(slug: string): string {
+    return this.get(slug).emoji ?? '⛓';
+  }
+
+  /** 链 logo（CMC 平台币图标）。有 plti 才有。 */
+  logoUrl(slug: string, platformCryptoId?: number): string | undefined {
+    const id = platformCryptoId ?? this.get(slug).platformCryptoId;
+    return id ? `https://s2.coinmarketcap.com/static/img/coins/64x64/${id}.png` : undefined;
   }
 
   explorerUrl(slug: string, address: string): string | undefined {

@@ -117,6 +117,7 @@ export function toTokenCandidate(raw: RawRecord): TokenCandidate | null {
     networkSlug: chainRegistry.remember(platform),
     platform,
     networkId: pickNumber(raw, 'pltId', 'pid', 'network_id', 'platform_id'),
+    platformCryptoId: pickNumber(raw, 'plti', 'pcid'),
     address,
     logo: pickString(raw, 'l', 'lg', 'logo'),
     website: pickString(raw, 'w', 'web', 'website'),

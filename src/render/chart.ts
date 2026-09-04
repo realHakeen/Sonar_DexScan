@@ -9,6 +9,9 @@ export interface ChartInput {
   mode: 'p' | 'm';
   intervalLabel: string;
   candles: Candle[];
+  /** data: URI（PNG/JPEG），由 chartService 抓取后传入；缺省不画。 */
+  logoDataUri?: string;
+  chainLogoDataUri?: string;
   /** 头部附加信息 */
   priceUsd?: number;
   fdvUsd?: number;
@@ -98,15 +101,28 @@ export function renderChartSvg(input: ChartInput): string {
   const chg = input.change24hPct ?? windowChg;
   const chgLabel = input.change24hPct !== undefined ? '24h' : input.intervalLabel.split('·').pop()?.trim() ?? '';
   const chgColor = chg >= 0 ? C.up : C.down;
-  parts.push(
-    `<text x="${plotX0 + 4}" y="32"><tspan fill="${C.text}" font-size="26" font-weight="bold">${esc(input.symbol)}</tspan>` +
-      `<tspan dx="14" fill="${C.muted}" font-size="16">${esc(input.chainName)}</tspan></text>`,
-  );
+  // 代币 logo（圆形裁切）在最左，链 logo 小圆标跟在链名前
+  let headX = plotX0 + 4;
+  if (input.logoDataUri) {
+    parts.push(`<defs><clipPath id="logoClip"><circle cx="${headX + 20}" cy="30" r="20"/></clipPath></defs>`);
+    parts.push(`<image href="${input.logoDataUri}" x="${headX}" y="10" width="40" height="40" clip-path="url(#logoClip)" preserveAspectRatio="xMidYMid slice"/>`);
+    headX += 50;
+  }
+  parts.push(`<text x="${headX}" y="38" fill="${C.text}" font-size="26" font-weight="bold">${esc(input.symbol)}</text>`);
+  // 链名放到第二行，前面带链 logo；symbol 宽度用估算（26px 粗体 ≈ 0.62em/字符）
+  const symW = Math.round(input.symbol.length * 16.5) + 14;
+  let chainX = headX + symW;
+  if (input.chainLogoDataUri) {
+    parts.push(`<defs><clipPath id="chainClip"><circle cx="${chainX + 9}" cy="32" r="9"/></clipPath></defs>`);
+    parts.push(`<image href="${input.chainLogoDataUri}" x="${chainX}" y="23" width="18" height="18" clip-path="url(#chainClip)" preserveAspectRatio="xMidYMid slice"/>`);
+    chainX += 24;
+  }
+  parts.push(`<text x="${chainX}" y="38" fill="${C.muted}" font-size="16">${esc(input.chainName)}</text>`);
   const headItems: string[] = [];
   if (input.fdvUsd !== undefined) headItems.push(`FDV ${formatUsdShort(input.fdvUsd)}`);
   if (input.priceUsd !== undefined) headItems.push(`Price ${formatPrice(input.priceUsd)}`);
   if (input.liquidityUsd !== undefined) headItems.push(`Liq ${formatUsdShort(input.liquidityUsd)}`);
-  parts.push(`<text x="${plotX0 + 4}" y="58" fill="${C.muted}" font-size="15">${esc(headItems.join('   ·   '))}</text>`);
+  parts.push(`<text x="${headX}" y="60" fill="${C.muted}" font-size="15">${esc(headItems.join('   ·   '))}</text>`);
   parts.push(
     `<text x="${plotX1}" y="32" text-anchor="end"><tspan fill="${chgColor}" font-size="22" font-weight="bold">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</tspan>` +
       `<tspan dx="8" fill="${C.muted}" font-size="14">${esc(chgLabel)}</tspan></text>`,

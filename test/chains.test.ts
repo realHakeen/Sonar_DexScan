@@ -30,3 +30,11 @@ test('remember：未知链按显示名登记，卡片显示原名而不是小写
   assert.equal(chainRegistry.displayName('krown'), 'Krown');
   assert.equal(chainRegistry.platformName('krown'), 'Krown');
 });
+
+test('链配色 emoji 与 logo URL', () => {
+  assert.equal(chainRegistry.emoji('bnb'), '🟡');
+  assert.equal(chainRegistry.emoji('solana'), '🟣');
+  assert.equal(chainRegistry.emoji('some-unknown-chain'), '⛓');
+  assert.equal(chainRegistry.logoUrl('bnb'), 'https://s2.coinmarketcap.com/static/img/coins/64x64/1839.png');
+  assert.equal(chainRegistry.logoUrl('some-unknown-chain', 12345), 'https://s2.coinmarketcap.com/static/img/coins/64x64/12345.png');
+});
