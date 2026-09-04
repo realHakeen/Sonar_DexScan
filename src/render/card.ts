@@ -132,7 +132,9 @@ export function renderScanCard(report: TokenReport): string {
 
   // ── Pools ──
   if (report.pools.length) {
-    out.push('', bold(`💧 Pools (${report.pools.length})`));
+    // 上游可能只返回前几个池子（pls）但报告总数（nps）
+    const total = Math.max(p.poolCount ?? 0, report.pools.length);
+    out.push('', bold(`💧 Pools (${total})`));
     out.push(...tree(renderPoolRows(report.pools)));
   }
 

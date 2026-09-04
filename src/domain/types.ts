@@ -34,7 +34,15 @@ export interface TokenCandidate {
   circulatingSupply?: number;
   decimals?: number;
   volume24hUsd?: number;
+  /**
+   * 卡片口径：该代币所有池子的双边 TVL 合计（与 DexScreener / GeckoTerminal 一致）。
+   * search / token 接口给的 liq 是 CMC 口径（≈ 单边），在 scanService 合并时会被池子合计覆盖，原值存到 liquidityCmcUsd。
+   */
   liquidityUsd?: number;
+  /** CMC / DexScan 网站显示的流动性（≈ 头部池子双边 TVL 的一半）。仅供对照，卡片不展示。 */
+  liquidityCmcUsd?: number;
+  /** 上游报告的池子总数（token.nps），可能大于返回的 pls 条数。 */
+  poolCount?: number;
   traders24h?: number;
   txns24h?: number;
   buys24h?: number;

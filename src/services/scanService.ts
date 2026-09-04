@@ -145,6 +145,13 @@ export class ScanService {
       : primary;
     const pools: PoolInfo[] = detail?.pools ?? [];
 
+    // 流动性口径统一为「所有池子双边 TVL 合计」（DexScreener 定义），与 Pools 区块闭合。
+    // CMC 自己的 liq ≈ 单边，会出现"总流动性比第一个池子还小"的矛盾，仅保留作对照。
+    const poolTvl = pools.reduce((sum, x) => sum + (x.liquidityUsd ?? 0), 0);
+    if (poolTvl > 0) {
+      merged = { ...merged, liquidityCmcUsd: merged.liquidityUsd, liquidityUsd: poolTvl };
+    }
+
     // ---- 持有人数：trend → count → tokenDetail.hld ----
     if (holders?.totalHolders === undefined) {
       const count = await this.cmc.dex.holdersCount(loc).catch(() => {

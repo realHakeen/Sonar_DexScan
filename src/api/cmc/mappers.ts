@@ -167,6 +167,7 @@ export function toTokenDetail(raw: RawRecord): { candidate: TokenCandidate; pool
     ownerRenounced: owner ? ZERO_ADDRESS.test(owner) || Boolean(renouncedAddr) : renouncedAddr ? true : undefined,
     riskLevel: pickString(raw, 'rl'),
     tradeUrl: pickString(raw, 'turl'),
+    poolCount: pickNumber(raw, 'nps'),
     cexListings: toCexListings(raw['cexs']),
   };
 
