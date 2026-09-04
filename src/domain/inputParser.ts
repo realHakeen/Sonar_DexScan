@@ -114,6 +114,40 @@ export function parseLink(rawUrl: string): ParsedInput {
   return { kind: 'none' };
 }
 
+/** Telegram MessageEntity 的最小子集，域层不依赖 telegraf 类型。 */
+export interface MessageEntityLike {
+  type: string;
+  offset: number;
+  length: number;
+  url?: string;
+}
+
+/** 超链接文字背后的 URL（`text_link` entity），去重、排除正文里已可见的。 */
+export function hiddenLinks(text: string, entities?: MessageEntityLike[]): string[] {
+  if (!entities?.length) return [];
+  const urls = entities
+    .filter((e) => e.type === 'text_link' && typeof e.url === 'string' && e.url !== '')
+    .map((e) => e.url!)
+    .filter((u) => !text.includes(u));
+  return [...new Set(urls)];
+}
+
+/**
+ * 带 entity 的消息解析。播报 bot 常把 DexScreener 链接藏在 "DEX · GT" 这种链接文字里，正文里看不到 URL。
+ * 优先级：可见地址 / 明文链接 > 隐藏链接里的地址 > 可见的名称查询。
+ * 隐藏链接排在可见地址之后，是因为转发消息里的隐藏链接可能指向别的币（分享 / 推广链接）；
+ * 但它优先于名称查询，因为地址比 "$PEPE" 这种查询更精确。
+ */
+export function parseMessage(text: string, entities?: MessageEntityLike[]): ParsedInput {
+  const visible = parseInput(text);
+  if (visible.kind === 'address') return visible;
+  for (const url of hiddenLinks(text, entities)) {
+    const parsed = parseLink(url);
+    if (parsed.kind === 'address') return parsed;
+  }
+  return visible;
+}
+
 /**
  * 统一入口：把用户消息解析成可执行的扫描意图。
  * 顺序很重要 —— 先试链接（零消耗），再试裸地址，最后才当作名称搜索。

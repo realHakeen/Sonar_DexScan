@@ -80,6 +80,8 @@
 ### F5 链接解析（零 API 消耗）
 识别 `dex.coinmarketcap.com/token/{net}/{addr}`、DexScreener、GeckoTerminal、Birdeye、pump.fun 及 30+ 区块浏览器域名，从 URL 直接得到链与地址；混在句子里的地址和链接也能提取。
 
+消息来源：text 消息与带 caption 的媒体消息（photo / video / document）都走同一条解析链，播报频道（Birdshot / TokenScan）的转发几乎都是图片加 caption。超链接文字背后的 `text_link` URL 也会被解析。优先级：可见地址或明文链接 > 隐藏链接里的地址 > 可见的名称查询（隐藏链接可能是转发消息里指向别的币的分享链接，所以排在可见地址之后）。
+
 ### F6 响应体验
 - 收到消息立即回「🔍 Scanning…」，完成后 `editMessageText` 替换为卡片。
 - 按钮点击：候选 / 切链 / 展开 → 消息立即变为「🔍 Scanning SYMBOL · 链…」并撤掉按钮；刷新 → 卡片保留、按钮变「⏳ Refreshing…」。同一条消息扫描中再点只回 toast，不重复请求。
