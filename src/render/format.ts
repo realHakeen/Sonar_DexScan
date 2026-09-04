@@ -103,7 +103,7 @@ export function bar(pct: number | undefined, width = 10): string {
 }
 
 /** 等宽标签列：Telegram 只有 <code> 能对齐，标签补空格到固定宽度。 */
-export function label(text: string, width = 8): string {
+export function label(text: string, width = 6): string {
   return `<code>${text.padEnd(width)}</code>`;
 }
 
@@ -137,4 +137,25 @@ export function formatUsdShort(v: number | undefined): string {
   if (abs >= 1e6) return `$${(abs / 1e6).toFixed(1)}M`;
   if (abs >= 1e3) return `$${(abs / 1e3).toFixed(0)}K`;
   return `$${abs.toFixed(0)}`;
+}
+
+/** 手机宽度下 DEX 全名太长，按常见前缀缩写；未知名字原样返回。 */
+const DEX_SHORT: Array<[RegExp, string]> = [
+  [/^PancakeSwap/i, 'Pancake'],
+  [/^Uniswap/i, 'Uni'],
+  [/^SushiSwap/i, 'Sushi'],
+  [/^Raydium\s*\(?CLMM\)?/i, 'Raydium'],
+  [/^Meteora\s*DLMM/i, 'Meteora'],
+  [/^Orca\s*\(Whirlpool\)/i, 'Orca'],
+];
+export function shortDex(name: string): string {
+  let n = name.replace(/\s*\([^)]*\)\s*$/, '').trim();
+  for (const [re, short] of DEX_SHORT) n = n.replace(re, short);
+  return n;
+}
+
+/** 紧凑百分比：≥10 用整数，否则 1 位小数（33.7% / 2% / 0.5%）。 */
+export function pctShort(v: number | undefined): string {
+  if (v === undefined || !Number.isFinite(v)) return '—';
+  return v >= 10 ? `${Math.round(v)}%` : `${v.toFixed(1)}%`;
 }

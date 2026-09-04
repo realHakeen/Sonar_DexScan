@@ -16,7 +16,9 @@ import {
   formatUsdShort,
   label,
   link,
+  pctShort,
   sharePct,
+  shortDex,
   shortenAddress,
   tree,
 } from './format.js';
@@ -50,18 +52,21 @@ export function renderScanCard(report: TokenReport): string {
   out.push(meta.join(' · '));
   const cex = renderCex(p.cexListings);
   if (cex) out.push(cex);
-  if (report.core?.categories.length) out.push(`🏷 ${escapeHtml(report.core.categories.slice(0, 4).join(' / '))}`);
+  if (report.core?.categories.length) {
+    const cats = report.core.categories.map((c) => c.replace(/\s+Ecosystem$/i, '')).slice(0, 3);
+    out.push(`🏷 ${escapeHtml(cats.join(' / '))}`);
+  }
   out.push(code(p.address));
 
-  // ── Market ──
+  // ── Market ──（按手机 ~36 列设计，每行一个概念）
   out.push('', bold('📊 Market'));
   const market: string[] = [];
   market.push(`${label('Price')} ${bold(formatPrice(p.priceUsd))}  ${changeEmoji(p.priceChange24hPct)} ${formatPercent(p.priceChange24hPct)}`);
 
   // 口径说明：
-  // - MC 来自主 API，是该币在**全部链**部署加总的流通市值（竞品给不了的数据）
+  // - MC 来自主 API，是该币在**全部链**部署加总的流通市值
   // - FDV 来自 DEX token 接口，是**当前链**的 price × 该链总供应
-  // 多链代币两者会明显不一致（MC 甚至大于单链 FDV），此时标明口径，并用主 API 的全链 FDV 算流通比
+  // 多链代币两者明显不一致时拆成三行并标明口径
   const chainFdv = p.fdvUsd;
   const coreFdv = report.core?.fdvUsd;
   const fdv = chainFdv ?? coreFdv;
@@ -71,35 +76,32 @@ export function renderScanCard(report: TokenReport): string {
       chainFdv !== undefined && coreFdv !== undefined && coreFdv > 0 && Math.abs(coreFdv - chainFdv) / coreFdv > 0.05;
     const fdvForCirc = coreFdv ?? chainFdv;
     const circ = fdvForCirc && fdvForCirc > 0 ? Math.round((mcap / fdvForCirc) * 100) : undefined;
-    const circText = circ !== undefined && circ < 100 ? `   (${circ}% circ.)` : '';
+    const circText = circ !== undefined && circ < 100 ? ` (${circ}% circ.)` : '';
     if (multiChain) {
-      // 多链：三行分开，一行塞不下会换行反而更乱
-      market.push(`${label('MC')} ${formatUsd(mcap)} (all chains)${circText}`);
-      market.push(`${label('FDV')} ${formatUsd(coreFdv)} (all chains)`);
-      market.push(`${label('FDV')} ${formatUsd(chainFdv)} (${escapeHtml(chain.name)})`);
+      market.push(`${label('MC')} ${formatUsdShort(mcap)} all chains${circText}`);
+      market.push(`${label('FDV')} ${formatUsdShort(coreFdv)} all chains`);
+      market.push(`${label('FDV')} ${formatUsdShort(chainFdv)} ${escapeHtml(chain.name)}`);
     } else {
-      market.push(`${label('MC')} ${formatUsd(mcap)}   FDV ${formatUsd(fdv)}${circText}`);
+      market.push(`${label('MC')} ${formatUsdShort(mcap)} · FDV ${formatUsdShort(fdv)}${circText}`);
     }
   } else {
-    market.push(`${label('FDV')} ${formatUsd(fdv)}`);
+    market.push(`${label('FDV')} ${formatUsdShort(fdv)}`);
   }
 
   const volLiq = formatRatio(p.volume24hUsd, p.liquidityUsd);
-  market.push(`${label('Liq')} ${formatUsd(p.liquidityUsd)}   Vol ${formatUsd(p.volume24hUsd)}${volLiq ? `   (${volLiq} liq)` : ''}`);
+  market.push(`${label('Liq')} ${formatUsdShort(p.liquidityUsd)} · Vol ${formatUsdShort(p.volume24hUsd)}${volLiq ? ` (${volLiq})` : ''}`);
 
   if (p.traders24h !== undefined || p.buys24h !== undefined) {
     const parts: string[] = [];
     if (p.traders24h !== undefined) parts.push(formatCount(p.traders24h));
-    if (p.buys24h !== undefined || p.sells24h !== undefined) parts.push(`Txns ${formatCount(p.buys24h)} buy / ${formatCount(p.sells24h)} sell`);
-    else if (p.txns24h !== undefined) parts.push(`Txns ${formatCount(p.txns24h)}`);
-    market.push(`${label('Traders')} ${parts.join('   ')}`);
+    if (p.buys24h !== undefined || p.sells24h !== undefined) parts.push(`↑${formatCount(p.buys24h)} ↓${formatCount(p.sells24h)}`);
+    else if (p.txns24h !== undefined) parts.push(`${formatCount(p.txns24h)} txns`);
+    market.push(`${label('Trades')} ${parts.join(' · ')}`);
   }
 
   if (p.buyVolume24hUsd !== undefined || p.sellVolume24hUsd !== undefined) {
     const pressure = sharePct(p.buyVolume24hUsd, p.sellVolume24hUsd);
-    market.push(
-      `${label('Flow')} +${formatUsd(p.buyVolume24hUsd)} / −${formatUsd(p.sellVolume24hUsd)}${pressure !== undefined ? `   ${pressure}% buy pressure` : ''}`,
-    );
+    market.push(`${label('Flow')} +${formatUsdShort(p.buyVolume24hUsd)} / −${formatUsdShort(p.sellVolume24hUsd)}${pressure !== undefined ? ` · ${pressure}% buy` : ''}`);
   }
   out.push(...tree(market));
 
@@ -110,10 +112,12 @@ export function renderScanCard(report: TokenReport): string {
     const total = h?.totalHolders !== undefined ? `  ${formatCount(h.totalHolders)}` : '';
     out.push('', `${bold('👥 Holders')}${total}`);
     const rows: string[] = [];
-    if (h?.top10Pct !== undefined) rows.push(`${label('Top10')} ${bar(h.top10Pct)} ${formatPercent(h.top10Pct, false)}`);
-    if (h?.top50Pct !== undefined) rows.push(`${label('Top50')} ${bar(h.top50Pct)} ${formatPercent(h.top50Pct, false)}`);
+    if (h?.top10Pct !== undefined) rows.push(`${label('Top10')} ${bar(h.top10Pct)} ${pctShort(h.top10Pct)}`);
+    if (h?.top50Pct !== undefined) rows.push(`${label('Top50')} ${bar(h.top50Pct)} ${pctShort(h.top50Pct)}`);
     const tags = renderTags(t);
-    if (tags) rows.push(`${label('Tags')} ${tags}`);
+    // 超过两个标签就拆两行，第二行标签位留空对齐
+    if (tags.length) rows.push(`${label('Tags')} ${tags.slice(0, 2).join(' · ')}`);
+    if (tags.length > 2) rows.push(`${label('')} ${tags.slice(2).join(' · ')}`);
     out.push(...tree(rows));
   }
 
@@ -179,15 +183,15 @@ function visibleRisks(report: TokenReport): TokenReport['risks'] {
     .sort((a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level]);
 }
 
-function renderTags(t: TokenReport['tags']): string | undefined {
-  if (!t) return undefined;
+function renderTags(t: TokenReport['tags']): string[] {
+  if (!t) return [];
   type TagKey = 'sniper' | 'dev' | 'whale' | 'bot' | 'smartMoney' | 'kol';
   const parts: string[] = [];
   const item = (emoji: string, key: TagKey) => {
     const n = t[key];
     if (!n) return;
     const pct = t.holdingPct?.[key];
-    parts.push(`${emoji} ${formatCount(n)}${pct !== undefined && pct >= 0.1 ? ` (${pct.toFixed(1)}%)` : ''}`);
+    parts.push(`${emoji} ${formatCount(n)}${pct !== undefined && pct >= 0.1 ? ` (${pctShort(pct)})` : ''}`);
   };
   item('🎯', 'sniper');
   item('🧑‍💻', 'dev');
@@ -195,7 +199,7 @@ function renderTags(t: TokenReport['tags']): string | undefined {
   item('🤖', 'bot');
   item('🧠', 'smartMoney');
   item('📣', 'kol');
-  return parts.length ? parts.join(' · ') : undefined;
+  return parts;
 }
 
 function renderSecurityRows(sec: SecurityScan): string[] {
@@ -203,10 +207,10 @@ function renderSecurityRows(sec: SecurityScan): string[] {
 
   const first: string[] = [];
   if (sec.buyTaxPct !== undefined || sec.sellTaxPct !== undefined) {
-    first.push(`buy ${sec.buyTaxPct?.toFixed(0) ?? '—'}% / sell ${sec.sellTaxPct?.toFixed(0) ?? '—'}%`);
+    first.push(`${sec.buyTaxPct?.toFixed(0) ?? '—'}% / ${sec.sellTaxPct?.toFixed(0) ?? '—'}%`);
   }
-  if (sec.honeypotStatus) first.push(`Honeypot: ${escapeHtml(sec.honeypotStatus)}`);
-  if (first.length) rows.push(`${label('Tax')} ${first.join('  ·  ')}`);
+  if (sec.honeypotStatus) first.push(`Honeypot ${escapeHtml(sec.honeypotStatus)}`);
+  if (first.length) rows.push(`${label('Tax')} ${first.join(' · ')}`);
 
   if (sec.items.length) {
     const hits = sec.items.filter((i) => i.hit);
@@ -240,14 +244,12 @@ function renderSecurityRows(sec: SecurityScan): string[] {
 function renderPoolRows(pools: PoolInfo[]): string[] {
   const total = pools.reduce((s, x) => s + (x.liquidityUsd ?? 0), 0);
   return pools.slice(0, 3).map((pool, i) => {
-    // "PancakeSwap v4 CLAMM(BSC)" 的链名后缀是冗余的，卡片头部已经写了链
-    const dex = (pool.dexName ?? 'Unknown DEX').replace(/\s*\([^)]*\)\s*$/, '');
-    const name = `${escapeHtml(dex)}${pool.quoteSymbol ? ` / ${escapeHtml(pool.quoteSymbol)}` : ''}`;
-    const share = i === 0 && total > 0 && pools.length > 1 && pool.liquidityUsd !== undefined ? `   ${((pool.liquidityUsd / total) * 100).toFixed(1)}%` : '';
+    const name = `${escapeHtml(shortDex(pool.dexName ?? 'Unknown DEX'))}${pool.quoteSymbol ? ` / ${escapeHtml(pool.quoteSymbol)}` : ''}`;
+    const share = i === 0 && total > 0 && pools.length > 1 && pool.liquidityUsd !== undefined ? ` ${Math.round((pool.liquidityUsd / total) * 100)}%` : '';
     const extras: string[] = [];
     if (pool.lockedRatePct !== undefined) extras.push(`🔒${pool.lockedRatePct.toFixed(0)}%`);
     if (pool.burnedRatePct !== undefined) extras.push(`🔥${pool.burnedRatePct.toFixed(0)}%`);
-    return `${name}   ${formatUsd(pool.liquidityUsd)}${share}${extras.length ? `   ${extras.join(' ')}` : ''}`;
+    return `${name}  ${formatUsdShort(pool.liquidityUsd)}${share}${extras.length ? ` ${extras.join(' ')}` : ''}`;
   });
 }
 
@@ -280,8 +282,8 @@ export function renderCompactCard(report: TokenReport): string {
 
   const lines = [
     `${bold(`${p.symbol}${p.officialVerified ? ' ✅' : ''}`)} · ${escapeHtml(chain.name)}${risk === 'danger' ? '  🚨' : risk === 'warn' ? '  ⚠️' : ''}`,
-    `${bold(formatPrice(p.priceUsd))}  ${changeEmoji(p.priceChange24hPct)} ${formatPercent(p.priceChange24hPct)}  ·  ` +
-      `${mcap !== undefined ? `MC ${formatUsdShort(mcap)}` : `FDV ${formatUsdShort(p.fdvUsd)}`} · Liq ${formatUsdShort(p.liquidityUsd)} · Vol ${formatUsdShort(p.volume24hUsd)}`,
+    `${bold(formatPrice(p.priceUsd))}  ${changeEmoji(p.priceChange24hPct)} ${formatPercent(p.priceChange24hPct)}`,
+    `${mcap !== undefined ? `MC ${formatUsdShort(mcap)}` : `FDV ${formatUsdShort(p.fdvUsd)}`} · Liq ${formatUsdShort(p.liquidityUsd)} · Vol ${formatUsdShort(p.volume24hUsd)}`,
   ];
   if (topRisk) lines.push(escapeHtml(topRisk.message));
   lines.push(`${code(shortenAddress(p.address, 8, 6))} · ${link('DexScan', chainRegistry.dexscanUrl(p.networkSlug, p.address))}`);

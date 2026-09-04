@@ -83,7 +83,7 @@ export class DexApi {
   /** 单独拉池子列表（tokenDetail.pls 已含前 10 个，通常不需要）。 */
   async tokenPools(loc: TokenLocator, size = 10): Promise<PoolInfo[]> {
     const data = await this.client.get<unknown>(ENDPOINTS.dex.tokenPools, { ...v1Params(loc), size }, this.quoteOpts);
-    return asArray(data).map(toPoolInfo);
+    return asArray(data).map((pl) => toPoolInfo(pl, loc.address));
   }
 
   /** 安全检测（Binance / W3W 来源），EVM 与 Solana 通用。 */

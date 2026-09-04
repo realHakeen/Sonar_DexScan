@@ -184,7 +184,7 @@ export function toTokenDetail(raw: RawRecord): { candidate: TokenCandidate; pool
     if (pc !== undefined) candidate.priceChange24hPct = pc * 100;
   }
 
-  const pools = (Array.isArray(raw['pls']) ? (raw['pls'] as RawRecord[]) : []).map(toPoolInfo);
+  const pools = (Array.isArray(raw['pls']) ? (raw['pls'] as RawRecord[]) : []).map((pl) => toPoolInfo(pl, base.address));
   return { candidate, pools };
 }
 
@@ -201,9 +201,18 @@ function toCexListings(v: unknown): CexListing[] | undefined {
 }
 
 /** TokenTopPoolDTO（addr/exn/liqUsd/v24/t0/t1/bidx/lr/br）或 DexSpotPairDTO → PoolInfo。 */
-export function toPoolInfo(raw: RawRecord): PoolInfo {
+export function toPoolInfo(raw: RawRecord, tokenAddress?: string): PoolInfo {
+  // 实测 bidx 不可靠：报价币直接取 t0/t1 里"不是本币"的那个；没给本币地址时退回 bidx
+  const t0 = raw['t0'] as RawRecord | undefined;
+  const t1 = raw['t1'] as RawRecord | undefined;
   const bidx = pickNumber(raw, 'bidx');
-  const quoteToken = bidx === undefined ? undefined : ((raw[bidx === 0 ? 't1' : 't0'] as RawRecord | undefined) ?? undefined);
+  let quoteToken: RawRecord | undefined;
+  if (tokenAddress && t0 && t1) {
+    const me = tokenAddress.toLowerCase();
+    quoteToken = pickString(t0, 'addr')?.toLowerCase() === me ? t1 : t0;
+  } else if (bidx !== undefined) {
+    quoteToken = bidx === 0 ? t1 : t0;
+  }
   const lr = pickNumber(raw, 'lr');
   const br = pickNumber(raw, 'br');
   return {
