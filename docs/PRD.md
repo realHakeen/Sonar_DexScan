@@ -160,13 +160,14 @@
 |---|---|
 | `/start` `/help` | 说明 |
 | `/s <地址｜名称｜链接>`、`/scan` | 扫描 |
+| `/perp <ticker｜地址>` | 合约视图：OI（占市值比）、合约成交量（对现货倍数）、CEX/DEX OI 拆分、费率；按所 OI · 成交量 · 费率（统一折算 8h，最多 8 家）；基差最高溢价 / 最大折价（\|基差\| > 1% 视为脏数据丢弃）；爆仓 1h / 4h / 24h 多空。ticker 走本地索引（0 credit，原生币 BTC / ETH 也能查），地址先查索引官方合约再退到 DEX search；同名不占优时给候选按钮（第二名无排名、落后 5 倍或 500 名以上算占优）。共 3 credits |
 | 私聊直接发送 | 同 `/s` |
-| 群内地址 / 链接 / `@bot …` | 紧凑卡 |
-| 按钮 | Refresh · Trade on DexScan · Switch to X · Full report · 候选选择 |
+| 群内地址 / 链接 / `@bot …` | 完整卡片 |
+| 按钮 | Refresh · Trade on DexScan · Perps detail（有合约数据时）· Switch to X · 候选选择 |
 
 ## 9. 架构约束
 
-- 分层 `bot → services → domain / api → infra`；`domain` 与 `render` 无 IO，可单测（当前 67 个测试）。
+- 分层 `bot → services → domain / api → infra`；`domain` 与 `render` 无 IO，可单测（当前 101 个测试）。
 - 端点路径集中在 `api/cmc/endpoints.ts`，字段别名集中在 `mappers.ts`；上游改版只改这两处。
 - 缓存 / 限流接口已隔离，多实例时替换为 Redis 实现即可。
 - 探针 `npm run probe -- <地址> [platform]` 逐端点核对响应形态。

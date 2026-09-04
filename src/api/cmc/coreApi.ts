@@ -81,10 +81,22 @@ export class CoreApi {
   async perpStats(cmcId: number): Promise<PerpStats | undefined> {
     const data = await this.client.get<CmcDerivativePairsResponse>(
       ENDPOINTS.derivatives.pairsByCrypto,
-      { crypto_id: cmcId, limit: 200 },
+      // BTC 有 202 对；limit=500 实测仍是 1 credit
+      { crypto_id: cmcId, limit: 500 },
       { cacheTtlMs: env.CACHE_TTL_DERIVATIVES_MS, softFail: true },
     );
-    return aggregatePerpPairs(data?.market_pairs);
+    return aggregatePerpPairs(data?.market_pairs, { totalPairs: data?.num_market_pairs });
+  }
+
+  /** 名称 / symbol / slug 直接查主 API 行情（/perp 兜底：索引未就绪时用）。 */
+  async marketDataBySymbol(symbol: string): Promise<CoreMarketData | undefined> {
+    const data = await this.client.get<Record<string, CmcQuoteEntry[]>>(
+      ENDPOINTS.core.quotes,
+      { symbol: symbol.toUpperCase(), convert: 'USD' },
+      { cacheTtlMs: env.CACHE_TTL_QUOTE_MS, softFail: true },
+    );
+    const entry = data?.[symbol.toUpperCase()]?.[0];
+    return entry ? this.marketData(entry.id) : undefined;
   }
 
   /** 爆仓 1h / 4h / 24h 多空，CMC 已跨所汇总（9 家）。1 credit。 */

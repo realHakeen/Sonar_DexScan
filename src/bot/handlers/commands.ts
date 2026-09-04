@@ -3,6 +3,7 @@ import { InvalidInputError } from '../../infra/errors.js';
 import { parseInput } from '../../domain/inputParser.js';
 import type { BotContext } from '../context.js';
 import { runScanFlow } from './scanFlow.js';
+import { runPerpFlow } from './perpFlow.js';
 import { admitScan } from '../middlewares/throttle.js';
 
 const START_TEXT = [
@@ -15,6 +16,7 @@ const START_TEXT = [
   '',
   '<b>Commands</b>',
   '/s &lt;address or name&gt; — scan a token',
+  '/perp &lt;ticker or address&gt; — open interest, funding, liquidations by venue',
   '/help — how it works',
   '',
   'Add me to a group and any address posted there gets a report automatically.',
@@ -32,6 +34,9 @@ const HELP_TEXT = [
   '<b>Duplicate names</b>',
   'Name searches return several candidates ranked by <b>liquidity</b>, not text relevance.',
   'Contracts officially listed on CMC are marked ✅ and pinned to the top.',
+  '',
+  '<b>Perps</b>',
+  '/perp PEPE or /perp &lt;address&gt; — OI, perp volume and funding per venue (16 trusted exchanges, funding normalised to 8h), basis vs index, 1h / 4h / 24h liquidations. Works for native coins too: /perp BTC.',
   '',
   '<b>Groups</b>',
   'Any address or link posted in a group gets the full report automatically. Group requests are rate-limited.',
@@ -57,6 +62,14 @@ commandHandlers.command(['s', 'scan'], async (ctx) => {
   if (parsed.kind === 'none') throw new InvalidInputError('/s needs a contract address or token name');
   if (!(await admitScan(ctx))) return;
   await runScanFlow(ctx, parsed);
+});
+
+/** /perp <symbol 或地址> — 合约视角：按所 OI / 成交量 / 费率、基差、爆仓。 */
+commandHandlers.command('perp', async (ctx) => {
+  const arg = commandArgument(ctx.message?.text ?? '');
+  if (!arg) throw new InvalidInputError('/perp needs a ticker or contract address, e.g. /perp PEPE');
+  if (!(await admitScan(ctx))) return;
+  await runPerpFlow(ctx, { query: arg });
 });
 
 commandHandlers.command('ping', async (ctx) => {

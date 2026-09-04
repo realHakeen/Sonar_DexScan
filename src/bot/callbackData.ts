@@ -5,7 +5,8 @@ import { TtlCache } from '../infra/cache.js';
 /** Telegram 对 callback_data 的硬限制是 64 字节。 */
 const MAX_BYTES = 64;
 
-export type CallbackAction = 'scan' | 'refresh' | 'chain' | 'noop';
+/** perp：address 字段承载 cid 字符串（合约数据只认 cid）。 */
+export type CallbackAction = 'scan' | 'refresh' | 'chain' | 'perp' | 'noop';
 
 export interface CallbackPayload {
   action: CallbackAction;
@@ -21,6 +22,7 @@ const ACTION_CODE: Record<CallbackAction, string> = {
   scan: 's',
   refresh: 'r',
   chain: 'c',
+  perp: 'p',
   noop: 'n',
 };
 const CODE_ACTION = Object.fromEntries(

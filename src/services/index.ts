@@ -3,6 +3,7 @@ import { COIN_INDEX_REFRESH_MS } from '../config/constants.js';
 import { createLogger } from '../infra/logger.js';
 import { CoinIndex } from '../domain/coinIndex.js';
 import { ChartService } from './chartService.js';
+import { PerpService } from './perpService.js';
 import { ScanService } from './scanService.js';
 import { SearchService } from './searchService.js';
 
@@ -18,6 +19,7 @@ export interface Services {
   chart: ChartService;
   scan: ScanService;
   search: SearchService;
+  perp: PerpService;
   /** 拉全量 map 建索引。0 credits；失败不影响其它功能，只是名称搜索少一条通路。 */
   refreshIndex(): Promise<void>;
   /** 启动后台定时刷新（unref，不阻塞退出）。 */
@@ -46,6 +48,7 @@ export function createServices(cmc: CmcGateway = createCmcGateway()): Services {
     chart: new ChartService(cmc),
     scan: new ScanService(cmc, index),
     search: new SearchService(cmc, index),
+    perp: new PerpService(cmc, index),
     refreshIndex,
     startIndexRefresh() {
       if (timer) return;

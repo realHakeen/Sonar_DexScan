@@ -90,9 +90,10 @@ export class CoinIndex {
 
   /**
    * 名称 / slug / symbol 查询，精确匹配优先，其次名称前缀。
-   * 结果按 CMC 排名升序，只返回有合约地址的（原生币没有 DEX 合约可扫）。
+   * 结果按 CMC 排名升序。默认只返回有合约地址的（原生币没有 DEX 合约可扫）；
+   * includeNative 用于不需要合约的场景（/perp 只认 cid，BTC / ETH 反而最有看头）。
    */
-  lookup(query: string, limit = 5): CoinIndexHit[] {
+  lookup(query: string, limit = 5, opts: { includeNative?: boolean } = {}): CoinIndexHit[] {
     const q = query.trim();
     if (q.length < 2) return [];
     const lower = q.toLowerCase();
@@ -123,7 +124,7 @@ export class CoinIndex {
     }
 
     return out
-      .filter((h) => h.address)
+      .filter((h) => opts.includeNative || h.address)
       .sort(byRank)
       .slice(0, limit);
   }

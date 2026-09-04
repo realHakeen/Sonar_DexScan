@@ -4,6 +4,7 @@ import type { BotContext } from '../context.js';
 import { chainRegistry } from '../../domain/chains.js';
 import { shortenAddress } from '../../render/format.js';
 import { isScanInflight, runScanFlow } from './scanFlow.js';
+import { runPerpFlow } from './perpFlow.js';
 
 export const callbackHandlers = new Composer<BotContext>();
 
@@ -30,6 +31,18 @@ callbackHandlers.on('callback_query', async (ctx) => {
 
   const messageId = ctx.callbackQuery.message?.message_id;
   const chatId = ctx.chat?.id;
+
+  if (action === 'perp') {
+    const cmcId = Number(address);
+    if (!Number.isInteger(cmcId)) {
+      await ctx.answerCbQuery('Incomplete button data.');
+      return;
+    }
+    await ctx.answerCbQuery('Loading perps…');
+    ctx.log.info('callback', { action, cmcId, messageId });
+    await runPerpFlow(ctx, { cmcId }, messageId);
+    return;
+  }
 
   // 同一条消息正在扫描：连点只回 toast，不再发请求
   if (chatId !== undefined && messageId !== undefined && isScanInflight(chatId, messageId)) {

@@ -221,6 +221,8 @@ export interface PerpVenue {
   fundingRate?: number;
   /** 结算周期（小时）。 */
   fundingIntervalH: number;
+  /** 标记价对指数价的基差（小数，正为溢价）。取该所 OI 最大的合约对。 */
+  basis?: number;
 }
 
 /** 永续合约视角：白名单交易所内客户端求和，见 domain/derivatives.ts。 */
@@ -233,6 +235,8 @@ export interface PerpStats {
   venues: PerpVenue[];
   /** 上游报告的全部永续合约对数（含白名单外）。 */
   totalPairs: number;
+  /** 进入统计的合约对数（白名单内且未被剔除）。 */
+  countedPairs: number;
   /** 费率参考：OI 最大且带费率的交易所。 */
   funding?: {
     venue: string;

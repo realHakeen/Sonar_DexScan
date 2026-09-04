@@ -19,6 +19,11 @@ export function scanCardKeyboard(report: TokenReport): Markup.Markup<InlineKeybo
     Markup.button.url('📈 Trade on DexScan', chainRegistry.dexscanUrl(p.networkSlug, p.address)),
   ]);
 
+  // 有合约数据的币给一个展开按钮，进 /perp 视图
+  if (report.perp && p.cmcId) {
+    rows.push([Markup.button.callback('📊 Perps detail', encodeCallback({ action: 'perp', address: String(p.cmcId), symbol: p.symbol }))]);
+  }
+
   // PRD F1 第 5 步：提供 inline button 供用户切链
   if (report.secondaryDeployments.length > 0) {
     const chainRow = report.secondaryDeployments.slice(0, 3).map((d) =>
