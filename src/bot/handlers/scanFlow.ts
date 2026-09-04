@@ -1,23 +1,21 @@
-import { Markup } from 'telegraf';
 import { CANDIDATE_LIMIT, PLACEHOLDER_TEXT } from '../../config/constants.js';
 import { InvalidInputError, toUserMessage } from '../../infra/errors.js';
 import type { ParsedInput } from '../../domain/inputParser.js';
 import type { ScoredCandidate } from '../../domain/ranking.js';
 import type { TokenReport } from '../../domain/types.js';
-import { renderCompactCard, renderScanCard } from '../../render/card.js';
+import { Markup } from 'telegraf';
+import { renderScanCard } from '../../render/card.js';
 import { escapeHtml } from '../../render/format.js';
 import { renderCandidateList } from '../../render/candidates.js';
 import { candidateKeyboard, scanCardKeyboard } from '../../render/keyboards.js';
 import { encodeCallback } from '../callbackData.js';
-import { isGroup, type BotContext } from '../context.js';
+import type { BotContext } from '../context.js';
 
 const HTML = { parse_mode: 'HTML' as const, link_preview_options: { is_disabled: true } };
 
 export interface ScanFlowOptions {
   /** 已有消息 id 时走编辑，否则先发占位消息。用于按钮回调。 */
   editMessageId?: number;
-  /** 强制完整卡片（群里点「展开」时用）。 */
-  forceFull?: boolean;
   /**
    * 编辑已有消息时的即时反馈方式：
    * - 'replace'：整条消息换成占位文案并撤掉按钮（候选选择 / 切链 / 展开）
@@ -64,7 +62,7 @@ export async function runScanFlow(
       const report = await ctx.services.scan.scanByAddress(input.address, {
         chainSlug: input.chainSlug,
       });
-      await renderReport(ctx, messageId, report, opts.forceFull);
+      await renderReport(ctx, messageId, report);
       return;
     }
 
@@ -76,7 +74,7 @@ export async function runScanFlow(
     // 头部结果明显占优（官方收录，或流动性甩开第二名一个量级）时直接出卡片
     if (candidates.length === 1 || isDominant(candidates)) {
       const report = await ctx.services.scan.buildReport(top.candidate, []);
-      await renderReport(ctx, messageId, report, opts.forceFull);
+      await renderReport(ctx, messageId, report);
       return;
     }
 
@@ -117,14 +115,9 @@ async function sendPlaceholder(ctx: BotContext): Promise<number | undefined> {
   return msg.message_id;
 }
 
-async function renderReport(
-  ctx: BotContext,
-  messageId: number,
-  report: TokenReport,
-  forceFull = false,
-): Promise<void> {
-  const compact = isGroup(ctx) && !forceFull;
-  let text = compact ? renderCompactCard(report) : renderScanCard(report);
+async function renderReport(ctx: BotContext, messageId: number, report: TokenReport): Promise<void> {
+  // 群聊与私聊一样直接给完整卡片（紧凑卡 + "Full report" 按钮已按产品决定去掉）
+  let text = renderScanCard(report);
 
   // K 线预览：正文开头放一个零宽不可见链接，让 Telegram 把图渲染在卡片上方
   const chartUrl = ctx.services.chart.register(report.primary);
@@ -133,26 +126,10 @@ async function renderReport(
     : {};
   if (chartUrl) text = `<a href="${chartUrl}">&#8205;</a>${text}`;
 
-  const keyboard = compact
-    ? Markup.inlineKeyboard([
-        [
-          Markup.button.callback(
-            '📋 Full report',
-            encodeCallback({
-              action: 'scan',
-              networkSlug: report.primary.networkSlug,
-              address: report.primary.address,
-              symbol: report.primary.symbol,
-            }),
-          ),
-        ],
-      ])
-    : scanCardKeyboard(report);
-
   await ctx.telegram.editMessageText(ctx.chat!.id, messageId, undefined, text, {
     ...HTML,
     ...preview,
-    ...keyboard,
+    ...scanCardKeyboard(report),
   });
 }
 

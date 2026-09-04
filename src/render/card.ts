@@ -266,21 +266,3 @@ function renderLinks(report: TokenReport): string {
   if (p.telegram) items.push(link('TG', p.telegram));
   return `🔗 ${items.join(' · ')}`;
 }
-
-/** 群聊里的紧凑版本：4 行。 */
-export function renderCompactCard(report: TokenReport): string {
-  const p = report.primary;
-  const chain = chainRegistry.get(p.networkSlug);
-  const risk = overallRisk(report.risks);
-  const mcap = report.core?.marketCapUsd ?? p.listingMarketCapUsd;
-  const topRisk = [...report.risks].sort((a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level])[0];
-
-  const lines = [
-    `${bold(`${p.symbol}${p.officialVerified ? ' ✅' : ''}`)} · ${escapeHtml(chain.name)}${risk === 'danger' ? '  🚨' : risk === 'warn' ? '  ⚠️' : ''}`,
-    `${bold(formatPrice(p.priceUsd))}  ${changeEmoji(p.priceChange24hPct)} ${formatPercent(p.priceChange24hPct)}`,
-    `${mcap !== undefined ? `MC ${formatUsdShort(mcap)}` : `FDV ${formatUsdShort(p.fdvUsd)}`} · Liq ${formatUsdShort(p.liquidityUsd)} · Vol ${formatUsdShort(p.volume24hUsd)}`,
-  ];
-  if (topRisk) lines.push(escapeHtml(topRisk.message));
-  lines.push(`${code(shortenAddress(p.address, 8, 6))} · ${link('DexScan', chainRegistry.dexscanUrl(p.networkSlug, p.address))}`);
-  return lines.join('\n');
-}

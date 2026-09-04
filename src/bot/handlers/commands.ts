@@ -33,7 +33,7 @@ const HELP_TEXT = [
   'Contracts officially listed on CMC are marked ✅ and pinned to the top.',
   '',
   '<b>Groups</b>',
-  'In groups you get a compact card; tap “Full report” for everything. Group requests are rate-limited.',
+  'Any address or link posted in a group gets the full report automatically. Group requests are rate-limited.',
 ].join('\n');
 
 const HTML = { parse_mode: 'HTML' as const, link_preview_options: { is_disabled: true } };

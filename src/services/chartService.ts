@@ -46,39 +46,60 @@ export class ChartService {
     return `${publicBaseUrl}/chart/${encodeURIComponent(c.networkSlug)}/${encodeURIComponent(c.address)}.png?v=${bucket}`;
   }
 
-  /** HTTP 路由调用：返回 PNG，画不出来返回 null。 */
+  /** 失败（上游抖动 / 数据不足）只缓存 30 秒，别让一次 5xx 把这个币的图封 5 分钟。 */
+  private readonly failed = new TtlCache<true>(30_000, 500);
+
+  /**
+   * HTTP 路由调用：返回 PNG，画不出来返回 null（路由回 404，Telegram 静默不显示预览）。
+   * 任何异常都在这里吞掉并记日志 —— 图是锦上添花，绝不能让卡片受影响。
+   */
   async render(networkSlug: string, address: string, interval: KlineInterval = '1h'): Promise<Buffer | null> {
     const key = `${networkSlug}:${address.toLowerCase()}:${interval}`;
-    return this.png.wrap(key, async () => {
-      const meta = await this.resolveMeta(networkSlug, address);
-      if (!meta) return null as unknown as Buffer;
-      const loc: TokenLocator = { platform: meta.platform, address, networkSlug };
+    if (this.failed.get(key)) return null;
+    const cached = this.png.get(key);
+    if (cached) return cached;
 
-      let candles = sanitizeCandles(await this.cmc.dex.klineCandles(loc, { interval, limit: 168, pm: 'm' }));
-      let label = '1h · 7d';
-      if (!hasEnoughCandles(candles) && interval === '1h') {
-        candles = sanitizeCandles(await this.cmc.dex.klineCandles(loc, { interval: '15min', limit: 96, pm: 'm' }));
-        label = '15m · 24h';
-      }
-      if (!hasEnoughCandles(candles)) {
-        log.debug('not enough candles', { networkSlug, address, n: candles.length });
-        return null as unknown as Buffer;
-      }
-
-      const started = Date.now();
-      const png = renderChartPng({
-        symbol: meta.symbol,
-        chainName: chainRegistry.displayName(networkSlug),
-        mode: 'm',
-        intervalLabel: label,
-        candles,
-        fdvUsd: meta.fdvUsd,
-        priceUsd: meta.priceUsd,
-        liquidityUsd: meta.liquidityUsd,
-      });
-      log.debug('chart rendered', { networkSlug, address, candles: candles.length, bytes: png.length, elapsed: Date.now() - started });
+    try {
+      const png = await this.build(networkSlug, address, interval);
+      if (png) this.png.set(key, png);
+      else this.failed.set(key, true);
       return png;
-    }).then((b) => (b && b.length > 0 ? b : null));
+    } catch (err) {
+      log.warn('chart build failed', { networkSlug, address, err: String(err) });
+      this.failed.set(key, true);
+      return null;
+    }
+  }
+
+  private async build(networkSlug: string, address: string, interval: KlineInterval): Promise<Buffer | null> {
+    const meta = await this.resolveMeta(networkSlug, address);
+    if (!meta) return null;
+    const loc: TokenLocator = { platform: meta.platform, address, networkSlug };
+
+    let candles = sanitizeCandles(await this.cmc.dex.klineCandles(loc, { interval, limit: 168, pm: 'm' }));
+    let label = '1h · 7d';
+    if (!hasEnoughCandles(candles) && interval === '1h') {
+      candles = sanitizeCandles(await this.cmc.dex.klineCandles(loc, { interval: '15min', limit: 96, pm: 'm' }));
+      label = '15m · 24h';
+    }
+    if (!hasEnoughCandles(candles)) {
+      log.debug('not enough candles', { networkSlug, address, n: candles.length });
+      return null;
+    }
+
+    const started = Date.now();
+    const png = renderChartPng({
+      symbol: meta.symbol,
+      chainName: chainRegistry.displayName(networkSlug),
+      mode: 'm',
+      intervalLabel: label,
+      candles,
+      fdvUsd: meta.fdvUsd,
+      priceUsd: meta.priceUsd,
+      liquidityUsd: meta.liquidityUsd,
+    });
+    log.debug('chart rendered', { networkSlug, address, candles: candles.length, bytes: png.length, elapsed: Date.now() - started });
+    return png;
   }
 
   private metaKey(networkSlug: string, address: string): string {
@@ -93,7 +114,9 @@ export class ChartService {
     const detail = await this.cmc.dex.tokenDetail({ platform, address, networkSlug }).catch(() => null);
     if (!detail) return undefined;
     const c = detail.candidate;
-    const meta: ChartMeta = { symbol: c.symbol, platform: c.platform ?? platform, fdvUsd: c.fdvUsd, priceUsd: c.priceUsd, liquidityUsd: c.liquidityUsd };
+    // 注意：token 接口返回的 plt 是长名（"BNB Smart Chain (BEP20)"），k-line 端点不认；
+    // 这里必须用注册表的规范名（"BSC"），不能用 c.platform
+    const meta: ChartMeta = { symbol: c.symbol, platform, fdvUsd: c.fdvUsd, priceUsd: c.priceUsd, liquidityUsd: c.liquidityUsd };
     this.meta.set(this.metaKey(networkSlug, address), meta);
     return meta;
   }

@@ -45,11 +45,9 @@ callbackHandlers.on('callback_query', async (ctx) => {
   await runScanFlow(
     ctx,
     { kind: 'address', address, chainSlug: networkSlug, source: 'raw' },
-    // 原地编辑；用户既然点了按钮，就给完整卡片。
-    // 刷新保留旧卡片只换按钮；选候选 / 切链 / 展开则先把消息替换成「Scanning …」
+    // 原地编辑。刷新保留旧卡片只换按钮；选候选 / 切链则先把消息替换成「Scanning …」
     {
       editMessageId: messageId,
-      forceFull: true,
       busyMode: action === 'refresh' ? 'keep' : 'replace',
       busyLabel: chainName ? `${subject} · ${chainName}` : subject,
     },
