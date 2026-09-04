@@ -75,7 +75,7 @@
 ### F4 群组模式
 - 群内对地址、链接、`@bot …` 响应；裸名称不响应（避免"这个 pepe 不错"触发查询）。
 - 群内直接返回完整卡片（与私聊一致），不再有紧凑卡与「Full report」按钮。
-- 限流：群 6 次/分钟 + 8s 冷却，私聊 20 次/分钟；群内超限静默丢弃，私聊提示等待秒数。
+- 限流：只对确认触发扫描的消息计数，闲聊不占额度。群 6 次/分钟 + 3s 冷却，冷却期内的扫描排队依次执行而不是丢弃，窗口内 6 个槽位用完才静默丢弃；私聊 20 次/分钟无冷却，超限提示等待秒数。按钮回调不限流。
 
 ### F5 链接解析（零 API 消耗）
 识别 `dex.coinmarketcap.com/token/{net}/{addr}`、DexScreener、GeckoTerminal、Birdeye、pump.fun 及 30+ 区块浏览器域名，从 URL 直接得到链与地址；混在句子里的地址和链接也能提取。
@@ -135,7 +135,7 @@
 |---|---|---|
 | 超时与重试 | 单请求 10s（直连可 6s），重试 1 次指数退避 | `client.ts`；4xx 不重试 |
 | 缓存 | search 30s、行情 15s、持仓 2min、安全 10min、元数据 1h、衍生品 60s；并发去重 | 进程内 TTL 缓存 |
-| 限流 | 见 F4 | 固定窗口 + 冷却 |
+| 限流 | 见 F4 | 固定窗口 + 顺序排队的冷却槽位 |
 | 代理 | 遵守 `HTTP(S)_PROXY` / `NO_PROXY` | 启动时接管 Node fetch |
 | 日志 | JSON 行、带 reqId、级别可配 | `LOG_LEVEL` |
 | 健康检查 | 注入 `PORT` 时提供 `/health` | Railway healthcheck |
@@ -150,7 +150,7 @@
 | `TELEGRAM_WEBHOOK_DOMAIN` / `_PATH` / `PORT` | 空 / `/tg/webhook` / 3000 | 填域名切 webhook |
 | `CMC_TIMEOUT_MS` / `CMC_MAX_RETRIES` | 10000 / 1 | |
 | `CACHE_TTL_*_MS` | 见 §6 | `CACHE_TTL_DERIVATIVES_MS` 默认 60000，上游 60s 更新 |
-| `RATE_LIMIT_PRIVATE_PER_MIN` / `GROUP_PER_MIN` / `GROUP_COOLDOWN_MS` | 20 / 6 / 8000 | |
+| `RATE_LIMIT_PRIVATE_PER_MIN` / `GROUP_PER_MIN` / `GROUP_COOLDOWN_MS` | 20 / 6 / 3000 | 冷却是排队间隔，不是丢弃 |
 | `RISK_TOP10_PCT` / `TOP50_PCT` / `SINGLE_LP_PCT` / `MIN_LIQUIDITY_USD` / `MAX_TAX_PCT` | 60 / 85 / 70 / 5000 / 10 | |
 | `LOG_LEVEL` | info | |
 

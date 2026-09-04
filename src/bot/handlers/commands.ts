@@ -3,6 +3,7 @@ import { InvalidInputError } from '../../infra/errors.js';
 import { parseInput } from '../../domain/inputParser.js';
 import type { BotContext } from '../context.js';
 import { runScanFlow } from './scanFlow.js';
+import { admitScan } from '../middlewares/throttle.js';
 
 const START_TEXT = [
   '👋 <b>DexScan Bot</b> — paste an address, get a due-diligence report.',
@@ -52,7 +53,10 @@ commandHandlers.help(async (ctx) => {
 commandHandlers.command(['s', 'scan'], async (ctx) => {
   const arg = commandArgument(ctx.message?.text ?? '');
   if (!arg) throw new InvalidInputError('/s needs a contract address or token name');
-  await runScanFlow(ctx, parseInput(arg));
+  const parsed = parseInput(arg);
+  if (parsed.kind === 'none') throw new InvalidInputError('/s needs a contract address or token name');
+  if (!(await admitScan(ctx))) return;
+  await runScanFlow(ctx, parsed);
 });
 
 commandHandlers.command('ping', async (ctx) => {

@@ -4,6 +4,7 @@ import type { Message, MessageEntity } from 'telegraf/types';
 import { parseMessage } from '../../domain/inputParser.js';
 import { looksLikeAddress } from '../../domain/detectChain.js';
 import { isGroup, type BotContext } from '../context.js';
+import { admitScan } from '../middlewares/throttle.js';
 import { runScanFlow } from './scanFlow.js';
 
 export const messageHandlers = new Composer<BotContext>();
@@ -43,6 +44,7 @@ const handleMessage = async (ctx: BotContext, next: () => Promise<void>): Promis
     if (!isExplicit) return next();
   }
 
+  if (!(await admitScan(ctx))) return;
   ctx.log.info('scan triggered', { kind: parsed.kind, chat: ctx.chat?.type, mentioned, viaCaption: !('text' in ctx.message!) });
   await runScanFlow(ctx, parsed);
 };

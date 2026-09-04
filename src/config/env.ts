@@ -30,7 +30,7 @@ const schema = z.object({
 
   RATE_LIMIT_PRIVATE_PER_MIN: numeric(20),
   RATE_LIMIT_GROUP_PER_MIN: numeric(6),
-  RATE_LIMIT_GROUP_COOLDOWN_MS: numeric(8000),
+  RATE_LIMIT_GROUP_COOLDOWN_MS: numeric(3000),
 
   RISK_TOP10_PCT: z.coerce.number().default(60),
   RISK_TOP50_PCT: z.coerce.number().default(85),

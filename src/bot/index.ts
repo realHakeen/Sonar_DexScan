@@ -6,7 +6,6 @@ import { createServices, type Services } from '../services/index.js';
 import type { BotContext } from './context.js';
 import { requestContext } from './middlewares/requestContext.js';
 import { errorBoundary } from './middlewares/errorBoundary.js';
-import { throttle } from './middlewares/throttle.js';
 import { commandHandlers } from './handlers/commands.js';
 import { callbackHandlers } from './handlers/callbacks.js';
 import { messageHandlers } from './handlers/message.js';
@@ -26,7 +25,8 @@ export interface BuiltBot {
 
 /**
  * 组装 bot。中间件顺序是有意义的：
- * requestContext（注入依赖）→ errorBoundary（兜住后续所有异常）→ throttle（限流）→ handlers。
+ * requestContext（注入依赖）→ errorBoundary（兜住后续所有异常）→ handlers。
+ * 限流不是全局中间件：只在 handler 确认要扫描时调用 admitScan，闲聊不占额度。
  */
 export function buildBot(services: Services = createServices()): BuiltBot {
   const bot = new Telegraf<BotContext>(env.TELEGRAM_BOT_TOKEN, {
@@ -35,7 +35,6 @@ export function buildBot(services: Services = createServices()): BuiltBot {
 
   bot.use(requestContext(services));
   bot.use(errorBoundary);
-  bot.use(throttle);
 
   bot.use(callbackHandlers);
   bot.use(commandHandlers);
