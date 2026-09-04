@@ -9,7 +9,7 @@ import { concentrationFromHolders, tagDistributionFromHolders } from '../domain/
 import { splitByChain } from '../domain/ranking.js';
 import { evaluateRisks } from '../domain/risk.js';
 import { markOfficialContracts } from '../domain/verification.js';
-import type { CoreMarketData, PoolInfo, TokenCandidate, TokenReport } from '../domain/types.js';
+import type { CoreMarketData, LiquidationStats, PerpStats, PoolInfo, TokenCandidate, TokenReport } from '../domain/types.js';
 
 const log = createLogger('scanService');
 
@@ -108,14 +108,28 @@ export class ScanService {
   }
 
   /**
+   * 衍生品两路（perp / liquidations）只对有 cid 的币发，与主批次并发；cid 在验证后才知道时再补发。
+   * 两路都是 softFail：没合约是正常结果（undefined），网络错才计入 degraded。
+   */
+  private async derivatives(cmcId: number, degraded: string[]): Promise<{ perp?: PerpStats; liquidations?: LiquidationStats }> {
+    const [perpRes, liqRes] = await Promise.allSettled([this.cmc.core.perpStats(cmcId), this.cmc.core.liquidations(cmcId)]);
+    return {
+      perp: settled(perpRes, 'derivatives', degraded),
+      liquidations: settled(liqRes, 'liquidations', degraded),
+    };
+  }
+
+  /**
    * 聚合一张卡片。PRD F6：所有详情端点并发。
-   * 每次扫描固定 5 个并发请求（token / security / trend / tag_count / core），失败项降级不影响整卡。
+   * 每次扫描 5 个并发请求（token / security / trend / tag_count / core），有 cid 再加 2 个（perp / liquidations），
+   * 失败项降级不影响整卡。
    */
   async buildReport(primary: TokenCandidate, secondary: TokenCandidate[]): Promise<TokenReport> {
     const loc = locatorOf(primary);
     const degraded: string[] = [];
     const startedAt = Date.now();
 
+    let derivatives = primary.cmcId ? this.derivatives(primary.cmcId, degraded) : undefined;
     const [detailRes, securityRes, trendRes, tagsRes, coreRes] = await Promise.allSettled([
       this.cmc.dex.tokenDetail(loc),
       this.cmc.dex.securityDetail(loc),
@@ -184,6 +198,7 @@ export class ScanService {
       const v = coreValue[0];
       if (v) merged = { ...merged, officialVerified: v.officialVerified, cmcId: v.cmcId ?? merged.cmcId };
       if (merged.cmcId) {
+        derivatives ??= this.derivatives(merged.cmcId, degraded);
         core = await this.cmc.core.marketData(merged.cmcId).catch(() => {
           degraded.push('coreMarket');
           return undefined;
@@ -199,6 +214,7 @@ export class ScanService {
     }
 
     const risks = evaluateRisks({ primary: merged, secondaryDeployments: secondary, holders, tags, security, pools });
+    const { perp, liquidations } = (await derivatives) ?? {};
 
     log.info('report built', {
       symbol: merged.symbol,
@@ -207,6 +223,19 @@ export class ScanService {
       degraded,
     });
 
-    return { primary: merged, secondaryDeployments: secondary, holders, tags, security, pools, core, risks, degraded, generatedAt: Date.now() };
+    return {
+      primary: merged,
+      secondaryDeployments: secondary,
+      holders,
+      tags,
+      security,
+      pools,
+      core,
+      perp,
+      liquidations,
+      risks,
+      degraded,
+      generatedAt: Date.now(),
+    };
   }
 }

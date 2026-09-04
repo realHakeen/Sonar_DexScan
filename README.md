@@ -43,6 +43,7 @@ src/
 │   └── coreApi.ts       main-API facade (cid → market cap / rank / tags)
 ├── domain/          pure logic, no IO, fully unit-tested
 │   ├── chains.ts        chain registry: slug / platform name / explorer / DexScreener id
+│   ├── derivatives.ts   perp OI / volume / funding aggregation over the exchange whitelist; liquidation mapping
 │   ├── detectChain.ts   F1 regex chain-family detection
 │   ├── inputParser.ts   F5 link parsing + input classification
 │   ├── ranking.ts       F2 re-ranking and disambiguation
@@ -72,6 +73,7 @@ Dependency direction: `bot → services → domain / api → infra`. `domain` an
 | F5 | Link parsing (zero API cost) | `domain/inputParser.ts` |
 | F6 | Placeholder → `editMessageText`, concurrent fetches, refresh button | `bot/handlers/scanFlow.ts`, `services/scanService.ts` |
 | — | K-line chart preview above the card (market-cap candles, ATH, volume) | `render/chart.ts`, `services/chartService.ts`, `infra/httpServer.ts` |
+| F3b | Perps block: open interest, perp volume, funding, liquidations (cid-only) | `domain/derivatives.ts`, `api/cmc/coreApi.ts`, `render/card.ts` |
 
 ### Deliberate implementation details
 
@@ -80,6 +82,7 @@ Dependency direction: `bot → services → domain / api → infra`. `domain` an
 - **Server-side search order is unusable.** Searching `PEPE` returns dozens of copycats with near-identical text relevance; the client re-ranks by `liquidity > volume > has cid > traders`, and penalises wash-traded pools (high volume, few traders).
 - **Bare names do not trigger scans in groups.** "this pepe looks good" must not fire a query; groups respond to addresses, links, or an explicit `@bot` mention only.
 - **No sub-request can break the card.** `buildReport` uses `Promise.allSettled`; failures go into `degraded[]` and are footnoted on the card, missing fields are simply omitted — never guessed.
+- **Perp OI is summed client-side over a 16-exchange whitelist, never over everything CMC returns.** The v5 derivatives endpoint has no per-coin total, and roughly a third of the venues it lists report fake open interest (HMSTR showed $1.4B on one venue against $2M on Binance). `exchange_score` cannot be used as the filter: several inflated venues score 8+, while Hyperliquid has a liquidity score of 0 and edgeX / dYdX have no score at all. The list lives in `config/constants.ts#PERP_EXCHANGE_WHITELIST`; on top of it, pairs flagged `outlier_detected` / `exclusions` are dropped and a venue whose OI exceeds the runner-up by 20× is treated as a glitch. Funding is shown for the largest venue only, normalised to 8h (Hyperliquid / Lighter settle hourly, edgeX every 4h) — cross-venue averaging would mix periods. Liquidations come pre-aggregated by CMC but only cover 9 venues, so they are a lower bound.
 - **Search failure ≠ not found.** Network errors surface as "could not reach the data source"; when search misses a brand-new token, EVM addresses are probed in parallel across BNB / Ethereum / Base / Arbitrum via `/v1/dex/token`.
 
 ---
@@ -96,10 +99,12 @@ Dependency direction: `bot → services → domain / api → infra`. `domain` an
 /v1/dex/holders/list          POST { tokenAddress, platform, tag }  concentration / tag fallback; reused by /th /nh
 /v1/k-line/candles            GET platform + address + interval + pm=m   [o,h,l,c,v,ts,traders] for the chart image (v4 ohlcv/* returns 500)
 /v1/cryptocurrency/map        GET symbol                    official-contract comparison (✅ CMC listed)
-/v2/cryptocurrency/quotes/latest GET id                     real market cap / rank / sector tags
+/v2/cryptocurrency/quotes/latest GET id                     real market cap / rank / sector tags, spot volume split (cex_volume_24h / dex_volume_24h)
+/v5/cryptocurrency/derivatives/market-pairs/list/latest GET crypto_id   every perp pair with open_interest / funding_rate / volume per venue (no per-coin total; 1 credit up to limit=200)
+/v5/derivatives/liquidations/cryptocurrency/list/latest GET crypto_id   1h / 4h / 24h long + short liquidations, pre-aggregated by CMC across 9 venues
 ```
 
-One scan = 1 search + 5 concurrent detail requests (token / security / trend / tag_count / core). Measured end-to-end on three chains at ~1.5s direct, ~6s through a slow proxy, with zero degraded sub-requests.
+One scan = 1 search + 5 concurrent detail requests (token / security / trend / tag_count / core), plus 2 more (perp pairs / liquidations) when the token has a `cid`. Measured end-to-end on three chains at ~1.5s direct, ~6s through a slow proxy, with zero degraded sub-requests.
 
 **Findings that differ from the docs or from intuition** (all captured in `mappers.ts` comments):
 
@@ -111,6 +116,7 @@ One scan = 1 search + 5 concurrent detail requests (token / security / trend / t
 - `holders/list.tags` is a JSON string `{"tag_whale":1,...}`; `percent` is already in percent units
 - `/v4/dex/spot-pairs/latest` requires `dex_id`/`dex_slug` and cannot list all pools for a token — dropped in favour of `/v1/dex/token.pls`
 - `/v4/dex/networks/list` and `/v4/dex/listings/info` currently return 500 upstream; startup tolerates it
+- v5 derivatives endpoints take `crypto_id` / `exchange_slug`, not the `id` / `slug` the docs show; `sort` does not accept `open_interest`; the liquidations-by-exchange endpoint ignores `crypto_id`, so a per-venue split of one coin's liquidations is not available
 
 Re-run the probe whenever you get a new key or the upstream changes:
 

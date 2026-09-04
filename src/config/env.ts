@@ -21,6 +21,8 @@ const schema = z.object({
   CACHE_TTL_SECURITY_MS: numeric(600_000),
   CACHE_TTL_META_MS: numeric(3_600_000),
   CACHE_TTL_CHART_MS: numeric(300_000),
+  /** 衍生品（OI / 费率 / 爆仓）缓存。上游每 60s 更新一次，缓存更短没有意义。 */
+  CACHE_TTL_DERIVATIVES_MS: numeric(60_000),
 
   /** 图表 PNG 的公网地址前缀。缺省时从 Railway 的 RAILWAY_PUBLIC_DOMAIN 推导；都没有则不出图。 */
   PUBLIC_BASE_URL: z.string().optional().default(''),

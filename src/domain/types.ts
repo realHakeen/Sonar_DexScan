@@ -203,6 +203,60 @@ export interface CoreMarketData {
   totalSupply?: number;
   categories: string[];
   numMarketPairs?: number;
+  /** 全链现货成交量（quotes.volume_24h），合约/现货比的分母。 */
+  spotVolume24hUsd?: number;
+  /** 现货成交量 CEX / DEX 拆分（quotes 的 cex_volume_24h / dex_volume_24h）。 */
+  cexVolume24hUsd?: number;
+  dexVolume24hUsd?: number;
+}
+
+/** 单个交易所在该币上的永续合约汇总（同所多个合约对已合并）。 */
+export interface PerpVenue {
+  slug: string;
+  name: string;
+  kind: 'cex' | 'dex';
+  openInterestUsd: number;
+  volume24hUsd: number;
+  /** 该所报告的每周期费率（小数）。多个合约对取 OI 最大的那条。 */
+  fundingRate?: number;
+  /** 结算周期（小时）。 */
+  fundingIntervalH: number;
+}
+
+/** 永续合约视角：白名单交易所内客户端求和，见 domain/derivatives.ts。 */
+export interface PerpStats {
+  /** 白名单内 OI 合计（USD）。 */
+  openInterestUsd: number;
+  /** 白名单内 24h 合约成交量合计（USD）。 */
+  volume24hUsd: number;
+  /** 按 OI 降序的白名单交易所。 */
+  venues: PerpVenue[];
+  /** 上游报告的全部永续合约对数（含白名单外）。 */
+  totalPairs: number;
+  /** 费率参考：OI 最大且带费率的交易所。 */
+  funding?: {
+    venue: string;
+    /** 每周期费率（小数）。 */
+    rate: number;
+    intervalH: number;
+    /** 折算到 8 小时周期的费率（小数），跨所可比。 */
+    rate8h: number;
+    /** 简单年化（小数），rate8h × 3 × 365。 */
+    apr: number;
+  };
+}
+
+/** 爆仓（CMC 跨所汇总，仅 9 家）。金额 USD。 */
+export interface LiquidationStats {
+  total1hUsd?: number;
+  long1hUsd?: number;
+  short1hUsd?: number;
+  total4hUsd?: number;
+  long4hUsd?: number;
+  short4hUsd?: number;
+  total24hUsd?: number;
+  long24hUsd?: number;
+  short24hUsd?: number;
 }
 
 export type RiskLevel = 'info' | 'warn' | 'danger';
@@ -222,6 +276,9 @@ export interface TokenReport {
   security?: SecurityScan;
   pools: PoolInfo[];
   core?: CoreMarketData;
+  /** 只有 cmcId 已知时才请求；无合约的币为 undefined。 */
+  perp?: PerpStats;
+  liquidations?: LiquidationStats;
   risks: RiskFlag[];
   degraded: string[];
   generatedAt: number;

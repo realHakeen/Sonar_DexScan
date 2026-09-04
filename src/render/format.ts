@@ -159,3 +159,21 @@ export function pctShort(v: number | undefined): string {
   if (v === undefined || !Number.isFinite(v)) return '—';
   return v >= 10 ? `${Math.round(v)}%` : `${v.toFixed(1)}%`;
 }
+
+/**
+ * 费率：输入小数（0.0001 = 0.01%）。四位小数足够分辨 0.01% 档，带符号，负费率是有信息量的。
+ * 例：0.0001 → "+0.0100%"，-0.00005 → "-0.0050%"。
+ */
+export function formatFunding(rate: number | undefined): string {
+  if (rate === undefined || !Number.isFinite(rate)) return '—';
+  const pct = rate * 100;
+  return `${pct >= 0 ? '+' : '-'}${Math.abs(pct).toFixed(4)}%`;
+}
+
+/** 年化：输入小数，一位小数带符号（0.073 → "+7.3%"）。 */
+export function formatApr(apr: number | undefined): string {
+  if (apr === undefined || !Number.isFinite(apr)) return '—';
+  const pct = apr * 100;
+  const digits = Math.abs(pct) >= 100 ? 0 : 1;
+  return `${pct >= 0 ? '+' : '-'}${Math.abs(pct).toFixed(digits)}%`;
+}
