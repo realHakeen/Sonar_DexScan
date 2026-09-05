@@ -191,6 +191,31 @@ class ChainRegistry {
     return tpl ? tpl.replace('{address}', address) : undefined;
   }
 
+  /**
+   * 池子（LP 合约）在区块浏览器上的页面。CMC 没有单独的池子页，所以导航到浏览器的合约 / 账户页。
+   * 由代币页模板派生：EVM 系 /token/ → /address/，Solana /token/ → /account/，其余按各家习惯；没有对应规则的沿用代币页模板。
+   */
+  explorerAddressUrl(slug: string, address: string): string | undefined {
+    const spec = this.get(slug);
+    const tpl = spec.explorer;
+    if (!tpl) return undefined;
+    const rewrite: Array<[RegExp, string]> = [
+      [/\/token20\//, '/contract/'], // tronscan
+      [/\/mainnet\/coin\//, '/mainnet/object/'], // suiscan
+      [/aptoslabs\.com\/coin\//, 'aptoslabs.com/account/'],
+      [/solscan\.io\/token\//, 'solscan.io/account/'],
+      [/\/token\//, '/address/'], // etherscan 系 / seitrace
+    ];
+    let out = tpl;
+    for (const [re, to] of rewrite) {
+      if (re.test(out)) {
+        out = out.replace(re, to);
+        break;
+      }
+    }
+    return out.replace('{address}', address);
+  }
+
   /** DexScan 官方页面，PRD 指定格式。 */
   dexscanUrl(slug: string, address: string): string {
     const spec = this.get(slug);

@@ -5,8 +5,12 @@ import { TtlCache } from '../infra/cache.js';
 /** Telegram 对 callback_data 的硬限制是 64 字节。 */
 const MAX_BYTES = 64;
 
-/** perp：address 字段承载 cid 字符串（合约数据只认 cid）。 */
-export type CallbackAction = 'scan' | 'refresh' | 'chain' | 'perp' | 'noop';
+/**
+ * perp 系列：perp = 从扫描卡原地打开；perp_refresh = 视图内刷新（保留正文只换按钮）；perp_pick = 候选选择（原地替换）。
+ * 它们的 address 字段两用：带 networkSlug 或非纯数字时是代币定位（可回到卡片），纯数字时是 cid（/perp BTC 这类无合约的）。
+ * back = 回到扫描卡：优先取渲染缓存，过期则按定位重扫。
+ */
+export type CallbackAction = 'scan' | 'refresh' | 'chain' | 'perp' | 'perp_refresh' | 'perp_pick' | 'back' | 'noop';
 
 export interface CallbackPayload {
   action: CallbackAction;
@@ -23,6 +27,9 @@ const ACTION_CODE: Record<CallbackAction, string> = {
   refresh: 'r',
   chain: 'c',
   perp: 'p',
+  perp_refresh: 'pr',
+  perp_pick: 'pc',
+  back: 'b',
   noop: 'n',
 };
 const CODE_ACTION = Object.fromEntries(

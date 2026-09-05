@@ -1,6 +1,6 @@
 import { chainRegistry } from '../domain/chains.js';
 import { overallRisk } from '../domain/risk.js';
-import { PERP_TOP_VENUES } from '../config/constants.js';
+import { CMC_LISTING_URL, CMC_SUPPLY_METHODOLOGY_URL, PERP_TOP_VENUES } from '../config/constants.js';
 import type { LiquidationStats, PerpStats, PoolInfo, SecurityScan, TokenReport } from '../domain/types.js';
 import {
   bar,
@@ -13,12 +13,14 @@ import {
   formatCount,
   formatFunding,
   formatPercent,
+  fundingEmoji,
   formatPrice,
   formatRatio,
   formatUsd,
   formatUsdShort,
-  label,
+  key,
   link,
+  val,
   pctShort,
   sharePct,
   shortDex,
@@ -45,7 +47,8 @@ export function renderScanCard(report: TokenReport): string {
   const out: string[] = [];
 
   // ── 头部 ──
-  out.push(`${bold(`${p.symbol}${p.officialVerified ? ' ✅' : ''}`)} · ${escapeHtml(p.name)}`);
+  // ✅ 链接到 CMC 收录（CMCP）说明；bold 里可以嵌链接，反过来不行
+  out.push(`${bold(p.symbol)}${p.officialVerified ? ` ${link('✅', CMC_LISTING_URL)}` : ''} · ${escapeHtml(p.name)}`);
   const meta: string[] = [`${chainRegistry.emoji(p.networkSlug)} ${escapeHtml(chain.name)}`];
   const rank = report.core?.cmcRank ?? p.cmcRank;
   if (rank) meta.push(`🏅 #${rank}`);
@@ -65,7 +68,7 @@ export function renderScanCard(report: TokenReport): string {
   // ── Market ──（一行一个指标，手机 36 列内）
   out.push('', bold('📊 Market'));
   const market: string[] = [];
-  market.push(`${label('Price')} ${bold(formatPrice(p.priceUsd))}  ${changeEmoji(p.priceChange24hPct)} ${formatPercent(p.priceChange24hPct)}`);
+  market.push(`${key('Price')} ${val(formatPrice(p.priceUsd))} ${changeEmoji(p.priceChange24hPct)} ${val(formatPercent(p.priceChange24hPct))}`);
 
   // 口径：MC 来自主 API（全链流通市值）；FDV 来自 DEX token 接口（本链 price × 总供应）。
   // 多链代币两者明显不一致时，各自标明口径。
@@ -80,44 +83,46 @@ export function renderScanCard(report: TokenReport): string {
   if (mcap !== undefined) {
     const fdvForCirc = coreFdv ?? chainFdv;
     const circ = fdvForCirc && fdvForCirc > 0 ? Math.round((mcap / fdvForCirc) * 100) : undefined;
-    market.push(`${label('MC')} ${formatUsdShort(mcap)}${multiChain ? ' all chains' : ''}${circ !== undefined && circ < 100 ? ` (${circ}% circ.)` : ''}`);
+    // "circ." 链接到 CMC 的供应量口径说明
+    market.push(`${key('MC')} ${val(formatUsdShort(mcap))}${multiChain ? ' all chains' : ''}${circ !== undefined && circ < 100 ? ` · ${val(`${circ}%`)} ${link('circ.', CMC_SUPPLY_METHODOLOGY_URL)}` : ''}`);
   }
   if (multiChain) {
-    market.push(`${label('FDV')} ${formatUsdShort(coreFdv)} all chains`);
-    market.push(`${label('FDV')} ${formatUsdShort(chainFdv)} ${escapeHtml(chain.name)}`);
+    market.push(`${key('FDV')} ${val(formatUsdShort(coreFdv))} all chains`);
+    market.push(`${key('FDV')} ${val(formatUsdShort(chainFdv))} ${escapeHtml(chain.name)}`);
   } else if (chainFdv !== undefined || coreFdv !== undefined) {
-    market.push(`${label('FDV')} ${formatUsdShort(chainFdv ?? coreFdv)}`);
+    market.push(`${key('FDV')} ${val(formatUsdShort(chainFdv ?? coreFdv))}`);
   }
 
   const volLiq = formatRatio(p.volume24hUsd, p.liquidityUsd);
-  market.push(`${label('Vol')} ${formatUsdShort(p.volume24hUsd)}${volLiq ? `  (${volLiq} liq)` : ''}`);
+  market.push(`${key('Vol')} ${val(formatUsdShort(p.volume24hUsd))}${volLiq ? ` · ${val(volLiq)} liq` : ''}`);
   // 全链现货的 CEX / DEX 拆分（主 API 已汇总）。只有 CEX 侧有量才显示，纯 DEX 币这行没信息量。
   const cexVol = report.core?.cexVolume24hUsd;
   const dexVol = report.core?.dexVolume24hUsd;
   if (cexVol !== undefined && cexVol > 0) {
     const cexShare = sharePct(cexVol, dexVol ?? 0);
-    market.push(`${label('Spot')} CEX ${formatUsdShort(cexVol)} · DEX ${formatUsdShort(dexVol)}${cexShare !== undefined ? ` · ${cexShare}% CEX` : ''}`);
+    market.push(`${key('Spot')} CEX ${val(formatUsdShort(cexVol))} · DEX ${val(formatUsdShort(dexVol))}${cexShare !== undefined ? ` · ${val(`${cexShare}%`)} CEX` : ''}`);
   }
 
-  if (p.traders24h !== undefined) market.push(`${label('Traders')} ${formatCount(p.traders24h)}`);
+  if (p.traders24h !== undefined) market.push(`${key('Traders')} ${val(formatCount(p.traders24h))}`);
+  // 涨绿跌红只能靠 emoji 色块：Telegram 文本不支持颜色
   if (p.buys24h !== undefined || p.sells24h !== undefined) {
-    market.push(`${label('Txns')} ↑${formatCount(p.buys24h)} ↓${formatCount(p.sells24h)}`);
+    market.push(`${key('Txns')} 🟢 ${val(`↑${formatCount(p.buys24h)}`)} · 🔴 ${val(`↓${formatCount(p.sells24h)}`)}`);
   } else if (p.txns24h !== undefined) {
-    market.push(`${label('Txns')} ${formatCount(p.txns24h)}`);
+    market.push(`${key('Txns')} ${val(formatCount(p.txns24h))}`);
   }
   if (p.buyVolume24hUsd !== undefined || p.sellVolume24hUsd !== undefined) {
     const pressure = sharePct(p.buyVolume24hUsd, p.sellVolume24hUsd);
-    market.push(`${label('Flow')} +${formatUsdShort(p.buyVolume24hUsd)} / −${formatUsdShort(p.sellVolume24hUsd)}${pressure !== undefined ? ` · ${pressure}% buy` : ''}`);
+    market.push(`${key('Flow')} 🟢 ${val(`+${formatUsdShort(p.buyVolume24hUsd)}`)} / 🔴 ${val(`−${formatUsdShort(p.sellVolume24hUsd)}`)}${pressure !== undefined ? ` · ${val(`${pressure}%`)} buy` : ''}`);
   }
   // Liq 放最后一行，紧接下面的 Pools 区块（口径 = 所有池子双边 TVL 合计）
   const poolTotal = Math.max(p.poolCount ?? 0, report.pools.length);
-  market.push(`${label('Liq')} ${formatUsdShort(p.liquidityUsd)}${poolTotal > 0 ? ` total · ${poolTotal} pool${poolTotal === 1 ? '' : 's'}` : ''}`);
+  market.push(`${key('Liq')} ${val(formatUsdShort(p.liquidityUsd))}${poolTotal > 0 ? ` total · ${val(String(poolTotal))} pool${poolTotal === 1 ? '' : 's'}` : ''}`);
   out.push(...tree(market));
 
   // ── Pools ──（紧跟 Market 的 Liq）
   if (report.pools.length) {
     out.push('', bold(`💧 Pools (${poolTotal})`));
-    out.push(...tree(renderPoolRows(report.pools)));
+    out.push(...tree(renderPoolRows(report.pools, p.networkSlug)));
   }
 
   // ── Perps ──（OI / 合约成交量 / 费率按 16 家白名单客户端聚合；爆仓是 CMC 的 9 家汇总）
@@ -132,15 +137,21 @@ export function renderScanCard(report: TokenReport): string {
   const h = report.holders;
   const t = report.tags;
   if (h || t) {
-    const total = h?.totalHolders !== undefined ? `  ${formatCount(h.totalHolders)}` : '';
-    out.push('', `${bold('👥 Holders')}${total}`);
+    const total = h?.totalHolders !== undefined ? `  ${val(formatCount(h.totalHolders))}` : '';
+    // 24h 变化：与昨天的日线点比；0 变化不显示
+    const delta =
+      h?.change24hPct !== undefined && h.change24h !== undefined && h.change24h !== 0
+        ? ` ${changeEmoji(h.change24hPct)} ${val(formatPercent(h.change24hPct))} 24h`
+        : '';
+    out.push('', `${bold('👥 Holders')}${total}${delta}`);
     const rows: string[] = [];
-    if (h?.top10Pct !== undefined) rows.push(`${label('Top10')} ${bar(h.top10Pct)} ${pctShort(h.top10Pct)}`);
-    if (h?.top50Pct !== undefined) rows.push(`${label('Top50')} ${bar(h.top50Pct)} ${pctShort(h.top50Pct)}`);
+    if (h?.top10Pct !== undefined) rows.push(`${key('Top10')} ${bar(h.top10Pct)} ${val(pctShort(h.top10Pct))}`);
+    if (h?.top50Pct !== undefined) rows.push(`${key('Top50')} ${bar(h.top50Pct)} ${val(pctShort(h.top50Pct))}`);
     const tags = renderTags(t);
-    // 超过两个标签就拆两行，第二行标签位留空对齐
-    if (tags.length) rows.push(`${label('Tags')} ${tags.slice(0, 2).join(' · ')}`);
-    if (tags.length > 2) rows.push(`${label('')} ${tags.slice(2).join(' · ')}`);
+    // 每行最多两个标签，超出继续换行（标签位留空对齐），避免 Telegram 在窄屏上把第三个挤到下一行
+    for (let i = 0; i < tags.length; i += 2) {
+      rows.push(`${i === 0 ? `${key('Tags')} ` : ''}${tags.slice(i, i + 2).join(' · ')}`);
+    }
     out.push(...tree(rows));
   }
 
@@ -208,7 +219,7 @@ function renderTags(t: TokenReport['tags']): string[] {
     const n = t[key];
     if (!n) return;
     const pct = t.holdingPct?.[key];
-    parts.push(`${emoji} ${formatCount(n)}${pct !== undefined && pct >= 0.1 ? ` (${pctShort(pct)})` : ''}`);
+    parts.push(`${emoji} ${val(formatCount(n))}${pct !== undefined && pct >= 0.1 ? ` (${val(pctShort(pct))})` : ''}`);
   };
   item('🎯', 'sniper');
   item('🧑‍💻', 'dev');
@@ -224,10 +235,10 @@ function renderSecurityRows(sec: SecurityScan): string[] {
 
   const first: string[] = [];
   if (sec.buyTaxPct !== undefined || sec.sellTaxPct !== undefined) {
-    first.push(`${sec.buyTaxPct?.toFixed(0) ?? '—'}% / ${sec.sellTaxPct?.toFixed(0) ?? '—'}%`);
+    first.push(`${val(`${sec.buyTaxPct?.toFixed(0) ?? '—'}%`)} / ${val(`${sec.sellTaxPct?.toFixed(0) ?? '—'}%`)}`);
   }
   if (sec.honeypotStatus) first.push(`Honeypot ${escapeHtml(sec.honeypotStatus)}`);
-  if (first.length) rows.push(`${label('Tax')} ${first.join(' · ')}`);
+  if (first.length) rows.push(`${key('Tax')} ${first.join(' · ')}`);
 
   if (sec.items.length) {
     const hits = sec.items.filter((i) => i.hit);
@@ -236,7 +247,7 @@ function renderSecurityRows(sec: SecurityScan): string[] {
     }
     if (hits.length > 5) rows.push(`… ${hits.length - 5} more flagged`);
     const passed = sec.items.length - hits.length;
-    if (passed > 0) rows.push(`✅ ${passed} checks passed`);
+    if (passed > 0) rows.push(`✅ ${val(String(passed))} checks passed`);
     return rows;
   }
 
@@ -258,15 +269,22 @@ function renderSecurityRows(sec: SecurityScan): string[] {
   return rows;
 }
 
-function renderPoolRows(pools: PoolInfo[]): string[] {
+/**
+ * 池子行：`Pancake v2 / WBNB · $1.4M (91%) · 🔒 100%`，链接放在流动性数字上，指向区块浏览器的 LP 合约页
+ * （CMC 没有单独的池子页）。链接里不能再嵌 <code>（Telegram 会拒绝解析），所以带链接的数字就是普通链接文本。
+ */
+function renderPoolRows(pools: PoolInfo[], networkSlug: string): string[] {
   const total = pools.reduce((s, x) => s + (x.liquidityUsd ?? 0), 0);
   return pools.slice(0, 3).map((pool, i) => {
     const name = `${escapeHtml(shortDex(pool.dexName ?? 'Unknown DEX'))}${pool.quoteSymbol ? ` / ${escapeHtml(pool.quoteSymbol)}` : ''}`;
-    const share = i === 0 && total > 0 && pools.length > 1 && pool.liquidityUsd !== undefined ? ` (${Math.round((pool.liquidityUsd / total) * 100)}%)` : '';
+    const url = pool.pairAddress ? chainRegistry.explorerAddressUrl(networkSlug, pool.pairAddress) : undefined;
+    const liq = formatUsdShort(pool.liquidityUsd);
+    const liqText = url ? link(liq, url) : val(liq);
+    const share = i === 0 && total > 0 && pools.length > 1 && pool.liquidityUsd !== undefined ? ` (${val(`${Math.round((pool.liquidityUsd / total) * 100)}%`)})` : '';
     const extras: string[] = [];
-    if (pool.lockedRatePct !== undefined) extras.push(`🔒${pool.lockedRatePct.toFixed(0)}%`);
-    if (pool.burnedRatePct !== undefined) extras.push(`🔥${pool.burnedRatePct.toFixed(0)}%`);
-    return `${name}  ${formatUsdShort(pool.liquidityUsd)}${share}${extras.length ? ` ${extras.join(' ')}` : ''}`;
+    if (pool.lockedRatePct !== undefined) extras.push(`🔒 ${pool.lockedRatePct.toFixed(0)}%`);
+    if (pool.burnedRatePct !== undefined) extras.push(`🔥 ${pool.burnedRatePct.toFixed(0)}%`);
+    return `${name} · ${liqText}${share}${extras.length ? ` · ${extras.join(' / ')}` : ''}`;
   });
 }
 
@@ -283,29 +301,29 @@ function renderPerpRows(perp: PerpStats | undefined, liq: LiquidationStats | und
   const rows: string[] = [];
   if (perp && perp.openInterestUsd > 0) {
     const n = perp.venues.length;
-    rows.push(`${label('OI')} ${formatUsdShort(perp.openInterestUsd)} · ${n} venue${n === 1 ? '' : 's'}`);
+    rows.push(`${key('OI')} ${val(formatUsdShort(perp.openInterestUsd))} · ${val(String(n))} venue${n === 1 ? '' : 's'}`);
     const top = perp.venues
       .slice(0, PERP_TOP_VENUES)
       .filter((v) => v.openInterestUsd > 0)
-      .map((v) => `${escapeHtml(v.name)} ${Math.round((v.openInterestUsd / perp.openInterestUsd) * 100)}%`);
-    if (top.length > 1) rows.push(`${label('Top')} ${top.join(' · ')}`);
+      .map((v) => `${escapeHtml(v.name)} ${val(`${Math.round((v.openInterestUsd / perp.openInterestUsd) * 100)}%`)}`);
+    if (top.length > 1) rows.push(`${key('Top')} ${top.join(' · ')}`);
   }
   if (perp && perp.volume24hUsd > 0) {
     const ratio = formatRatio(perp.volume24hUsd, spotVolumeUsd);
-    rows.push(`${label('Vol')} ${formatUsdShort(perp.volume24hUsd)}${ratio ? ` (${ratio} spot)` : ''}`);
+    rows.push(`${key('Vol')} ${val(formatUsdShort(perp.volume24hUsd))}${ratio ? ` · ${val(ratio)} spot` : ''}`);
   }
   if (perp?.funding) {
     const f = perp.funding;
     const period = f.intervalH === 8 ? '' : ` (${f.intervalH}h native)`;
-    rows.push(`${label('Funding')} ${formatFunding(f.rate8h)}/8h · ${formatApr(f.apr)} APR · ${escapeHtml(f.venue)}${period}`);
+    rows.push(`${key('Funding')} ${fundingEmoji(f.rate8h)} ${val(`${formatFunding(f.rate8h)}/8h`)} · ${val(formatApr(f.apr))} APR · ${escapeHtml(f.venue)}${period}`);
   }
   if (liq?.total24hUsd !== undefined && liq.total24hUsd > 0) {
-    const ls = liq.long24hUsd !== undefined && liq.short24hUsd !== undefined ? ` · L ${formatUsdShort(liq.long24hUsd)} / S ${formatUsdShort(liq.short24hUsd)}` : '';
-    rows.push(`${label('Liq 24h')} ${formatUsdShort(liq.total24hUsd)}${ls}`);
+    const ls = liq.long24hUsd !== undefined && liq.short24hUsd !== undefined ? ` · L ${val(formatUsdShort(liq.long24hUsd))} / S ${val(formatUsdShort(liq.short24hUsd))}` : '';
+    rows.push(`${key('Liq 24h')} ${val(formatUsdShort(liq.total24hUsd))}${ls}`);
   }
   if (liq?.total1hUsd !== undefined && liq.total1hUsd > 0) {
-    const ls = liq.long1hUsd !== undefined && liq.short1hUsd !== undefined ? ` · L ${formatUsdShort(liq.long1hUsd)} / S ${formatUsdShort(liq.short1hUsd)}` : '';
-    rows.push(`${label('Liq 1h')} ${formatUsdShort(liq.total1hUsd)}${ls}`);
+    const ls = liq.long1hUsd !== undefined && liq.short1hUsd !== undefined ? ` · L ${val(formatUsdShort(liq.long1hUsd))} / S ${val(formatUsdShort(liq.short1hUsd))}` : '';
+    rows.push(`${key('Liq 1h')} ${val(formatUsdShort(liq.total1hUsd))}${ls}`);
   }
   return rows;
 }

@@ -131,8 +131,18 @@ export class DexApi {
     );
     const points = asArray(data);
     if (points.length === 0) return undefined;
-    const latest = points.reduce((a, b) => ((pickNumber(b, 'ts', 'endTs') ?? 0) > (pickNumber(a, 'ts', 'endTs') ?? 0) ? b : a));
-    return toHoldersOverview(latest);
+    // 日线点按 ts 升序；最新一点是今天（进行中），前一点是昨天 → 24h 变化
+    const sorted = [...points].sort((a, b) => (pickNumber(a, 'ts', 'endTs') ?? 0) - (pickNumber(b, 'ts', 'endTs') ?? 0));
+    const latest = sorted[sorted.length - 1]!;
+    const previous = sorted.length >= 2 ? sorted[sorted.length - 2] : undefined;
+    const overview = toHoldersOverview(latest);
+    if (!overview) return undefined;
+    const prevCount = previous ? pickNumber(previous, 'count', 'holders', 'holderCount') : undefined;
+    if (overview.totalHolders !== undefined && prevCount !== undefined && prevCount > 0) {
+      overview.change24h = overview.totalHolders - prevCount;
+      overview.change24hPct = ((overview.totalHolders - prevCount) / prevCount) * 100;
+    }
+    return overview;
   }
 
   /** GET holders/tag_count → 各标签持有人数与持仓占比。 */

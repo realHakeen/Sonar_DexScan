@@ -41,6 +41,8 @@ export const COIN_INDEX_REFRESH_MS = 60 * 60 * 1000;
 export const COIN_INDEX_RESOLVE_LIMIT = 3;
 
 export const PLACEHOLDER_TEXT = '🔍 Scanning…';
+/** 渲染好的扫描卡按消息 id 缓存多久，供「◀ Back to report」零成本回填。 */
+export const CARD_CACHE_TTL_MS = 10 * 60 * 1000;
 
 /**
  * 永续合约数据的交易所白名单（2026-09-04 按 /v5/exchange/derivatives/list 实测圈定）。
@@ -76,3 +78,8 @@ export const PERP_EXCHANGE_WHITELIST: Readonly<Record<string, PerpExchangeSpec>>
 export const PERP_OI_OUTLIER_MULTIPLIER = 20;
 /** 卡片上列出的 OI 前 N 家交易所。 */
 export const PERP_TOP_VENUES = 3;
+
+/** CMC 帮助中心：供应量口径（流通 / 总量 / 最大）说明，卡片上 "circ." 链接到这里。 */
+export const CMC_SUPPLY_METHODOLOGY_URL = 'https://support.coinmarketcap.com/hc/en-us/articles/360043396252-Supply-Circulating-Total-Max';
+/** CMC 帮助中心：CMC Priority（CMCP）收录说明，"✅ CMC listed" 链接到这里。 */
+export const CMC_LISTING_URL = 'https://support.coinmarketcap.com/hc/en-us/articles/16945563933723-CMC-Priority-CMCP';

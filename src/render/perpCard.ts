@@ -2,7 +2,7 @@ import type { PerpView } from '../services/perpService.js';
 import type { CoinIndexHit } from '../domain/coinIndex.js';
 import type { LiquidationStats } from '../domain/types.js';
 import { normalizeFunding } from '../domain/derivatives.js';
-import { bold, escapeHtml, formatApr, formatFunding, formatRatio, formatUsdShort, label, tree } from './format.js';
+import { bold, escapeHtml, formatApr, formatFunding, formatRatio, formatUsdShort, fundingEmoji, key, tree, val } from './format.js';
 
 /** 按所明细最多列几家（手机一屏）。 */
 const VENUE_ROWS = 8;
@@ -28,23 +28,25 @@ export function renderPerpCard(v: PerpView): string {
     const rows: string[] = [];
     const mcap = v.core?.marketCapUsd;
     const oiShare = mcap && mcap > 0 ? Math.round((p.openInterestUsd / mcap) * 100) : undefined;
-    rows.push(`${label('OI')} ${formatUsdShort(p.openInterestUsd)}${oiShare !== undefined ? `  (${oiShare}% of MC)` : ''}`);
+    rows.push(`${key('OI')} ${val(formatUsdShort(p.openInterestUsd))}${oiShare !== undefined ? ` · ${val(`${oiShare}%`)} of MC` : ''}`);
     const spot = v.core?.spotVolume24hUsd;
     const ratio = formatRatio(p.volume24hUsd, spot);
-    rows.push(`${label('Vol 24h')} ${formatUsdShort(p.volume24hUsd)}${ratio ? `  (${ratio} spot)` : ''}`);
+    rows.push(`${key('Vol 24h')} ${val(formatUsdShort(p.volume24hUsd))}${ratio ? ` · ${val(ratio)} spot` : ''}`);
     const cexOi = p.venues.filter((x) => x.kind === 'cex').reduce((s, x) => s + x.openInterestUsd, 0);
     const dexOi = p.openInterestUsd - cexOi;
-    if (cexOi > 0 && dexOi > 0) rows.push(`${label('CEX/DEX')} ${formatUsdShort(cexOi)} / ${formatUsdShort(dexOi)} OI`);
-    if (p.funding) rows.push(`${label('Funding')} ${formatFunding(p.funding.rate8h)}/8h · ${formatApr(p.funding.apr)} APR`);
+    if (cexOi > 0 && dexOi > 0) rows.push(`${key('CEX/DEX')} ${val(formatUsdShort(cexOi))} / ${val(formatUsdShort(dexOi))} OI`);
+    if (p.funding) rows.push(`${key('Funding')} ${fundingEmoji(p.funding.rate8h)} ${val(`${formatFunding(p.funding.rate8h)}/8h`)} · ${val(formatApr(p.funding.apr))} APR`);
     out.push(...tree(rows));
 
     // ── 按所 ──
     out.push('', bold('🏦 By venue · OI · Vol · Funding/8h'));
     // 整行等宽才能对齐三列数字；36 列内：11 + 1 + 7 + 1 + 7 + 1 + 8
+    // 费率色块放在等宽块前面（每行都有一个，宽度一致不破坏对齐）
     const venueRows = p.venues.slice(0, VENUE_ROWS).map((x) => {
-      const f = x.fundingRate !== undefined ? formatFunding(normalizeFunding(x.name, x.fundingRate, x.fundingIntervalH).rate8h) : '—';
+      const r8 = x.fundingRate !== undefined ? normalizeFunding(x.name, x.fundingRate, x.fundingIntervalH).rate8h : undefined;
+      const f = r8 !== undefined ? formatFunding(r8) : '—';
       const row = `${x.name.slice(0, VENUE_COL).padEnd(VENUE_COL)} ${formatUsdShort(x.openInterestUsd).padStart(7)} ${formatUsdShort(x.volume24hUsd).padStart(7)} ${f.padStart(8)}`;
-      return `<code>${escapeHtml(row)}</code>`;
+      return `${r8 !== undefined ? fundingEmoji(r8) : '⚪️'} <code>${escapeHtml(row)}</code>`;
     });
     if (p.venues.length > VENUE_ROWS) venueRows.push(`+${p.venues.length - VENUE_ROWS} more`);
     out.push(...tree(venueRows));
@@ -56,9 +58,9 @@ export function renderPerpCard(v: PerpView): string {
       const lo = withBasis.reduce((a, b) => (b.basis! < a.basis! ? b : a));
       // 只在符号对得上时用 Premium / Discount 的说法；全部同号就报区间
       const rows: string[] = [];
-      if (hi.basis! > 0) rows.push(`${label('Premium')} ${fmtBasis(hi.basis!)} ${escapeHtml(hi.name)}`);
-      if (lo.basis! < 0) rows.push(`${label('Discount')} ${fmtBasis(lo.basis!)} ${escapeHtml(lo.name)}`);
-      if (rows.length === 0) rows.push(`${label('Range')} ${fmtBasis(lo.basis!)} … ${fmtBasis(hi.basis!)}`);
+      if (hi.basis! > 0) rows.push(`${key('Premium')} ${val(fmtBasis(hi.basis!))} ${escapeHtml(hi.name)}`);
+      if (lo.basis! < 0) rows.push(`${key('Discount')} ${val(fmtBasis(lo.basis!))} ${escapeHtml(lo.name)}`);
+      if (rows.length === 0) rows.push(`${key('Range')} ${val(fmtBasis(lo.basis!))} … ${val(fmtBasis(hi.basis!))}`);
       out.push('', bold('📐 Basis vs index'));
       out.push(...tree(rows));
     }
@@ -93,7 +95,7 @@ function renderLiqRows(l: LiquidationStats | undefined): string[] {
   if (!l) return [];
   const row = (name: string, total?: number, long?: number, short?: number) =>
     total !== undefined && total > 0
-      ? `${label(name)} ${formatUsdShort(total)}${long !== undefined && short !== undefined ? `  ${formatUsdShort(long)} / ${formatUsdShort(short)}` : ''}`
+      ? `${key(name)} ${val(formatUsdShort(total))}${long !== undefined && short !== undefined ? ` · ${val(formatUsdShort(long))} / ${val(formatUsdShort(short))}` : ''}`
       : undefined;
   return [
     row('1h', l.total1hUsd, l.long1hUsd, l.short1hUsd),

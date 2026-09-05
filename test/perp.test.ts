@@ -67,7 +67,7 @@ test('基差全为负时只出 Discount 行，不出 Premium', () => {
       ],
     },
   });
-  assert.match(html, /Discount<\/code> -0\.16% Binance/);
+  assert.match(html, /Discount: <code>-0\.16%<\/code> Binance/);
   assert.doesNotMatch(html, /Premium|Range/);
 });
 
@@ -94,16 +94,16 @@ test('renderPerpCard：头部比值、按所行、基差、爆仓、脚注', () 
   };
   const html = renderPerpCard(view);
   assert.match(html, /📈 PEPE Perps<\/b> · 3 venues · 70 pairs/);
-  assert.match(html, /OI\s*<\/code> \$122\.0M  \(8% of MC\)/);
-  assert.match(html, /Vol 24h<\/code> \$505\.0M  \(1\.1× spot\)/);
-  assert.match(html, /CEX\/DEX<\/code> \$105\.0M \/ \$17\.0M OI/);
-  assert.match(html, /Funding<\/code> \+0\.0100%\/8h · \+10\.9% APR/);
-  assert.match(html, /<code>Binance      \$71\.0M \$334\.0M \+0\.0100%<\/code>/);
-  assert.match(html, /<code>Hyperliquid  \$17\.0M  \$81\.0M \+0\.0100%<\/code>/); // 1h 制 ×8
-  assert.match(html, /Premium<\/code> \+0\.11% Hyperliquid/);
-  assert.match(html, /Discount<\/code> -0\.02% MEXC/);
-  assert.match(html, /1h\s*<\/code> \$4K  \$0 \/ \$4K/);
-  assert.match(html, /24h\s*<\/code> \$2\.7M  \$800K \/ \$1\.9M/);
+  assert.match(html, /OI: <code>\$122\.0M<\/code> · <code>8%<\/code> of MC/);
+  assert.match(html, /Vol 24h: <code>\$505\.0M<\/code> · <code>1\.1×<\/code> spot/);
+  assert.match(html, /CEX\/DEX: <code>\$105\.0M<\/code> \/ <code>\$17\.0M<\/code> OI/);
+  assert.match(html, /Funding: 🔴 <code>\+0\.0100%\/8h<\/code> · <code>\+10\.9%<\/code> APR/);
+  assert.match(html, /🔴 <code>Binance      \$71\.0M \$334\.0M \+0\.0100%<\/code>/);
+  assert.match(html, /🔴 <code>Hyperliquid  \$17\.0M  \$81\.0M \+0\.0100%<\/code>/); // 1h 制 ×8
+  assert.match(html, /Premium: <code>\+0\.11%<\/code> Hyperliquid/);
+  assert.match(html, /Discount: <code>-0\.02%<\/code> MEXC/);
+  assert.match(html, /1h: <code>\$4K<\/code> · <code>\$0<\/code> \/ <code>\$4K<\/code>/);
+  assert.match(html, /24h: <code>\$2\.7M<\/code> · <code>\$800K<\/code> \/ <code>\$1\.9M<\/code>/);
   assert.match(html, /62 pairs on unlisted venues excluded · funding normalised to 8h · liquidations cover 9 venues/);
 });
 

@@ -102,9 +102,22 @@ export function bar(pct: number | undefined, width = 10): string {
   return '▰'.repeat(filled) + '▱'.repeat(width - filled);
 }
 
-/** 等宽标签列：Telegram 只有 <code> 能对齐，标签补空格到固定宽度。 */
+/** 等宽标签列：Telegram 只有 <code> 能对齐，标签补空格到固定宽度。（perp 按所表等仍在用） */
 export function label(text: string, width = 7): string {
   return `<code>${text.padEnd(width)}</code>`;
+}
+
+/**
+ * Rick bot 式排版：标签是普通文本，数值放进 <code>。
+ * Telegram 文本没有颜色，但客户端会用主题强调色渲染 code（暗色主题下是蓝色），数字就从文字里跳出来了。
+ */
+export function key(text: string): string {
+  return `${text}:`;
+}
+
+/** 数值：等宽 + 客户端强调色。传入已转义 / 无需转义的字符串。 */
+export function val(text: string): string {
+  return `<code>${text}</code>`;
 }
 
 /** 树形连接线：除最后一行用 └，其余用 ├。 */
@@ -168,6 +181,17 @@ export function formatFunding(rate: number | undefined): string {
   if (rate === undefined || !Number.isFinite(rate)) return '—';
   const pct = rate * 100;
   return `${pct >= 0 ? '+' : '-'}${Math.abs(pct).toFixed(4)}%`;
+}
+
+/**
+ * 费率的颜色语义按 CoinGlass 习惯反过来：正费率 = 多头付钱 = 多头拥挤，标红；负费率标绿。
+ * Telegram 文本没有颜色，只能用彩色 emoji 当色块。
+ */
+export function fundingEmoji(rate: number | undefined): string {
+  if (rate === undefined || !Number.isFinite(rate)) return '';
+  if (rate > 0) return '🔴';
+  if (rate < 0) return '🟢';
+  return '⚪️';
 }
 
 /** 年化：输入小数，一位小数带符号（0.073 → "+7.3%"）。 */

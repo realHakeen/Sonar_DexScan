@@ -38,3 +38,13 @@ test('链配色 emoji 与 logo URL', () => {
   assert.equal(chainRegistry.logoUrl('bnb'), 'https://s2.coinmarketcap.com/static/img/coins/64x64/1839.png');
   assert.equal(chainRegistry.logoUrl('some-unknown-chain', 12345), 'https://s2.coinmarketcap.com/static/img/coins/64x64/12345.png');
 });
+
+test('explorerAddressUrl：池子地址导航到浏览器的合约 / 账户页', async () => {
+  const { chainRegistry } = await import('../src/domain/chains.js');
+  const a = '0x' + 'c'.repeat(40);
+  assert.equal(chainRegistry.explorerAddressUrl('bnb', a), `https://bscscan.com/address/${a}`);
+  assert.equal(chainRegistry.explorerAddressUrl('ethereum', a), `https://etherscan.io/address/${a}`);
+  assert.equal(chainRegistry.explorerAddressUrl('solana', 'So1'), 'https://solscan.io/account/So1');
+  assert.equal(chainRegistry.explorerAddressUrl('tron', 'TX1'), 'https://tronscan.org/#/contract/TX1');
+  assert.equal(chainRegistry.explorerAddressUrl('ton', 'EQ1'), 'https://tonviewer.com/EQ1');
+});

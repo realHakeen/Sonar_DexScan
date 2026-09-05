@@ -35,3 +35,11 @@ test('noop 与过期令牌', () => {
   assert.equal(decodeCallback('t|doesnotexist'), null);
   assert.equal(decodeCallback('zz|x|y'), null);
 });
+
+test('perp 系列动作往返：address 字段承载 cid，多字符动作码可解码', () => {
+  for (const action of ['perp', 'perp_refresh', 'perp_pick', 'back'] as const) {
+    const data = encodeCallback({ action, address: '24478', symbol: 'PEPE' });
+    assert.ok(Buffer.byteLength(data, 'utf8') <= 64);
+    assert.deepEqual(decodeCallback(data), { action, networkSlug: undefined, address: '24478', symbol: 'PEPE' });
+  }
+});

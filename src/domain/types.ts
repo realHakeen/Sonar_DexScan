@@ -77,6 +77,9 @@ export interface TokenCandidate {
 
 export interface HoldersOverview {
   totalHolders?: number;
+  /** 与前一日线点相比的持有人数变化（绝对值 / 百分比）。来自 holders/trend 的两个日线点。 */
+  change24h?: number;
+  change24hPct?: number;
   top10Pct?: number;
   top50Pct?: number;
   top100Pct?: number;

@@ -1,4 +1,5 @@
-import { CANDIDATE_LIMIT, PLACEHOLDER_TEXT } from '../../config/constants.js';
+import { CANDIDATE_LIMIT, CARD_CACHE_TTL_MS, PLACEHOLDER_TEXT } from '../../config/constants.js';
+import { TtlCache } from '../../infra/cache.js';
 import { InvalidInputError, toUserMessage } from '../../infra/errors.js';
 import type { ParsedInput } from '../../domain/inputParser.js';
 import type { ScoredCandidate } from '../../domain/ranking.js';
@@ -28,6 +29,24 @@ export interface ScanFlowOptions {
 
 /** 正在扫描中的消息，key = chatId:messageId。防止用户连点导致重复请求。 */
 const inflight = new Set<string>();
+
+/** 最近一次渲染到某条消息上的卡片（正文 + 按钮 + 图表预览），供 perp 视图的 Back 零成本回填。 */
+interface RenderedCard {
+  text: string;
+  extra: Record<string, unknown>;
+}
+const cardCache = new TtlCache<RenderedCard>(CARD_CACHE_TTL_MS, 5000);
+
+/**
+ * 把消息恢复成缓存的扫描卡。返回 false 表示缓存过期（10 分钟）或进程重启过，调用方应退回重扫。
+ */
+export async function restoreCard(ctx: BotContext, messageId: number): Promise<boolean> {
+  const chatId = ctx.chat!.id;
+  const cached = cardCache.get(`${chatId}:${messageId}`);
+  if (!cached) return false;
+  await ctx.telegram.editMessageText(chatId, messageId, undefined, cached.text, cached.extra as Parameters<typeof ctx.telegram.editMessageText>[4]);
+  return true;
+}
 
 export function isScanInflight(chatId: number, messageId: number): boolean {
   return inflight.has(`${chatId}:${messageId}`);
@@ -126,11 +145,10 @@ async function renderReport(ctx: BotContext, messageId: number, report: TokenRep
     : {};
   if (chartUrl) text = `<a href="${chartUrl}">&#8205;</a>${text}`;
 
-  await ctx.telegram.editMessageText(ctx.chat!.id, messageId, undefined, text, {
-    ...HTML,
-    ...preview,
-    ...scanCardKeyboard(report),
-  });
+  const extra = { ...HTML, ...preview, ...scanCardKeyboard(report) };
+  await ctx.telegram.editMessageText(ctx.chat!.id, messageId, undefined, text, extra);
+  // Refresh 也走这里，所以缓存里永远是最近一次渲染的版本
+  cardCache.set(`${ctx.chat!.id}:${messageId}`, { text, extra });
 }
 
 /** 第一名流动性 ≥ 第二名 10 倍，或第一名是官方收录而第二名不是。 */

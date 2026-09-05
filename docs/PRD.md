@@ -52,16 +52,16 @@
 4. 交互：第一名明显占优（官方收录而第二名不是，或流动性 ≥ 10×）直接出卡；否则返回 Top 5 候选列表，按钮标注 `✅ SYMBOL · 链 · 流动性`。
 
 ### F3 扫描卡片
-单条 HTML 消息，按手机 36 列宽度设计，等宽标签列 + 树形连接线。区块与字段：
+单条 HTML 消息，按手机 36 列宽度设计，树形连接线。排版采用 Rick bot 式：标签是普通文本（`Price:`），数值放进 `<code>`——Telegram 文本没有颜色，但客户端用主题强调色渲染 code（暗色主题下为蓝色，iOS 浅色主题为黑色等宽），数字从文字里跳出来便于扫读。区块与字段：
 
 | 区块 | 内容 |
 |---|---|
 | 头部 | `SYMBOL ✅ · Name`；链 · CMC 排名 · 上线时长 · 已放弃所有权；CEX 上所家数（现货数）+ 前 3 家；赛道（≤3）；合约地址（可复制） |
-| Market | Price + 24h 涨跌；MC / FDV（多链时拆三行：MC all chains、FDV all chains、FDV 本链）+ 流通比；Liq / Vol + 倍数（≥1× 才显示）；Spot：全链现货 CEX / DEX 拆分 + CEX 占比（CEX 侧有量才显示）；Trades：交易人数 · ↑买笔 ↓卖笔；Flow：买量 / 卖量 · 买压 % |
-| Holders | 总数；Top10 / Top50 进度条；标签 🎯🧑‍💻🐳🤖🧠📣 持有人数（持仓占比 ≥ 0.1% 时显示），超过 2 个拆两行 |
+| Market | Price + 24h 涨跌；MC / FDV（多链时拆三行：MC all chains、FDV all chains、FDV 本链）+ 流通比；Liq / Vol + 倍数（≥1× 才显示）；Spot：全链现货 CEX / DEX 拆分 + CEX 占比（CEX 侧有量才显示）；Traders：交易人数；Txns：🟢 ↑买笔 · 🔴 ↓卖笔；Flow：🟢 买量 / 🔴 卖量 · 买压 %（Telegram 文本无颜色，涨绿跌红一律用 emoji 色块） |
+| Holders | 总数；Top10 / Top50 进度条；标签 🎯🧑‍💻🐳🤖🧠📣 持有人数（持仓占比 ≥ 0.1% 时显示），每行最多 2 个 |
 | Security | 来源 · 评级；税率 · 蜜罐状态；命中项逐条（🚨/⚠️/ℹ️ 按 r/y/g），未命中项只给数量 |
-| Pools | 紧跟 Market：前 3 个池子，DEX 缩写 / 报价币 · 流动性 · 首池占比（括号）· 锁仓 🔒 / 销毁 🔥 |
-| Perps | 仅有 cid 的币：OI 合计 · 交易所数；Top 3 所 OI 占比；合约成交量 + 合约/现货倍数；费率（折算 8h）· 年化 · 参考所（非 8h 制标注 native 周期）；Liq 24h 与 1h 的总额 · 多 / 空。任一项缺失整行省略，全缺不出区块 |
+| Pools | 紧跟 Market：前 3 个池子，DEX 缩写 / 报价币 · 流动性（数字即链接，指向区块浏览器的 LP 合约页，CMC 没有单独的池子页；链接内不能嵌 code）· 首池占比（括号）· 🔒 锁仓 / 🔥 销毁 |
+| Perps | 仅有 cid 的币：OI 合计 · 交易所数；Top 3 所 OI 占比；合约成交量 + 合约/现货倍数；费率（折算 8h，色块按 CoinGlass 习惯：正费率 🔴 负费率 🟢）· 年化 · 参考所（非 8h 制标注 native 周期）；Liq 24h 与 1h 的总额 · 多 / 空。任一项缺失整行省略，全缺不出区块 |
 | Risks | 按 🚨 → ⚠️ → ℹ️ 排序，最多 8 条；Security 已逐项列出的合约级 warn 不重复；单一 LP 已在 Pools 显示不重复 |
 | Links | DexScan · Explorer · Trade · Website · X · TG |
 | 脚注 | 有降级项时：`⚠️ Partial data — unavailable: …. Tap Refresh to retry.` |
@@ -163,7 +163,7 @@
 | `/perp <ticker｜地址>` | 合约视图：OI（占市值比）、合约成交量（对现货倍数）、CEX/DEX OI 拆分、费率；按所 OI · 成交量 · 费率（统一折算 8h，最多 8 家）；基差最高溢价 / 最大折价（\|基差\| > 1% 视为脏数据丢弃）；爆仓 1h / 4h / 24h 多空。ticker 走本地索引（0 credit，原生币 BTC / ETH 也能查），地址先查索引官方合约再退到 DEX search；同名不占优时给候选按钮（第二名无排名、落后 5 倍或 500 名以上算占优）。共 3 credits |
 | 私聊直接发送 | 同 `/s` |
 | 群内地址 / 链接 / `@bot …` | 完整卡片 |
-| 按钮 | Refresh · Trade on DexScan · Perps detail（有合约数据时）· Switch to X · 候选选择 |
+| 按钮 | Refresh · Trade on DexScan · Perps detail（有合约数据时，原地切到 perp 视图；视图里 `◀ Back to report` 回卡片）· Switch to X · 候选选择。所有按钮都有即时反馈与进行中锁：Refresh 把按钮换成「⏳ Refreshing…」，候选选择把正文换成占位，Perps detail 与视图内 Refresh 一样只换按钮（「⏳ Loading perps…」/「⏳ Refreshing…」）、正文不动；进行中再点只回 toast。Back 优先回填按消息 id 缓存 10 分钟的最近一次渲染（正文 + 按钮 + 图表预览），零延迟零 credit；过期或重启后退回重扫。Refresh 永远重新取数并刷新该缓存 |
 
 ## 9. 架构约束
 
