@@ -91,6 +91,11 @@ export function bold(text: string): string {
   return `<b>${escapeHtml(text)}</b>`;
 }
 
+/** 区块标题：emoji 在外，标题加粗加下划线（emoji 带下划线很难看）。 */
+export function section(emoji: string, title: string): string {
+  return `${emoji} <b><u>${escapeHtml(title)}</u></b>`;
+}
+
 export function code(text: string): string {
   return `<code>${escapeHtml(text)}</code>`;
 }

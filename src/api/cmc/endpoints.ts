@@ -65,6 +65,12 @@ export const ENDPOINTS = {
     /** GET id / convert=USD → { [id]: { cmc_rank, tags[{name}], quote.USD{ market_cap, percent_change_24h… } } } */
     quotes: '/v2/cryptocurrency/quotes/latest',
     info: '/v2/cryptocurrency/info',
+    /**
+     * GET id / category=spot / limit / sort=volume_24h_strict → { num_market_pairs(=返回条数，不是总数), market_pairs[] }
+     * market_pairs[]: market_pair, category, outlier_detected, exclusions[], exchange{id,name,slug}, quote.USD{price, volume_24h}
+     * 1 credit / 100 条（2026-09-05 实测）。
+     */
+    marketPairs: '/v2/cryptocurrency/market-pairs/latest',
   },
   /**
    * v5 衍生品端点（2026-09-04 实测）。参数名与文档不同：按币是 crypto_id，按所是 exchange_slug / exchange_id。

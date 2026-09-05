@@ -10,7 +10,19 @@ const MAX_BYTES = 64;
  * 它们的 address 字段两用：带 networkSlug 或非纯数字时是代币定位（可回到卡片），纯数字时是 cid（/perp BTC 这类无合约的）。
  * back = 回到扫描卡：优先取渲染缓存，过期则按定位重扫。
  */
-export type CallbackAction = 'scan' | 'refresh' | 'chain' | 'perp' | 'perp_refresh' | 'perp_pick' | 'back' | 'noop';
+export type CallbackAction =
+  | 'scan'
+  | 'refresh'
+  | 'chain'
+  | 'perp'
+  | 'perp_refresh'
+  | 'perp_pick'
+  | 'back'
+  | 'port_add'
+  | 'port_del'
+  | 'port_scan'
+  | 'port_refresh'
+  | 'noop';
 
 export interface CallbackPayload {
   action: CallbackAction;
@@ -30,6 +42,10 @@ const ACTION_CODE: Record<CallbackAction, string> = {
   perp_refresh: 'pr',
   perp_pick: 'pc',
   back: 'b',
+  port_add: 'wa',
+  port_del: 'wd',
+  port_scan: 'ws',
+  port_refresh: 'wr',
   noop: 'n',
 };
 const CODE_ACTION = Object.fromEntries(

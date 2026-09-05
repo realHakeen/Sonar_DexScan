@@ -24,6 +24,9 @@ const schema = z.object({
   /** 衍生品（OI / 费率 / 爆仓）缓存。上游每 60s 更新一次，缓存更短没有意义。 */
   CACHE_TTL_DERIVATIVES_MS: numeric(60_000),
 
+  /** SQLite 数据目录（portfolio 等持久化）。Railway 上挂 Volume 到 /data 并设 DATA_DIR=/data；打不开时相关功能降级，不影响扫描。 */
+  DATA_DIR: z.string().default('./data'),
+
   /** 图表 PNG 的公网地址前缀。缺省时从 Railway 的 RAILWAY_PUBLIC_DOMAIN 推导；都没有则不出图。 */
   PUBLIC_BASE_URL: z.string().optional().default(''),
   RAILWAY_PUBLIC_DOMAIN: z.string().optional().default(''),

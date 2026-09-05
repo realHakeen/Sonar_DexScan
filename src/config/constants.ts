@@ -83,3 +83,37 @@ export const PERP_TOP_VENUES = 3;
 export const CMC_SUPPLY_METHODOLOGY_URL = 'https://support.coinmarketcap.com/hc/en-us/articles/360043396252-Supply-Circulating-Total-Max';
 /** CMC 帮助中心：CMC Priority（CMCP）收录说明，"✅ CMC listed" 链接到这里。 */
 export const CMC_LISTING_URL = 'https://support.coinmarketcap.com/hc/en-us/articles/16945563933723-CMC-Priority-CMCP';
+
+/**
+ * 现货成交量占比的交易所白名单（与 PERP_EXCHANGE_WHITELIST 同一思路）。
+ * 按原始成交量排，PEPE 的第三到第五名是 WhiteBIT / UZX / Poloniex 这类刷量所，占比只在白名单内计算。
+ */
+export const SPOT_EXCHANGE_WHITELIST: Readonly<Record<string, string>> = {
+  binance: 'Binance',
+  'coinbase-exchange': 'Coinbase',
+  okx: 'OKX',
+  bybit: 'Bybit',
+  upbit: 'Upbit',
+  bitget: 'Bitget',
+  gate: 'Gate',
+  kucoin: 'KuCoin',
+  mexc: 'MEXC',
+  htx: 'HTX',
+  kraken: 'Kraken',
+  'crypto-com-exchange': 'Crypto.com',
+  bithumb: 'Bithumb',
+  bingx: 'BingX',
+  bitstamp: 'Bitstamp',
+  gemini: 'Gemini',
+  bitfinex: 'Bitfinex',
+  'hyperliquid-spot': 'Hyperliquid',
+  hyperliquid: 'Hyperliquid',
+  'binance-us': 'Binance US',
+};
+/** 卡片上列出的现货成交量前 N 家。 */
+export const SPOT_TOP_VENUES = 3;
+/** 现货交易对一次拉多少条（按成交量降序；1 credit / 100 条，前 100 已覆盖几乎全部有效成交量）。 */
+export const SPOT_PAIRS_LIMIT = 100;
+
+/** 每个用户 portfolio 最多存多少个代币（/portfolio 刷新时每个非 cid 代币 1 credit，封顶控制成本）。 */
+export const PORTFOLIO_MAX_TOKENS = 20;

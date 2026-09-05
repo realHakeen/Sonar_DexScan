@@ -44,6 +44,7 @@ src/
 ├── domain/          pure logic, no IO, fully unit-tested
 │   ├── chains.ts        chain registry: slug / platform name / explorer / DexScreener id
 │   ├── derivatives.ts   perp OI / volume / funding aggregation over the exchange whitelist; liquidation mapping
+│   ├── spot.ts          spot venue share over the spot whitelist; CEX-vs-DEX premium
 │   ├── detectChain.ts   F1 regex chain-family detection
 │   ├── inputParser.ts   F5 link parsing + input classification
 │   ├── ranking.ts       F2 re-ranking and disambiguation
@@ -74,6 +75,8 @@ Dependency direction: `bot → services → domain / api → infra`. `domain` an
 | F6 | Placeholder → `editMessageText`, concurrent fetches, refresh button | `bot/handlers/scanFlow.ts`, `services/scanService.ts` |
 | — | K-line chart preview above the card (market-cap candles, ATH, volume) | `render/chart.ts`, `services/chartService.ts`, `infra/httpServer.ts` |
 | F3b | Perps block: open interest, perp volume, funding, liquidations (cid-only) | `domain/derivatives.ts`, `api/cmc/coreApi.ts`, `render/card.ts` |
+| F3d | `⭐ Add to Portfolio` + `/portfolio`: per-user starred tokens with change since added (SQLite via `node:sqlite`, `DATA_DIR`) | `infra/db.ts`, `services/portfolioService.ts`, `bot/handlers/portfolio.ts` |
+| F3c | Spot block: CEX listings, spot volume + 24h change, CEX/DEX split, top venues by volume (whitelist), CEX-vs-DEX premium | `domain/spot.ts`, `api/cmc/coreApi.ts`, `render/card.ts` |
 | — | `/perp <ticker or address>`: per-venue OI / volume / funding, basis vs index, 1h / 4h / 24h liquidations; native coins supported | `services/perpService.ts`, `render/perpCard.ts`, `bot/handlers/perpFlow.ts` |
 
 ### Deliberate implementation details
@@ -101,11 +104,12 @@ Dependency direction: `bot → services → domain / api → infra`. `domain` an
 /v1/k-line/candles            GET platform + address + interval + pm=m   [o,h,l,c,v,ts,traders] for the chart image (v4 ohlcv/* returns 500)
 /v1/cryptocurrency/map        GET symbol                    official-contract comparison (✅ CMC listed)
 /v2/cryptocurrency/quotes/latest GET id                     real market cap / rank / sector tags, spot volume split (cex_volume_24h / dex_volume_24h)
+/v2/cryptocurrency/market-pairs/latest GET id + category=spot   top-100 spot pairs by volume for per-venue share (1 credit / 100 pairs; num_market_pairs echoes the returned count)
 /v5/cryptocurrency/derivatives/market-pairs/list/latest GET crypto_id   every perp pair with open_interest / funding_rate / volume per venue (no per-coin total; 1 credit up to limit=200)
 /v5/derivatives/liquidations/cryptocurrency/list/latest GET crypto_id   1h / 4h / 24h long + short liquidations, pre-aggregated by CMC across 9 venues
 ```
 
-One scan = 1 search + 5 concurrent detail requests (token / security / trend / tag_count / core), plus 2 more (perp pairs / liquidations) when the token has a `cid`. Measured end-to-end on three chains at ~1.5s direct, ~6s through a slow proxy, with zero degraded sub-requests.
+One scan = 1 search + 5 concurrent detail requests (token / security / trend / tag_count / core), plus 3 more (spot pairs / perp pairs / liquidations) when the token has a `cid`. Measured end-to-end on three chains at ~1.5s direct, ~6s through a slow proxy, with zero degraded sub-requests.
 
 **Findings that differ from the docs or from intuition** (all captured in `mappers.ts` comments):
 
@@ -135,7 +139,9 @@ The bot is a single long-running process (long polling), which is exactly what R
 
 **2. Create the service**: Railway dashboard → *New Project* → *Deploy from GitHub repo* → pick this repo. Railway detects `railway.json` and builds with the `Dockerfile`.
 
-**3. Set variables** in the service's *Variables* tab:
+**3. Add a Volume** (service → *Settings* → *Volumes*) mounted at `/data`, so the portfolio database survives redeploys. The image runs as the `node` user, so also set `RAILWAY_RUN_UID=1000` per Railway's volume docs; without a volume the bot still runs, portfolio is simply disabled.
+
+**4. Set variables** in the service's *Variables* tab:
 
 | Variable | Value |
 |---|---|
@@ -144,12 +150,14 @@ The bot is a single long-running process (long polling), which is exactly what R
 | `CMC_TIMEOUT_MS` | `6000` — Railway's US region reaches CMC directly, no proxy latency |
 | `CMC_MAX_RETRIES` | `1` |
 | `LOG_LEVEL` | `info` |
+| `DATA_DIR` | `/data` — the Volume mount from step 3 (portfolio database) |
+| `RAILWAY_RUN_UID` | `1000` — lets the non-root `node` user write to the Volume |
 
 Leave `TELEGRAM_WEBHOOK_DOMAIN` unset. Railway injects `PORT` automatically; the bot uses it to serve `/health` and the K-line chart images.
 
 **Enable chart previews**: Settings → Networking → **Generate Domain**. Railway then injects `RAILWAY_PUBLIC_DOMAIN` and the bot starts attaching a 7-day candlestick chart (`/v1/k-line/candles`, rendered server-side) above every card. Without a public domain the bot runs normally, just without charts. Self-hosting elsewhere: set `PUBLIC_BASE_URL` to your https origin and make sure `ttf-dejavu` (or any TTF font) is installed for text rendering.
 
-**4. Deploy.** First build takes ~1–2 min. Check *Deployments → Logs* for `Bot started (long polling)` and `coin index loaded`.
+**5. Deploy.** First build takes ~1–2 min. Check *Deployments → Logs* for `Bot started (long polling)` and `coin index loaded`.
 
 **Operational notes**
 

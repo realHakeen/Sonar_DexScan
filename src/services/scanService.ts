@@ -9,7 +9,7 @@ import { concentrationFromHolders, tagDistributionFromHolders } from '../domain/
 import { splitByChain } from '../domain/ranking.js';
 import { evaluateRisks } from '../domain/risk.js';
 import { markOfficialContracts } from '../domain/verification.js';
-import type { CoreMarketData, LiquidationStats, PerpStats, PoolInfo, TokenCandidate, TokenReport } from '../domain/types.js';
+import type { CoreMarketData, LiquidationStats, PerpStats, PoolInfo, SpotStats, TokenCandidate, TokenReport } from '../domain/types.js';
 
 const log = createLogger('scanService');
 
@@ -108,12 +108,20 @@ export class ScanService {
   }
 
   /**
-   * 衍生品两路（perp / liquidations）只对有 cid 的币发，与主批次并发；cid 在验证后才知道时再补发。
-   * 两路都是 softFail：没合约是正常结果（undefined），网络错才计入 degraded。
+   * CEX 侧三路（spot pairs / perp / liquidations）只对有 cid 的币发，与主批次并发；cid 在验证后才知道时再补发。
+   * 三路都是 softFail：没合约 / 没现货对是正常结果（undefined），网络错才计入 degraded。
    */
-  private async derivatives(cmcId: number, degraded: string[]): Promise<{ perp?: PerpStats; liquidations?: LiquidationStats }> {
-    const [perpRes, liqRes] = await Promise.allSettled([this.cmc.core.perpStats(cmcId), this.cmc.core.liquidations(cmcId)]);
+  private async derivatives(
+    cmcId: number,
+    degraded: string[],
+  ): Promise<{ spot?: SpotStats; perp?: PerpStats; liquidations?: LiquidationStats }> {
+    const [spotRes, perpRes, liqRes] = await Promise.allSettled([
+      this.cmc.core.spotStats(cmcId),
+      this.cmc.core.perpStats(cmcId),
+      this.cmc.core.liquidations(cmcId),
+    ]);
     return {
+      spot: settled(spotRes, 'spotPairs', degraded),
       perp: settled(perpRes, 'derivatives', degraded),
       liquidations: settled(liqRes, 'liquidations', degraded),
     };
@@ -121,7 +129,7 @@ export class ScanService {
 
   /**
    * 聚合一张卡片。PRD F6：所有详情端点并发。
-   * 每次扫描 5 个并发请求（token / security / trend / tag_count / core），有 cid 再加 2 个（perp / liquidations），
+   * 每次扫描 5 个并发请求（token / security / trend / tag_count / core），有 cid 再加 3 个（spot pairs / perp / liquidations），
    * 失败项降级不影响整卡。
    */
   async buildReport(primary: TokenCandidate, secondary: TokenCandidate[]): Promise<TokenReport> {
@@ -214,7 +222,7 @@ export class ScanService {
     }
 
     const risks = evaluateRisks({ primary: merged, secondaryDeployments: secondary, holders, tags, security, pools });
-    const { perp, liquidations } = (await derivatives) ?? {};
+    const { spot, perp, liquidations } = (await derivatives) ?? {};
 
     log.info('report built', {
       symbol: merged.symbol,
@@ -231,6 +239,7 @@ export class ScanService {
       security,
       pools,
       core,
+      spot,
       perp,
       liquidations,
       risks,

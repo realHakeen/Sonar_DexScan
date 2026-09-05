@@ -1,6 +1,8 @@
+import { SPOT_PAIRS_LIMIT } from '../../config/constants.js';
 import { env } from '../../config/env.js';
 import { aggregatePerpPairs, toLiquidationStats } from '../../domain/derivatives.js';
-import type { CoreMarketData, LiquidationStats, PerpStats } from '../../domain/types.js';
+import { aggregateSpotPairs } from '../../domain/spot.js';
+import type { CoreMarketData, LiquidationStats, PerpStats, SpotStats } from '../../domain/types.js';
 import type { CmcClient } from './client.js';
 import { ENDPOINTS } from './endpoints.js';
 import type {
@@ -8,6 +10,7 @@ import type {
   CmcInfoEntry,
   CmcLiquidationEntry,
   CmcMapEntry,
+  CmcMarketPairsResponse,
   CmcQuoteEntry,
 } from './types.js';
 
@@ -69,6 +72,8 @@ export class CoreApi {
       categories: normalizeTags(entry.tags),
       numMarketPairs: (entry as { num_market_pairs?: number }).num_market_pairs,
       spotVolume24hUsd: usd?.volume_24h ?? undefined,
+      volumeChange24hPct: usd?.volume_change_24h ?? undefined,
+      priceUsd: usd?.price ?? undefined,
       cexVolume24hUsd: usd?.cex_volume_24h ?? undefined,
       dexVolume24hUsd: usd?.dex_volume_24h ?? undefined,
     };
@@ -86,6 +91,19 @@ export class CoreApi {
       { cacheTtlMs: env.CACHE_TTL_DERIVATIVES_MS, softFail: true },
     );
     return aggregatePerpPairs(data?.market_pairs, { totalPairs: data?.num_market_pairs });
+  }
+
+  /**
+   * 现货视角：按成交量取前 SPOT_PAIRS_LIMIT 个现货对，白名单内算各所占比。1 credit。
+   * 端点的 num_market_pairs 等于返回条数而不是总数，所以 pairs 数只在未满上限时才准确。
+   */
+  async spotStats(cmcId: number): Promise<SpotStats | undefined> {
+    const data = await this.client.get<CmcMarketPairsResponse>(
+      ENDPOINTS.core.marketPairs,
+      { id: cmcId, category: 'spot', limit: SPOT_PAIRS_LIMIT, sort: 'volume_24h_strict', sort_dir: 'desc' },
+      { cacheTtlMs: env.CACHE_TTL_DERIVATIVES_MS, softFail: true },
+    );
+    return aggregateSpotPairs(data?.market_pairs, SPOT_PAIRS_LIMIT);
   }
 
   /** 名称 / symbol / slug 直接查主 API 行情（/perp 兜底：索引未就绪时用）。 */
@@ -108,6 +126,28 @@ export class CoreApi {
     );
     const entry = data?.cryptocurrencies?.find((c) => c.crypto_id === cmcId) ?? data?.cryptocurrencies?.[0];
     return toLiquidationStats(entry);
+  }
+
+  /** 批量行情（portfolio 用）：逗号传 id，1 credit / 100 个。 */
+  async quotesBatch(cmcIds: number[]): Promise<Map<number, { priceUsd?: number; change24hPct?: number; marketCapUsd?: number }>> {
+    const out = new Map<number, { priceUsd?: number; change24hPct?: number; marketCapUsd?: number }>();
+    const ids = [...new Set(cmcIds)].slice(0, 100);
+    if (ids.length === 0) return out;
+    const data = await this.client.get<Record<string, CmcQuoteEntry>>(
+      ENDPOINTS.core.quotes,
+      { id: ids.join(','), convert: 'USD' },
+      { cacheTtlMs: env.CACHE_TTL_QUOTE_MS, softFail: true },
+    );
+    for (const id of ids) {
+      const usd = data?.[String(id)]?.quote?.['USD'];
+      if (!usd) continue;
+      out.set(id, {
+        priceUsd: usd.price ?? undefined,
+        change24hPct: usd.percent_change_24h ?? undefined,
+        marketCapUsd: usd.market_cap ?? undefined,
+      });
+    }
+    return out;
   }
 
   /** 赛道分类与官方链接的兜底来源（quotes 未带 tags 时使用）。 */

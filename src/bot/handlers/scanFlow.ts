@@ -34,6 +34,23 @@ const inflight = new Set<string>();
 interface RenderedCard {
   text: string;
   extra: Record<string, unknown>;
+  /** 加入 portfolio 时要记的"当时"数据，免得再打一次接口。 */
+  snapshot: CardSnapshot;
+}
+
+export interface CardSnapshot {
+  cmcId?: number;
+  symbol: string;
+  name: string;
+  networkSlug: string;
+  address: string;
+  priceUsd?: number;
+  marketCapUsd?: number;
+}
+
+/** 最近一次渲染到该消息的代币快照（10 分钟内）。 */
+export function cachedSnapshot(chatId: number, messageId: number): CardSnapshot | undefined {
+  return cardCache.get(`${chatId}:${messageId}`)?.snapshot;
 }
 const cardCache = new TtlCache<RenderedCard>(CARD_CACHE_TTL_MS, 5000);
 
@@ -145,10 +162,23 @@ async function renderReport(ctx: BotContext, messageId: number, report: TokenRep
     : {};
   if (chartUrl) text = `<a href="${chartUrl}">&#8205;</a>${text}`;
 
-  const extra = { ...HTML, ...preview, ...scanCardKeyboard(report) };
+  const extra = { ...HTML, ...preview, ...scanCardKeyboard(report, Boolean(ctx.services.portfolio)) };
   await ctx.telegram.editMessageText(ctx.chat!.id, messageId, undefined, text, extra);
   // Refresh 也走这里，所以缓存里永远是最近一次渲染的版本
-  cardCache.set(`${ctx.chat!.id}:${messageId}`, { text, extra });
+  const p = report.primary;
+  cardCache.set(`${ctx.chat!.id}:${messageId}`, {
+    text,
+    extra,
+    snapshot: {
+      cmcId: p.cmcId,
+      symbol: p.symbol,
+      name: p.name,
+      networkSlug: p.networkSlug,
+      address: p.address,
+      priceUsd: p.priceUsd,
+      marketCapUsd: report.core?.marketCapUsd ?? p.fdvUsd,
+    },
+  });
 }
 
 /** 第一名流动性 ≥ 第二名 10 倍，或第一名是官方收录而第二名不是。 */

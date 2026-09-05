@@ -7,23 +7,21 @@ import { encodeCallback } from '../bot/callbackData.js';
 import { formatUsd } from './format.js';
 
 /** 扫描卡片下方的按钮：刷新 + 切链 + 外链。 */
-export function scanCardKeyboard(report: TokenReport): Markup.Markup<InlineKeyboardMarkup> {
+export function scanCardKeyboard(report: TokenReport, portfolioEnabled = true): Markup.Markup<InlineKeyboardMarkup> {
   const p = report.primary;
   const rows: InlineKeyboardButton[][] = [];
 
-  rows.push([
-    Markup.button.callback(
-      '🔄 Refresh',
-      encodeCallback({ action: 'refresh', networkSlug: p.networkSlug, address: p.address }),
-    ),
-    Markup.button.url('📈 Trade on DexScan', chainRegistry.dexscanUrl(p.networkSlug, p.address)),
-  ]);
-
+  const first: InlineKeyboardButton[] = [
+    Markup.button.callback('🔄 Refresh', encodeCallback({ action: 'refresh', networkSlug: p.networkSlug, address: p.address })),
+    Markup.button.url('📈 Trade', chainRegistry.dexscanUrl(p.networkSlug, p.address)),
+  ];
   // 有合约数据的币给一个展开按钮，原地切到 /perp 视图；带代币定位，视图里的 Back 用它回来
   if (report.perp && p.cmcId) {
-    rows.push([
-      Markup.button.callback('📊 Perps detail', encodeCallback({ action: 'perp', networkSlug: p.networkSlug, address: p.address, symbol: p.symbol })),
-    ]);
+    first.push(Markup.button.callback('📊 Perps', encodeCallback({ action: 'perp', networkSlug: p.networkSlug, address: p.address, symbol: p.symbol })));
+  }
+  rows.push(first);
+  if (portfolioEnabled) {
+    rows.push([Markup.button.callback('⭐ Add to Portfolio', encodeCallback({ action: 'port_add', networkSlug: p.networkSlug, address: p.address, symbol: p.symbol }))]);
   }
 
   // PRD F1 第 5 步：提供 inline button 供用户切链
@@ -50,5 +48,17 @@ export function candidateKeyboard(
       encodeCallback({ action: 'scan', networkSlug: c.networkSlug, address: c.address, symbol: c.symbol }),
     ),
   ]);
+  return Markup.inlineKeyboard(rows);
+}
+
+/** /portfolio 列表：每个代币一行「🔍 SYMBOL」重新扫描 + 「🗑」移除；末行刷新。 */
+export function portfolioKeyboard(
+  entries: Array<{ networkSlug: string; address: string; symbol: string }>,
+): Markup.Markup<InlineKeyboardMarkup> {
+  const rows: InlineKeyboardButton[][] = entries.map((e) => [
+    Markup.button.callback(`🔍 ${e.symbol}`, encodeCallback({ action: 'port_scan', networkSlug: e.networkSlug, address: e.address, symbol: e.symbol })),
+    Markup.button.callback('🗑', encodeCallback({ action: 'port_del', networkSlug: e.networkSlug, address: e.address, symbol: e.symbol })),
+  ]);
+  rows.push([Markup.button.callback('🔄 Refresh', encodeCallback({ action: 'port_refresh' }))]);
   return Markup.inlineKeyboard(rows);
 }

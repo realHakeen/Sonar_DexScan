@@ -1,7 +1,8 @@
 import { chainRegistry } from '../domain/chains.js';
 import { overallRisk } from '../domain/risk.js';
-import { CMC_LISTING_URL, CMC_SUPPLY_METHODOLOGY_URL, PERP_TOP_VENUES } from '../config/constants.js';
-import type { LiquidationStats, PerpStats, PoolInfo, SecurityScan, TokenReport } from '../domain/types.js';
+import { CMC_LISTING_URL, CMC_SUPPLY_METHODOLOGY_URL, PERP_TOP_VENUES, SPOT_TOP_VENUES } from '../config/constants.js';
+import { spotPremiumPct } from '../domain/spot.js';
+import type { LiquidationStats, PerpStats, PoolInfo, SecurityScan, SpotStats, TokenReport } from '../domain/types.js';
 import {
   bar,
   bold,
@@ -21,6 +22,7 @@ import {
   label,
   link,
   pctShort,
+  section,
   sharePct,
   shortDex,
   shortenAddress,
@@ -55,17 +57,15 @@ export function renderScanCard(report: TokenReport): string {
   if (age !== '—') meta.push(`🕐 ${age}`);
   if (p.ownerRenounced === true) meta.push('🔐 Renounced');
   out.push(meta.join(' · '));
-  const cex = renderCex(p.cexListings);
-  if (cex) out.push(cex);
   if (report.core?.categories.length) {
     const cats = report.core.categories.map((c) => c.replace(/\s+Ecosystem$/i, '')).slice(0, 3);
     out.push(`🏷 ${escapeHtml(cats.join(' / '))}`);
   }
-  out.push(code(p.address));
+  out.push('', code(p.address));
   out.push('', renderLinks(report));
 
   // ── Market ──（一行一个指标，手机 36 列内）
-  out.push('', bold('📊 Market'));
+  out.push('', section('📊', 'Market'));
   const market: string[] = [];
   market.push(`${label('Price')} ${bold(formatPrice(p.priceUsd))}  ${changeEmoji(p.priceChange24hPct)} ${formatPercent(p.priceChange24hPct)}`);
 
@@ -94,14 +94,6 @@ export function renderScanCard(report: TokenReport): string {
 
   const volLiq = formatRatio(p.volume24hUsd, p.liquidityUsd);
   market.push(`${label('Vol')} ${formatUsdShort(p.volume24hUsd)}${volLiq ? `  (${volLiq} liq)` : ''}`);
-  // 全链现货的 CEX / DEX 拆分（主 API 已汇总）。只有 CEX 侧有量才显示，纯 DEX 币这行没信息量。
-  const cexVol = report.core?.cexVolume24hUsd;
-  const dexVol = report.core?.dexVolume24hUsd;
-  if (cexVol !== undefined && cexVol > 0) {
-    const cexShare = sharePct(cexVol, dexVol ?? 0);
-    market.push(`${label('Spot')} CEX ${formatUsdShort(cexVol)} · DEX ${formatUsdShort(dexVol)}${cexShare !== undefined ? ` · ${cexShare}% CEX` : ''}`);
-  }
-
   if (p.traders24h !== undefined) market.push(`${label('Traders')} ${formatCount(p.traders24h)}`);
   // 涨绿跌红只能靠 emoji 色块：Telegram 文本不支持颜色
   if (p.buys24h !== undefined || p.sells24h !== undefined) {
@@ -111,25 +103,21 @@ export function renderScanCard(report: TokenReport): string {
   }
   if (p.buyVolume24hUsd !== undefined || p.sellVolume24hUsd !== undefined) {
     const pressure = sharePct(p.buyVolume24hUsd, p.sellVolume24hUsd);
-    market.push(`${label('Flow')} 🟢 +${formatUsdShort(p.buyVolume24hUsd)} / 🔴 −${formatUsdShort(p.sellVolume24hUsd)}${pressure !== undefined ? ` · ${pressure}% buy` : ''}`);
+    // 买压 ≥ 50% 绿、< 50% 红，色块放在结论后面
+    const pressureMark = pressure === undefined ? '' : ` · ${pressure}% buy ${pressure >= 50 ? '🟢' : '🔴'}`;
+    market.push(`${label('Flow')} +${formatUsdShort(p.buyVolume24hUsd)} / −${formatUsdShort(p.sellVolume24hUsd)}${pressureMark}`);
   }
   // Liq 放最后一行，紧接下面的 Pools 区块（口径 = 所有池子双边 TVL 合计）
   const poolTotal = Math.max(p.poolCount ?? 0, report.pools.length);
-  market.push(`${label('Liq')} ${formatUsdShort(p.liquidityUsd)}${poolTotal > 0 ? ` total · ${poolTotal} pool${poolTotal === 1 ? '' : 's'}` : ''}`);
+  // 流动性与池子数都链到该代币的 DexScan 页（池子列表在那里）
+  const dexscan = chainRegistry.dexscanUrl(p.networkSlug, p.address);
+  market.push(`${label('Liq')} ${link(formatUsdShort(p.liquidityUsd), dexscan)}${poolTotal > 0 ? ` total · ${link(String(poolTotal), dexscan)} pool${poolTotal === 1 ? '' : 's'}` : ''}`);
   out.push(...tree(market));
 
   // ── Pools ──（紧跟 Market 的 Liq）
   if (report.pools.length) {
-    out.push('', bold(`💧 Pools (${poolTotal})`));
-    out.push(...tree(renderPoolRows(report.pools, p.networkSlug)));
-  }
-
-  // ── Perps ──（OI / 合约成交量 / 费率按 16 家白名单客户端聚合；爆仓是 CMC 的 9 家汇总）
-  const perpRows = renderPerpRows(report.perp, report.liquidations, report.core?.spotVolume24hUsd ?? p.volume24hUsd);
-  if (perpRows.length) {
-    const pairs = report.perp?.totalPairs;
-    out.push('', `${bold('📈 Perps')}${pairs ? `  ${pairs} pair${pairs === 1 ? '' : 's'}` : ''}`);
-    out.push(...tree(perpRows));
+    out.push('', section('💧', `Pools (${poolTotal})`));
+    out.push(...tree(renderPoolRows(report.pools, dexscan)));
   }
 
   // ── Holders ──
@@ -142,7 +130,7 @@ export function renderScanCard(report: TokenReport): string {
       h?.change24hPct !== undefined && h.change24h !== undefined && h.change24h !== 0
         ? ` ${changeEmoji(h.change24hPct)} ${formatPercent(h.change24hPct)} 24h`
         : '';
-    out.push('', `${bold('👥 Holders')}${total}${delta}`);
+    out.push('', `${section('👥', 'Holders')}${total}${delta}`);
     const rows: string[] = [];
     if (h?.top10Pct !== undefined) rows.push(`${label('Top10')} ${bar(h.top10Pct)} ${pctShort(h.top10Pct)}`);
     if (h?.top50Pct !== undefined) rows.push(`${label('Top50')} ${bar(h.top50Pct)} ${pctShort(h.top50Pct)}`);
@@ -157,16 +145,34 @@ export function renderScanCard(report: TokenReport): string {
   // ── Security ──
   const sec = report.security;
   if (sec) {
-    const head = [bold('🛡 Security'), escapeHtml(sec.provider)];
+    const head = [section('🛡', 'Security'), escapeHtml(sec.provider)];
     if (sec.level) head.push(escapeHtml(sec.level));
     out.push('', head.join(' · '));
     out.push(...tree(renderSecurityRows(sec)));
   }
 
+  // ── Perps ──（OI / 合约成交量 / 费率按 16 家白名单客户端聚合；爆仓是 CMC 的 9 家汇总）
+  const perpRows = renderPerpRows(report.perp, report.liquidations, report.core?.spotVolume24hUsd ?? p.volume24hUsd);
+  if (perpRows.length) {
+    const pairs = report.perp?.totalPairs;
+    out.push('', `${section('📈', 'Perps')}${pairs ? `  ${pairs} pair${pairs === 1 ? '' : 's'}` : ''}`);
+    out.push(...tree(perpRows));
+  }
+
+  // ── Spot ──（CEX 上所、全链现货量与 24h 变化、CEX/DEX 拆分、白名单内各所占比、CEX 对 DEX 溢价）
+  const spotRows = renderSpotRows(report, report.spot);
+  if (spotRows.length) {
+    const n = report.spot?.returnedPairs;
+    const pairs = n ? `  ${report.spot!.complete ? n : `${n}+`} pairs` : '';
+    out.push('', `${section('📈', 'Spot')}${pairs}`);
+    out.push(...tree(spotRows));
+  }
+
   // ── Risks ──
   const risks = visibleRisks(report);
   if (risks.length) {
-    out.push('', bold(RISK_HEADER[overallRisk(report.risks)] ?? 'Risks'));
+    const [riskEmoji, ...riskTitle] = (RISK_HEADER[overallRisk(report.risks)] ?? '⚠️ Risks').split(' ');
+    out.push('', section(riskEmoji!, riskTitle.join(' ')));
     out.push(...tree(risks.slice(0, 8).map((r) => escapeHtml(r.message))));
   }
 
@@ -190,6 +196,7 @@ const DEGRADED_LABEL: Record<string, string> = {
   holderList: 'holder list',
   coreMarket: 'market cap & rank',
   quote: 'market data',
+  spotPairs: 'spot venues',
   derivatives: 'perp OI & funding',
   liquidations: 'liquidations',
 };
@@ -269,16 +276,15 @@ function renderSecurityRows(sec: SecurityScan): string[] {
 }
 
 /**
- * 池子行：`Pancake v2 / WBNB · $1.4M (91%) · 🔒 100%`，链接放在流动性数字上，指向区块浏览器的 LP 合约页
- * （CMC 没有单独的池子页）。链接里不能再嵌 <code>（Telegram 会拒绝解析），所以带链接的数字就是普通链接文本。
+ * 池子行：`Pancake v2 / WBNB · $1.4M (91%) · 🔒 100%`，流动性数字链到该代币的 DexScan 页。
+ * DexScan 没有单独的池子页（池子地址 404，/pair/ 重定向到首页，2026-09-05 实测），所以指向代币页的池子列表。
+ * 链接里不能再嵌 <code>（Telegram 会拒绝解析），所以带链接的数字就是普通链接文本。
  */
-function renderPoolRows(pools: PoolInfo[], networkSlug: string): string[] {
+function renderPoolRows(pools: PoolInfo[], dexscanUrl: string): string[] {
   const total = pools.reduce((s, x) => s + (x.liquidityUsd ?? 0), 0);
   return pools.slice(0, 3).map((pool, i) => {
     const name = `${escapeHtml(shortDex(pool.dexName ?? 'Unknown DEX'))}${pool.quoteSymbol ? ` / ${escapeHtml(pool.quoteSymbol)}` : ''}`;
-    const url = pool.pairAddress ? chainRegistry.explorerAddressUrl(networkSlug, pool.pairAddress) : undefined;
-    const liq = formatUsdShort(pool.liquidityUsd);
-    const liqText = url ? link(liq, url) : liq;
+    const liqText = link(formatUsdShort(pool.liquidityUsd), dexscanUrl);
     const share = i === 0 && total > 0 && pools.length > 1 && pool.liquidityUsd !== undefined ? ` (${Math.round((pool.liquidityUsd / total) * 100)}%)` : '';
     const extras: string[] = [];
     if (pool.lockedRatePct !== undefined) extras.push(`🔒 ${pool.lockedRatePct.toFixed(0)}%`);
@@ -314,34 +320,75 @@ function renderPerpRows(perp: PerpStats | undefined, liq: LiquidationStats | und
   if (perp?.funding) {
     const f = perp.funding;
     const period = f.intervalH === 8 ? '' : ` (${f.intervalH}h native)`;
-    rows.push(`${label('Funding')} ${fundingEmoji(f.rate8h)} ${formatFunding(f.rate8h)}/8h · ${formatApr(f.apr)} APR · ${escapeHtml(f.venue)}${period}`);
+    // 不能写 "/8h"：Telegram 会把 "/8h" 当成 bot 命令渲染成链接
+    rows.push(`${label('Funding')} ${fundingEmoji(f.rate8h)} ${formatFunding(f.rate8h)} (8h) · ${formatApr(f.apr)} APR · ${escapeHtml(f.venue)}${period}`);
   }
-  if (liq?.total24hUsd !== undefined && liq.total24hUsd > 0) {
-    const ls = liq.long24hUsd !== undefined && liq.short24hUsd !== undefined ? ` · L ${formatUsdShort(liq.long24hUsd)} / S ${formatUsdShort(liq.short24hUsd)}` : '';
-    rows.push(`${label('Liq 24h')} ${formatUsdShort(liq.total24hUsd)}${ls}`);
-  }
-  if (liq?.total1hUsd !== undefined && liq.total1hUsd > 0) {
-    const ls = liq.long1hUsd !== undefined && liq.short1hUsd !== undefined ? ` · L ${formatUsdShort(liq.long1hUsd)} / S ${formatUsdShort(liq.short1hUsd)}` : '';
-    rows.push(`${label('Liq 1h')} ${formatUsdShort(liq.total1hUsd)}${ls}`);
+  // 爆仓：多空分开，再给一个净方向。多单被爆得多 = 价格在跌 → 🔴；空单被爆得多 = 在涨 → 🟢；相等 Even
+  const liqRow = (name: string, total?: number, long?: number, short?: number): string | undefined => {
+    if (total === undefined || total <= 0) return undefined;
+    if (long === undefined || short === undefined) return `${label(name)} ${formatUsdShort(total)}`;
+    const net = long > short ? 'Net long 🔴' : short > long ? 'Net short 🟢' : 'Even';
+    return `${label(name)} Long ${formatUsdShort(long)} · Short ${formatUsdShort(short)} · ${net}`;
+  };
+  for (const row of [liqRow('Liq 24h', liq?.total24hUsd, liq?.long24hUsd, liq?.short24hUsd), liqRow('Liq 1h', liq?.total1hUsd, liq?.long1hUsd, liq?.short1hUsd)]) {
+    if (row) rows.push(row);
   }
   return rows;
 }
 
-function renderCex(cex: TokenReport['primary']['cexListings']): string | undefined {
-  if (!cex || cex.length === 0) return undefined;
-  const spot = cex.filter((c) => c.categories.includes('SPOT'));
-  const names = (spot.length ? spot : cex).slice(0, 3).map((c) => c.name);
-  return `🏦 ${cex.length} CEXs${spot.length ? ` (${spot.length} spot)` : ''} · ${escapeHtml(names.join(', '))}${cex.length > 3 ? '…' : ''}`;
+/**
+ * Spot 区块。一行一个指标：
+ *   CEXs    127 (105 spot) · Binance, Coinbase, Upbit…
+ *   Vol     $229.3M 🔴 −53.7% 24h
+ *   Split   CEX $227.5M · DEX $1.8M · 99% CEX
+ *   Top     Binance 25% · OKX 10% · Bybit 7%
+ *   Premium CEX +0.2% vs DEX 🟢
+ * 任一项缺失整行省略；全缺返回空数组，调用方不渲染区块头。
+ */
+function renderSpotRows(report: TokenReport, spot: SpotStats | undefined): string[] {
+  const p = report.primary;
+  const core = report.core;
+  const rows: string[] = [];
+
+  const cex = p.cexListings;
+  if (cex && cex.length > 0) {
+    const spotOnly = cex.filter((c) => c.categories.includes('SPOT'));
+    const names = (spotOnly.length ? spotOnly : cex).slice(0, 3).map((c) => c.name);
+    rows.push(`${label('CEXs')} ${cex.length}${spotOnly.length ? ` (${spotOnly.length} spot)` : ''} · ${escapeHtml(names.join(', '))}${cex.length > 3 ? '…' : ''}`);
+  }
+  if (core?.spotVolume24hUsd !== undefined && core.spotVolume24hUsd > 0) {
+    const chg = core.volumeChange24hPct;
+    rows.push(`${label('Vol')} ${formatUsdShort(core.spotVolume24hUsd)}${chg !== undefined ? ` ${changeEmoji(chg)} ${formatPercent(chg)} 24h` : ''}`);
+  }
+  const cexVol = core?.cexVolume24hUsd;
+  const dexVol = core?.dexVolume24hUsd;
+  if (cexVol !== undefined && cexVol > 0) {
+    const cexShare = sharePct(cexVol, dexVol ?? 0);
+    rows.push(`${label('Split')} CEX ${formatUsdShort(cexVol)} · DEX ${formatUsdShort(dexVol)}${cexShare !== undefined ? ` · ${cexShare}% CEX` : ''}`);
+  }
+  if (spot && spot.whitelistVolumeUsd > 0) {
+    const top = spot.venues
+      .slice(0, SPOT_TOP_VENUES)
+      .map((v) => `${escapeHtml(v.name)} ${Math.round((v.volume24hUsd / spot.whitelistVolumeUsd) * 100)}%`);
+    if (top.length) rows.push(`${label('Top')} ${top.join(' · ')}`);
+  }
+  const premium = spotPremiumPct(core?.priceUsd, p.priceUsd);
+  if (premium !== undefined && Math.abs(premium) >= 0.05) {
+    rows.push(`${label('Premium')} CEX ${formatPercent(premium)} vs DEX ${changeEmoji(premium)}`);
+  }
+  return rows;
 }
 
 function renderLinks(report: TokenReport): string {
   const p = report.primary;
-  const items: string[] = [link('DexScan', chainRegistry.dexscanUrl(p.networkSlug, p.address))];
-  const explorer = chainRegistry.explorerUrl(p.networkSlug, p.address);
-  if (explorer) items.push(link('Explorer', explorer));
-  if (p.tradeUrl) items.push(link('Trade', p.tradeUrl));
+  // 顺序：项目自己的渠道在前，工具链接在后（Website · X · TG · Explorer · Trade · DexScan）
+  const items: string[] = [];
   if (p.website) items.push(link('Website', p.website));
   if (p.twitter) items.push(link('X', p.twitter));
   if (p.telegram) items.push(link('TG', p.telegram));
+  const explorer = chainRegistry.explorerUrl(p.networkSlug, p.address);
+  if (explorer) items.push(link('Explorer', explorer));
+  if (p.tradeUrl) items.push(link('Trade', p.tradeUrl));
+  items.push(link('DexScan', chainRegistry.dexscanUrl(p.networkSlug, p.address)));
   return `🔗 ${items.join(' · ')}`;
 }

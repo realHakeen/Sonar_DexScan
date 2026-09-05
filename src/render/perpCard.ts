@@ -2,7 +2,7 @@ import type { PerpView } from '../services/perpService.js';
 import type { CoinIndexHit } from '../domain/coinIndex.js';
 import type { LiquidationStats } from '../domain/types.js';
 import { normalizeFunding } from '../domain/derivatives.js';
-import { bold, escapeHtml, formatApr, formatFunding, formatRatio, formatUsdShort, fundingEmoji, label, tree } from './format.js';
+import { bold, escapeHtml, formatApr, formatFunding, formatRatio, formatUsdShort, fundingEmoji, label, section, tree } from './format.js';
 
 /** 按所明细最多列几家（手机一屏）。 */
 const VENUE_ROWS = 8;
@@ -20,7 +20,7 @@ export function renderPerpCard(v: PerpView): string {
   const out: string[] = [];
   const p = v.perp;
   const venueCount = p?.venues.length ?? 0;
-  const head = [`${bold(`📈 ${escapeHtml(v.symbol)} Perps`)}`];
+  const head = [section('📈', `${v.symbol} Perps`)];
   if (p) head.push(`${venueCount} venue${venueCount === 1 ? '' : 's'}`, `${p.totalPairs} pair${p.totalPairs === 1 ? '' : 's'}`);
   out.push(head.join(' · '));
 
@@ -35,11 +35,11 @@ export function renderPerpCard(v: PerpView): string {
     const cexOi = p.venues.filter((x) => x.kind === 'cex').reduce((s, x) => s + x.openInterestUsd, 0);
     const dexOi = p.openInterestUsd - cexOi;
     if (cexOi > 0 && dexOi > 0) rows.push(`${label('CEX/DEX')} ${formatUsdShort(cexOi)} / ${formatUsdShort(dexOi)} OI`);
-    if (p.funding) rows.push(`${label('Funding')} ${fundingEmoji(p.funding.rate8h)} ${formatFunding(p.funding.rate8h)}/8h · ${formatApr(p.funding.apr)} APR`);
+    if (p.funding) rows.push(`${label('Funding')} ${fundingEmoji(p.funding.rate8h)} ${formatFunding(p.funding.rate8h)} (8h) · ${formatApr(p.funding.apr)} APR`);
     out.push(...tree(rows));
 
     // ── 按所 ──
-    out.push('', bold('🏦 By venue · OI · Vol · Funding/8h'));
+    out.push('', `${section('🏦', 'By venue')} · OI · Vol · Funding (8h)`);
     // 整行等宽才能对齐三列数字；36 列内：11 + 1 + 7 + 1 + 7 + 1 + 8
     // 费率色块放在等宽块前面（每行都有一个，宽度一致不破坏对齐）
     const venueRows = p.venues.slice(0, VENUE_ROWS).map((x) => {
@@ -61,7 +61,7 @@ export function renderPerpCard(v: PerpView): string {
       if (hi.basis! > 0) rows.push(`${label('Premium')} ${fmtBasis(hi.basis!)} ${escapeHtml(hi.name)}`);
       if (lo.basis! < 0) rows.push(`${label('Discount')} ${fmtBasis(lo.basis!)} ${escapeHtml(lo.name)}`);
       if (rows.length === 0) rows.push(`${label('Range')} ${fmtBasis(lo.basis!)} … ${fmtBasis(hi.basis!)}`);
-      out.push('', bold('📐 Basis vs index'));
+      out.push('', section('📐', 'Basis vs index'));
       out.push(...tree(rows));
     }
   }
@@ -69,7 +69,7 @@ export function renderPerpCard(v: PerpView): string {
   // ── 爆仓 ──
   const liqRows = renderLiqRows(v.liquidations);
   if (liqRows.length) {
-    out.push('', bold('💥 Liquidations · L / S'));
+    out.push('', `${section('💥', 'Liquidations')} · L / S`);
     out.push(...tree(liqRows));
   }
 

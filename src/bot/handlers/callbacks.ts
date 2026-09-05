@@ -5,6 +5,7 @@ import { chainRegistry } from '../../domain/chains.js';
 import { shortenAddress } from '../../render/format.js';
 import { isScanInflight, restoreCard, runScanFlow } from './scanFlow.js';
 import { isPerpInflight, runPerpFlow } from './perpFlow.js';
+import { handlePortfolioAdd, handlePortfolioCallback } from './portfolio.js';
 
 export const callbackHandlers = new Composer<BotContext>();
 
@@ -24,6 +25,21 @@ callbackHandlers.on('callback_query', async (ctx) => {
   }
 
   const { action, networkSlug, address, symbol } = payload;
+
+  // portfolio 系列：port_refresh 没有 address，要在通用的 address 检查之前处理
+  if (action === 'port_add') {
+    if (!address) {
+      await ctx.answerCbQuery('Incomplete button data.');
+      return;
+    }
+    await handlePortfolioAdd(ctx, { networkSlug, address, symbol }, ctx.callbackQuery.message?.message_id);
+    return;
+  }
+  if (action === 'port_del' || action === 'port_scan' || action === 'port_refresh') {
+    await handlePortfolioCallback(ctx, action, { networkSlug, address, symbol }, ctx.callbackQuery.message?.message_id);
+    return;
+  }
+
   if (!address) {
     await ctx.answerCbQuery('Incomplete button data.');
     return;

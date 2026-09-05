@@ -4,6 +4,7 @@ import { parseInput } from '../../domain/inputParser.js';
 import type { BotContext } from '../context.js';
 import { runScanFlow } from './scanFlow.js';
 import { runPerpFlow } from './perpFlow.js';
+import { sendPortfolio } from './portfolio.js';
 import { admitScan } from '../middlewares/throttle.js';
 
 const START_TEXT = [
@@ -17,6 +18,7 @@ const START_TEXT = [
   '<b>Commands</b>',
   '/s &lt;address or name&gt; — scan a token',
   '/perp &lt;ticker or address&gt; — open interest, funding, liquidations by venue',
+  '/portfolio — tokens you starred, with change since you added them',
   '/help — how it works',
   '',
   'Add me to a group and any address posted there gets a report automatically.',
@@ -31,10 +33,12 @@ const HELP_TEXT = [
   '<b>Commands</b>',
   '/s &lt;address | name | link&gt; — full report',
   '/perp &lt;ticker | address&gt; — perpetuals view, e.g. <code>/perp BTC</code> or <code>/perp PEPE</code>',
+  '/portfolio — your starred tokens: price, change since you added, 24h change. Tap ⭐ Add to Portfolio under any report to star one (up to 20)',
   '/help — this message',
   '',
   '<b>What the report shows</b>',
-  '· <b>Market</b> — price, 24h change, FDV and <b>real circulating market cap</b> (never conflated), DEX volume vs liquidity, spot volume split CEX / DEX, buy / sell flow',
+  '· <b>Market</b> — price, 24h change, FDV and <b>real circulating market cap</b> (never conflated), DEX volume vs liquidity, buy / sell flow',
+  '· <b>Spot</b> — CEX listings, spot volume with 24h change, CEX / DEX split, top venues by volume, CEX-vs-DEX price premium',
   '· <b>Perps</b> — open interest, perp volume vs spot, funding (8h, annualised), 24h / 1h liquidations long vs short. Tap <b>Perps detail</b> for the per-venue breakdown',
   '· <b>Pools</b> — top pools, share of liquidity, locks / burns',
   '· <b>Holders</b> — count, Top10 / Top50 concentration, sniper / dev / whale / bot / smart-money / KOL tags',
@@ -82,6 +86,12 @@ commandHandlers.command('perp', async (ctx) => {
   if (!arg) throw new InvalidInputError('/perp needs a ticker or contract address, e.g. /perp PEPE');
   if (!(await admitScan(ctx))) return;
   await runPerpFlow(ctx, { query: arg });
+});
+
+/** /portfolio — 个人收藏列表（群里发到私聊）。刷新行情也算一次请求，走限流。 */
+commandHandlers.command(['portfolio', 'pf'], async (ctx) => {
+  if (!(await admitScan(ctx))) return;
+  await sendPortfolio(ctx);
 });
 
 commandHandlers.command('ping', async (ctx) => {

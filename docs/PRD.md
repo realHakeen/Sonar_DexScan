@@ -52,25 +52,32 @@
 4. 交互：第一名明显占优（官方收录而第二名不是，或流动性 ≥ 10×）直接出卡；否则返回 Top 5 候选列表，按钮标注 `✅ SYMBOL · 链 · 流动性`。
 
 ### F3 扫描卡片
-单条 HTML 消息，按手机 36 列宽度设计，等宽标签列 + 树形连接线。（曾试过 Rick bot 式的「数值进 `<code>`」排版，但 code 的颜色由客户端主题决定，iOS 浅色主题下是黑色，没有预期的高亮效果，已退回标签对齐方案。）区块与字段：
+单条 HTML 消息，按手机 36 列宽度设计，等宽标签列 + 树形连接线，区块标题加粗加下划线（emoji 在下划线外）。区块顺序：头部 → Links → Market → Pools → Holders → Security → Perps → Spot → Risks。（曾试过 Rick bot 式的「数值进 `<code>`」排版，但 code 的颜色由客户端主题决定，iOS 浅色主题下是黑色，没有预期的高亮效果，已退回标签对齐方案。）区块与字段：
 
 | 区块 | 内容 |
 |---|---|
-| 头部 | `SYMBOL ✅ · Name`；链 · CMC 排名 · 上线时长 · 已放弃所有权；CEX 上所家数（现货数）+ 前 3 家；赛道（≤3）；合约地址（可复制） |
-| Market | Price + 24h 涨跌；MC / FDV（多链时拆三行：MC all chains、FDV all chains、FDV 本链）+ 流通比；Liq / Vol + 倍数（≥1× 才显示）；Spot：全链现货 CEX / DEX 拆分 + CEX 占比（CEX 侧有量才显示）；Traders：交易人数；Txns：🟢 ↑买笔 · 🔴 ↓卖笔；Flow：🟢 买量 / 🔴 卖量 · 买压 %（Telegram 文本无颜色，涨绿跌红一律用 emoji 色块） |
+| 头部 | `SYMBOL ✅ · Name`；链 · CMC 排名 · 上线时长 · 已放弃所有权；赛道（≤3）；空一行；合约地址（可复制）。CEX 上所信息移到 Spot 区块 |
+| Market | Price + 24h 涨跌；MC / FDV（多链时拆三行：MC all chains、FDV all chains、FDV 本链）+ 流通比；Liq / Vol + 倍数（≥1× 才显示）；Spot：全链现货 CEX / DEX 拆分 + CEX 占比（CEX 侧有量才显示）；Traders：交易人数；Txns：🟢 ↑买笔 · 🔴 ↓卖笔；Flow：买量 / 卖量 · 买压 % + 色块（≥ 50% 🟢，< 50% 🔴；Telegram 文本无颜色，一律用 emoji 色块）；Liq：金额与池子数都链到该代币的 DexScan 页。（Spot 的 CEX / DEX 拆分已移到 Spot 区块） |
 | Holders | 总数；Top10 / Top50 进度条；标签 🎯🧑‍💻🐳🤖🧠📣 持有人数（持仓占比 ≥ 0.1% 时显示），每行最多 2 个 |
 | Security | 来源 · 评级；税率 · 蜜罐状态；命中项逐条（🚨/⚠️/ℹ️ 按 r/y/g），未命中项只给数量 |
-| Pools | 紧跟 Market：前 3 个池子，DEX 缩写 / 报价币 · 流动性（数字即链接，指向区块浏览器的 LP 合约页，CMC 没有单独的池子页；链接内不能嵌 code）· 首池占比（括号）· 🔒 锁仓 / 🔥 销毁 |
-| Perps | 仅有 cid 的币：OI 合计 · 交易所数；Top 3 所 OI 占比；合约成交量 + 合约/现货倍数；费率（折算 8h，色块按 CoinGlass 习惯：正费率 🔴 负费率 🟢）· 年化 · 参考所（非 8h 制标注 native 周期）；Liq 24h 与 1h 的总额 · 多 / 空。任一项缺失整行省略，全缺不出区块 |
+| Pools | 紧跟 Market：前 3 个池子，DEX 缩写 / 报价币 · 流动性（数字即链接，指向该代币的 DexScan 页；DexScan 没有单独的池子页，池子地址 404、`/pair/` 重定向首页，2026-09-05 实测；链接内不能嵌 code）· 首池占比（括号）· 🔒 锁仓 / 🔥 销毁 |
+| Spot | 仅有 cid 的币（CEXs 行例外，来自 token 接口）：CEXs 上所家数（现货数）· 前 3 家；Vol 全链现货量 + 24h 变化色块；Split CEX / DEX 拆分 + CEX 占比；Top 现货成交量前 3 所占比（只在 `config/constants.ts#SPOT_EXCHANGE_WHITELIST` 约 20 家内计算，PEPE 原始排名第三到五是 WhiteBIT / UZX / Poloniex 刷量所）；Premium CEX 对 DEX 现货溢价（CMC 参考价 / 链上池子价 − 1，正值绿负值红，\|溢价\| < 0.05% 不显示，> 50% 视为脏数据）。标题带 pairs 数，达到 100 上限显示 `100+`。数据：`/v2/cryptocurrency/market-pairs/latest?category=spot&limit=100&sort=volume_24h_strict`，1 credit；`num_market_pairs` 等于返回条数不是总数 |
+| Perps | 仅有 cid 的币：OI 合计 · 交易所数；Top 3 所 OI 占比；合约成交量 + 合约/现货倍数；费率（折算 8h，写作 `+0.0498% (8h)`——不能写 `/8h`，Telegram 会当成 bot 命令渲染成链接；色块按 CoinGlass 习惯：正费率 🔴 负费率 🟢）· 年化 · 参考所（非 8h 制标注 native 周期）；Liq 24h 与 1h：`Long $516K · Short $4K · Net long 🔴`（多单爆得多 = 在跌 🔴，空单爆得多 = 在涨 🟢，相等 Even）。任一项缺失整行省略，全缺不出区块 |
 | Risks | 按 🚨 → ⚠️ → ℹ️ 排序，最多 8 条；Security 已逐项列出的合约级 warn 不重复；单一 LP 已在 Pools 显示不重复 |
-| Links | DexScan · Explorer · Trade · Website · X · TG |
+| Links | Website · X · TG · Explorer · Trade · DexScan（项目渠道在前，工具在后）；标签行与合约地址之间空一行 |
 | 脚注 | 有降级项时：`⚠️ Partial data — unavailable: …. Tap Refresh to retry.` |
 
-按钮：`🔄 Refresh` · `📈 Trade on DexScan`；有次要链时一行「Switch to X」。
+按钮：第一行 `🔄 Refresh` · `📈 Trade` · `📊 Perps`（有合约数据时）；第二行 `⭐ Add to Portfolio`（存储可用时）；有次要链时再一行「Switch to X」。文案尽量短，手机端一行放得下。
 
 **Perps 口径**（2026-09-04 定）：OI 与合约成交量只对 `config/constants.ts#PERP_EXCHANGE_WHITELIST` 的 16 家求和（12 CEX：Binance / OKX / Bybit / Bitget / Gate / KuCoin / MEXC / BingX / Kraken / Crypto.com / HTX / Deribit；4 DEX：Hyperliquid / Aster / Lighter / edgeX）。不能用 `exchange_score` 过滤：BTCC / Tapbit / Weex / Fameex 评分 7.7–8.8 却报全网前几的假 OI，而 Hyperliquid 的 liquidity_score 为 0、edgeX / dYdX 无评分。实测 9 家爆仓所只覆盖白名单 OI 的 63%–83%，缺口主要是 MEXC，所以 OI 不收窄到 9 家。白名单内再剔除 `outlier_detected` / `exclusions` 非空的合约对，并在最大所 OI 超过第二名 20 倍时视为抽风剔除。费率不跨所平均（结算周期不同），只显示 OI 最大所的值并折算到 8h。爆仓是 CMC 汇总的 9 家（Binance / Bitfinex / Hyperliquid / Bybit / Gate / OKX / HTX / Aster / Kraken），是下限。
 
 **口径约束**（必须遵守）：`pc24h` / `sts.pc` 是小数，×100 后展示；`mc` / `mcap` 是 price × total supply，标签必须是 FDV；MC 来自主 API，是全链口径；持有人数以 holders 端点为准，`token.hld` 仅兜底；**Liq = 所有池子双边 TVL 合计**（DexScreener 定义），CMC 自己的 `liq` / `liqUsd` ≈ 单边（DexScan 网站显示值，约为前者一半），只作对照不展示。
+
+### F3d Portfolio（bot 自己的收藏列表，与 CMC Portfolio 无关）
+- 卡片按钮 `⭐ Add to Portfolio`：按 **Telegram 用户** 存（群里谁点进谁的列表），记录加入时的价格 / 市值 / cid，只回 toast 不改消息（群里按钮共用，不能反映个人状态）。数据优先取卡片渲染缓存的快照（10 分钟），过期再拉一次 token 详情。上限 20 个，满了提示先删。
+- `/portfolio`（`/pf`）：列出代币 · 链 · 当前价 · 自加入以来涨跌 · 24h 涨跌，脚注给市值；每行 `🔍` 重新扫描（新消息）、`🗑` 移除（原地重绘），末行 `🔄 Refresh`。群里发到私聊（列表是个人的），私聊未 /start 过则提示。
+- 行情：有 cid 的用 quotes 批量（1 credit / 100 个），无 cid 的逐个 token 详情（各 1 credit），链名与上游 plt 不一致时退到 search 反查。刷新走限流。
+- 存储：Node 内置 `node:sqlite`，文件在 `DATA_DIR/sonar.db`（默认 `./data`，已 gitignore）。Railway 上挂 Volume 到 `/data` 并设 `DATA_DIR=/data`；镜像以 `node` 用户运行，Volume 权限按 Railway 文档设 `RAILWAY_RUN_UID=1000`。数据库打不开时按钮不显示、命令提示暂不可用，扫描不受影响。
 
 ### F4 群组模式
 - 群内对地址、链接、`@bot …` 响应；裸名称不响应（避免"这个 pepe 不错"触发查询）。
@@ -150,6 +157,7 @@
 | `TELEGRAM_WEBHOOK_DOMAIN` / `_PATH` / `PORT` | 空 / `/tg/webhook` / 3000 | 填域名切 webhook |
 | `CMC_TIMEOUT_MS` / `CMC_MAX_RETRIES` | 10000 / 1 | |
 | `CACHE_TTL_*_MS` | 见 §6 | `CACHE_TTL_DERIVATIVES_MS` 默认 60000，上游 60s 更新 |
+| `DATA_DIR` | `./data` | SQLite 目录（portfolio）。Railway 挂 Volume 到 `/data` 并设为 `/data` |
 | `RATE_LIMIT_PRIVATE_PER_MIN` / `GROUP_PER_MIN` / `GROUP_COOLDOWN_MS` | 20 / 6 / 3000 | 冷却是排队间隔，不是丢弃 |
 | `RISK_TOP10_PCT` / `TOP50_PCT` / `SINGLE_LP_PCT` / `MIN_LIQUIDITY_USD` / `MAX_TAX_PCT` | 60 / 85 / 70 / 5000 / 10 | |
 | `LOG_LEVEL` | info | |
@@ -160,10 +168,11 @@
 |---|---|
 | `/start` `/help` | 说明 |
 | `/s <地址｜名称｜链接>`、`/scan` | 扫描 |
+| `/portfolio`、`/pf` | 个人收藏列表，见 F3d |
 | `/perp <ticker｜地址>` | 合约视图：OI（占市值比）、合约成交量（对现货倍数）、CEX/DEX OI 拆分、费率；按所 OI · 成交量 · 费率（统一折算 8h，最多 8 家）；基差最高溢价 / 最大折价（\|基差\| > 1% 视为脏数据丢弃）；爆仓 1h / 4h / 24h 多空。ticker 走本地索引（0 credit，原生币 BTC / ETH 也能查），地址先查索引官方合约再退到 DEX search；同名不占优时给候选按钮（第二名无排名、落后 5 倍或 500 名以上算占优）。共 3 credits |
 | 私聊直接发送 | 同 `/s` |
 | 群内地址 / 链接 / `@bot …` | 完整卡片 |
-| 按钮 | Refresh · Trade on DexScan · Perps detail（有合约数据时，原地切到 perp 视图；视图里 `◀ Back to report` 回卡片）· Switch to X · 候选选择。所有按钮都有即时反馈与进行中锁：Refresh 把按钮换成「⏳ Refreshing…」，候选选择把正文换成占位，Perps detail 与视图内 Refresh 一样只换按钮（「⏳ Loading perps…」/「⏳ Refreshing…」）、正文不动；进行中再点只回 toast。Back 优先回填按消息 id 缓存 10 分钟的最近一次渲染（正文 + 按钮 + 图表预览），零延迟零 credit；过期或重启后退回重扫。Refresh 永远重新取数并刷新该缓存 |
+| 按钮 | Refresh · Trade · Perps（有合约数据时，原地切到 perp 视图；视图里 `◀ Back to report` 回卡片）· Switch to X · 候选选择。所有按钮都有即时反馈与进行中锁：Refresh 把按钮换成「⏳ Refreshing…」，候选选择把正文换成占位，Perps detail 与视图内 Refresh 一样只换按钮（「⏳ Loading perps…」/「⏳ Refreshing…」）、正文不动；进行中再点只回 toast。Back 优先回填按消息 id 缓存 10 分钟的最近一次渲染（正文 + 按钮 + 图表预览），零延迟零 credit；过期或重启后退回重扫。Refresh 永远重新取数并刷新该缓存 |
 
 ## 9. 架构约束
 

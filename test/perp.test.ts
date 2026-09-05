@@ -93,11 +93,11 @@ test('renderPerpCard：头部比值、按所行、基差、爆仓、脚注', () 
     liquidations: { total1hUsd: 4000, long1hUsd: 0, short1hUsd: 4000, total4hUsd: 70e3, long4hUsd: 29e3, short4hUsd: 41e3, total24hUsd: 2.7e6, long24hUsd: 0.8e6, short24hUsd: 1.9e6 },
   };
   const html = renderPerpCard(view);
-  assert.match(html, /📈 PEPE Perps<\/b> · 3 venues · 70 pairs/);
+  assert.match(html, /📈 <b><u>PEPE Perps<\/u><\/b> · 3 venues · 70 pairs/);
   assert.match(html, /OI\s*<\/code> \$122\.0M  \(8% of MC\)/);
   assert.match(html, /Vol 24h<\/code> \$505\.0M  \(1\.1× spot\)/);
   assert.match(html, /CEX\/DEX<\/code> \$105\.0M \/ \$17\.0M OI/);
-  assert.match(html, /Funding<\/code> 🔴 \+0\.0100%\/8h · \+10\.9% APR/);
+  assert.match(html, /Funding<\/code> 🔴 \+0\.0100% \(8h\) · \+10\.9% APR/);
   assert.match(html, /🔴 <code>Binance      \$71\.0M \$334\.0M \+0\.0100%<\/code>/);
   assert.match(html, /🔴 <code>Hyperliquid  \$17\.0M  \$81\.0M \+0\.0100%<\/code>/); // 1h 制 ×8
   assert.match(html, /Premium<\/code> \+0\.11% Hyperliquid/);

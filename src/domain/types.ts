@@ -208,6 +208,10 @@ export interface CoreMarketData {
   numMarketPairs?: number;
   /** 全链现货成交量（quotes.volume_24h），合约/现货比的分母。 */
   spotVolume24hUsd?: number;
+  /** 现货成交量 24h 变化（百分比）。 */
+  volumeChange24hPct?: number;
+  /** CMC 参考价（跨所成交量加权），与链上池子价对比得出 CEX 溢价。 */
+  priceUsd?: number;
   /** 现货成交量 CEX / DEX 拆分（quotes 的 cex_volume_24h / dex_volume_24h）。 */
   cexVolume24hUsd?: number;
   dexVolume24hUsd?: number;
@@ -253,6 +257,24 @@ export interface PerpStats {
   };
 }
 
+/** 现货交易所视角：白名单内按成交量的占比。见 domain/spot.ts。 */
+export interface SpotVenue {
+  slug: string;
+  name: string;
+  volume24hUsd: number;
+}
+
+export interface SpotStats {
+  /** 按成交量降序的白名单交易所。 */
+  venues: SpotVenue[];
+  /** 白名单内成交量合计（占比的分母）。 */
+  whitelistVolumeUsd: number;
+  /** 本次返回的现货对数；等于请求上限时说明还有更多（卡片显示 "100+"）。 */
+  returnedPairs: number;
+  /** 返回条数 < 上限 → 数量完整。 */
+  complete: boolean;
+}
+
 /** 爆仓（CMC 跨所汇总，仅 9 家）。金额 USD。 */
 export interface LiquidationStats {
   total1hUsd?: number;
@@ -283,6 +305,8 @@ export interface TokenReport {
   security?: SecurityScan;
   pools: PoolInfo[];
   core?: CoreMarketData;
+  /** 只有 cmcId 已知时才请求。 */
+  spot?: SpotStats;
   /** 只有 cmcId 已知时才请求；无合约的币为 undefined。 */
   perp?: PerpStats;
   liquidations?: LiquidationStats;
@@ -305,3 +329,18 @@ export interface Candle {
 
 export type KlineInterval = '1min' | '5min' | '15min' | '30min' | '1h' | '4h' | '1d';
 export type KlineMode = 'p' | 'm';
+
+/** 用户 portfolio 里的一条（bot 自己的，与 CMC Portfolio 无关）。 */
+export interface PortfolioEntry {
+  userId: number;
+  networkSlug: string;
+  address: string;
+  symbol: string;
+  name?: string;
+  cmcId?: number;
+  /** epoch ms */
+  addedAt: number;
+  /** 加入时的价格 / 市值，用来算"自加入以来"的涨跌。 */
+  addedPriceUsd?: number;
+  addedMcapUsd?: number;
+}

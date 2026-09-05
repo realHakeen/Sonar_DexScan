@@ -49,6 +49,8 @@ export interface CmcQuoteEntry {
     {
       price?: number | null;
       volume_24h?: number | null;
+      /** 24h 成交量相对前一日的变化（百分比）。 */
+      volume_change_24h?: number | null;
       /** 现货成交量的 CEX / DEX 拆分，CMC 已汇总。 */
       cex_volume_24h?: number | null;
       dex_volume_24h?: number | null;
@@ -129,4 +131,21 @@ export interface CmcLiquidationEntry {
     short_liquidations_24h?: number | null;
     last_updated?: string;
   }>;
+}
+
+/** /v2/cryptocurrency/market-pairs/latest 的单条现货交易对。 */
+export interface CmcMarketPair {
+  market_id?: number;
+  market_pair?: string;
+  category?: string;
+  outlier_detected?: boolean | number;
+  exclusions?: Array<string | { reason?: string }> | null;
+  exchange?: { id?: number; name?: string; slug?: string };
+  quote?: Record<string, { price?: number | null; volume_24h?: number | null }>;
+}
+
+export interface CmcMarketPairsResponse {
+  id?: number;
+  num_market_pairs?: number;
+  market_pairs?: CmcMarketPair[];
 }
