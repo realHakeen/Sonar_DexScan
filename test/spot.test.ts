@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import type { CmcMarketPair } from '../src/api/cmc/types.js';
-import { aggregateSpotPairs, spotPremiumPct } from '../src/domain/spot.js';
+import { aggregateSpotPairs } from '../src/domain/spot.js';
 
 function pair(slug: string, vol: number, extra: Partial<CmcMarketPair> = {}): CmcMarketPair {
   return { market_pair: 'X/USDT', category: 'spot', outlier_detected: false, exclusions: [], exchange: { slug, name: slug }, quote: { USD: { price: 1, volume_24h: vol } }, ...extra };
@@ -26,12 +26,4 @@ test('outlier / exclusions 丢弃；返回条数等于上限时 complete=false�
   assert.equal(s.complete, false);
   assert.equal(aggregateSpotPairs([pair('whitebit', 1)], 100), undefined);
   assert.equal(aggregateSpotPairs([], 100), undefined);
-});
-
-test('spotPremiumPct：参考价对池子价；缺失 / 非正 / 离谱返回 undefined', () => {
-  assert.ok(Math.abs(spotPremiumPct(1.02, 1)! - 2) < 1e-9);
-  assert.ok(Math.abs(spotPremiumPct(0.98, 1)! + 2) < 1e-9);
-  assert.equal(spotPremiumPct(undefined, 1), undefined);
-  assert.equal(spotPremiumPct(1, 0), undefined);
-  assert.equal(spotPremiumPct(2, 1), undefined);
 });

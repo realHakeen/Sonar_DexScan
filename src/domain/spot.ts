@@ -39,15 +39,3 @@ export function aggregateSpotPairs(
     complete: pairs.length < limit,
   };
 }
-
-/**
- * CEX 对 DEX 的现货溢价（百分比）：CMC 参考价（跨所成交量加权，几乎就是 CEX 价）相对链上池子价。
- * 正值 = 所内价高（所内买盘强或链上流动性薄），套利方向是 DEX 买、CEX 卖。
- * 任一价格缺失或非正返回 undefined；两价时点可能相差几十秒，|溢价| > 50% 视为脏数据。
- */
-export function spotPremiumPct(cexReferencePrice: number | undefined, dexPrice: number | undefined): number | undefined {
-  if (cexReferencePrice === undefined || dexPrice === undefined) return undefined;
-  if (!(cexReferencePrice > 0) || !(dexPrice > 0)) return undefined;
-  const pct = (cexReferencePrice / dexPrice - 1) * 100;
-  return Math.abs(pct) > 50 ? undefined : pct;
-}

@@ -52,7 +52,7 @@
 4. 交互：第一名明显占优（官方收录而第二名不是，或流动性 ≥ 10×）直接出卡；否则返回 Top 5 候选列表，按钮标注 `✅ SYMBOL · 链 · 流动性`。
 
 ### F3 扫描卡片
-单条 HTML 消息，按手机 36 列宽度设计，等宽标签列 + 树形连接线，区块标题加粗加下划线（emoji 在下划线外）。区块顺序：头部 → Links → Market → Pools → Holders → Security → Perps → Spot → Risks。（曾试过 Rick bot 式的「数值进 `<code>`」排版，但 code 的颜色由客户端主题决定，iOS 浅色主题下是黑色，没有预期的高亮效果，已退回标签对齐方案。）区块与字段：
+单条 HTML 消息，按手机 36 列宽度设计，等宽标签列 + 树形连接线，区块标题加粗加下划线（emoji 在下划线外）。区块顺序：头部 → Links → Market → Pools → Holders → Risks → Security → Perps → Spot → Call。（曾试过 Rick bot 式的「数值进 `<code>`」排版，但 code 的颜色由客户端主题决定，iOS 浅色主题下是黑色，没有预期的高亮效果，已退回标签对齐方案。）区块与字段：
 
 | 区块 | 内容 |
 |---|---|
@@ -61,9 +61,9 @@
 | Holders | 总数；Top10 / Top50 进度条；标签 🎯🧑‍💻🐳🤖🧠📣 持有人数（持仓占比 ≥ 0.1% 时显示），每行最多 2 个 |
 | Security | 来源 · 评级；税率 · 蜜罐状态；命中项逐条（🚨/⚠️/ℹ️ 按 r/y/g），未命中项只给数量 |
 | Pools | 紧跟 Market：前 3 个池子，DEX 缩写 / 报价币 · 流动性（数字即链接，指向该代币的 DexScan 页；DexScan 没有单独的池子页，池子地址 404、`/pair/` 重定向首页，2026-09-05 实测；链接内不能嵌 code）· 首池占比（括号）· 🔒 锁仓 / 🔥 销毁 |
-| Spot 🏦 | 仅有 cid 的币（CEXs 行例外，来自 token 接口）：CEXs 上所家数（现货数）· 前 3 家；Vol 全链现货量 + 24h 变化色块；Split CEX / DEX 拆分 + CEX 占比；Top 现货成交量前 3 所占比（只在 `config/constants.ts#SPOT_EXCHANGE_WHITELIST` 约 20 家内计算，PEPE 原始排名第三到五是 WhiteBIT / UZX / Poloniex 刷量所）；Premium CEX 对 DEX 现货溢价（CMC 参考价 / 链上池子价 − 1，正值绿负值红，\|溢价\| < 0.05% 不显示，> 50% 视为脏数据）。标题带 pairs 数，达到 100 上限显示 `100+`。数据：`/v2/cryptocurrency/market-pairs/latest?category=spot&limit=100&sort=volume_24h_strict`，1 credit；`num_market_pairs` 等于返回条数不是总数 |
+| Spot 🏦 | 仅有 cid 的币（CEXs 行例外，来自 token 接口）：CEXs 上所家数（现货数）· 前 3 家；Vol 全链现货量 + 24h 变化色块；Split CEX / DEX 拆分 + CEX 占比；Top 现货成交量前 3 所占比（只在 `config/constants.ts#SPOT_EXCHANGE_WHITELIST` 约 20 家内计算，PEPE 原始排名第三到五是 WhiteBIT / UZX / Poloniex 刷量所）；Premium 合约对现货溢价（白名单各所标记价对指数价的基差按 OI 加权；正 = 合约溢价 🟢，负 🔴；无合约数据不显示）。标题带 pairs 数，达到 100 上限显示 `100+`。数据：`/v2/cryptocurrency/market-pairs/latest?category=spot&limit=100&sort=volume_24h_strict`，1 credit；`num_market_pairs` 等于返回条数不是总数 |
 | Perps ⚡ | 仅有 cid 的币：OI 合计 · 交易所数；Top 3 所 OI 占比；合约成交量 + 合约/现货倍数；费率（折算 8h，写作 `+0.0498% (8h)`——不能写 `/8h`，Telegram 会当成 bot 命令渲染成链接；色块按 CoinGlass 习惯放行尾：正费率 🔴 负费率 🟢）· 年化 · 参考所（非 8h 制标注 native 周期）；Liq 24h 与 1h：`Long $516K · Short $4K · Net long 🔴`（多单爆得多 = 在跌 🔴，空单爆得多 = 在涨 🟢，相等 Even）。任一项缺失整行省略，全缺不出区块 |
-| Risks | 按 🚨 → ⚠️ → ℹ️ 排序，最多 8 条；Security 已逐项列出的合约级 warn 不重复；单一 LP 已在 Pools 显示不重复 |
+| Risks | 紧跟 Holders；按 🚨 → ⚠️ → ℹ️ 排序，最多 8 条；Security 已逐项列出的合约级 warn 不重复；单一 LP 已在 Pools 显示不重复 |
 | Links | Website · X · TG · Explorer · Trade · DexScan（项目渠道在前，工具在后）；标签行与合约地址之间空一行 |
 | Call | 卡片尾部的群内首次喊单行，见 F3e |
 | 脚注 | 有降级项时：`⚠️ Partial data — unavailable: …. Tap Refresh to retry.` |

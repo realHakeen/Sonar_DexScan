@@ -244,6 +244,8 @@ export interface PerpStats {
   totalPairs: number;
   /** 进入统计的合约对数（白名单内且未被剔除）。 */
   countedPairs: number;
+  /** 合约对现货的基差（小数，正为合约溢价）：白名单各所标记价对指数价的基差按 OI 加权。 */
+  basis?: number;
   /** 费率参考：OI 最大且带费率的交易所。 */
   funding?: {
     venue: string;

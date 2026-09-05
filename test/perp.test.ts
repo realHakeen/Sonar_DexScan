@@ -54,6 +54,8 @@ test('aggregatePerpPairs 记录基差与进入统计的合约对数；脏基差�
   assert.equal(s.venues[0]!.basis, 0.0003);
   assert.equal(s.venues[1]!.basis, 0.0012);
   assert.equal(s.venues[2]!.basis, undefined);
+  // OI 加权：(100e6×0.0003 + 50e6×0.0012) / 150e6 = 0.0006；Kraken 脏基差不参与
+  assert.ok(Math.abs(s.basis! - 0.0006) < 1e-12);
 });
 
 test('基差全为负时只出 Discount 行，不出 Premium', () => {

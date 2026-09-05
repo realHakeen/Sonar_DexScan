@@ -102,7 +102,11 @@ export function aggregatePerpPairs(pairs: CmcDerivativePair[] | undefined, opts:
     ? normalizeFunding(fundingVenue.name, fundingVenue.fundingRate!, fundingVenue.fundingIntervalH)
     : undefined;
 
-  return { openInterestUsd, volume24hUsd, venues, totalPairs: Math.max(opts.totalPairs ?? 0, pairs.length), countedPairs, funding };
+  const withBasis = venues.filter((v) => v.basis !== undefined && v.openInterestUsd > 0);
+  const basisOi = withBasis.reduce((s, v) => s + v.openInterestUsd, 0);
+  const basis = basisOi > 0 ? withBasis.reduce((s, v) => s + v.basis! * v.openInterestUsd, 0) / basisOi : undefined;
+
+  return { openInterestUsd, volume24hUsd, venues, totalPairs: Math.max(opts.totalPairs ?? 0, pairs.length), countedPairs, basis, funding };
 }
 
 /** 把「每 intervalH 小时的费率」折算成 8h 口径与简单年化。 */

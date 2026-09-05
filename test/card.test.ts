@@ -162,10 +162,10 @@ test('Spot 区块：CEXs / Vol 变化 / Split / Top / Premium，位于 Perps 之
       holders: { totalHolders: 10 },
       core: { cmcId: 1027, categories: [], spotVolume24hUsd: 229.3e6, volumeChange24hPct: -53.68, cexVolume24hUsd: 227.5e6, dexVolume24hUsd: 1.8e6, priceUsd: 1.002 },
       spot: { venues: [{ slug: 'binance', name: 'Binance', volume24hUsd: 50 }, { slug: 'okx', name: 'OKX', volume24hUsd: 20 }, { slug: 'gate', name: 'Gate', volume24hUsd: 16 }, { slug: 'bybit', name: 'Bybit', volume24hUsd: 14 }], whitelistVolumeUsd: 100, returnedPairs: 100, complete: false },
-      perp: { openInterestUsd: 1e6, volume24hUsd: 0, totalPairs: 1, countedPairs: 1, venues: [{ slug: 'binance', name: 'Binance', kind: 'cex', openInterestUsd: 1e6, volume24hUsd: 0, fundingIntervalH: 8 }] },
+      perp: { openInterestUsd: 1e6, volume24hUsd: 0, totalPairs: 1, countedPairs: 1, basis: 0.0012, venues: [{ slug: 'binance', name: 'Binance', kind: 'cex', openInterestUsd: 1e6, volume24hUsd: 0, fundingIntervalH: 8, basis: 0.0012 }] },
     }),
   );
-  assert.match(html, /🏦 <b><u>Spot<\/u><\/b>  100\+ pairs\n├ <code>CEXs   <\/code> 4 \(3 spot\) · Binance, Coinbase Exchange, Upbit…\n├ <code>Vol    <\/code> \$229\.3M 🔴 -53\.68% 24h\n├ <code>Split  <\/code> CEX \$227\.5M · DEX \$1\.8M · 99% CEX\n├ <code>Top    <\/code> Binance 50% · OKX 20% · Gate 16%\n└ <code>Premium<\/code> CEX \+0\.20% vs DEX 🟢/);
+  assert.match(html, /🏦 <b><u>Spot<\/u><\/b>  100\+ pairs\n├ <code>CEXs   <\/code> 4 \(3 spot\) · Binance, Coinbase Exchange, Upbit…\n├ <code>Vol    <\/code> \$229\.3M 🔴 -53\.68% 24h\n├ <code>Split  <\/code> CEX \$227\.5M · DEX \$1\.8M · 99% CEX\n├ <code>Top    <\/code> Binance 50% · OKX 20% · Gate 16%\n└ <code>Premium<\/code> Futures \+0\.12% vs Spot 🟢/);
   assert.doesNotMatch(html, /^🏦 \d+ CEXs/m); // 旧头部的 CEX 行已并入 Spot 区块
   const order = ['<u>Holders</u>', '<u>Perps</u>', '<u>Spot</u>'].map((h) => html.indexOf(h));
   assert.deepEqual([...order].sort((a, b) => a - b), order);
@@ -176,4 +176,19 @@ test('爆仓多空相等显示 Even；缺多空拆分只给总额', () => {
   assert.match(even, /Liq 1h\s*<\/code> Long \$452 · Short \$452 · Even/);
   const totalOnly = renderScanCard(baseReport({ liquidations: { total24hUsd: 5e6 } }));
   assert.match(totalOnly, /Liq 24h<\/code> \$5\.0M(\n|$)/);
+});
+
+test('Risks 区块位于 Holders 之后、Security 之前；无合约数据时 Spot 不出 Premium 行', () => {
+  const html = renderScanCard(
+    baseReport({
+      holders: { totalHolders: 10 },
+      security: { provider: 'GoPlus', items: [], tags: [], extra: {} },
+      risks: [{ level: 'warn', code: 'top10_concentration', message: '⚠️ Top 10 own 62.8%' }],
+      core: { cmcId: 1027, categories: [], spotVolume24hUsd: 1e6, cexVolume24hUsd: 9e5, dexVolume24hUsd: 1e5 },
+    }),
+  );
+  const order = ['<u>Holders</u>', '<u>Caution</u>', '<u>Security</u>', '<u>Spot</u>'].map((h) => html.indexOf(h));
+  assert.ok(order.every((i) => i >= 0), `missing: ${order}`);
+  assert.deepEqual([...order].sort((a, b) => a - b), order);
+  assert.doesNotMatch(html, /Premium/);
 });

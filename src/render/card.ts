@@ -1,7 +1,6 @@
 import { chainRegistry } from '../domain/chains.js';
 import { overallRisk } from '../domain/risk.js';
 import { CMC_LISTING_URL, CMC_SUPPLY_METHODOLOGY_URL, PERP_TOP_VENUES, SPOT_TOP_VENUES } from '../config/constants.js';
-import { spotPremiumPct } from '../domain/spot.js';
 import { formatCallAge, formatMultiple, userLink } from '../domain/calls.js';
 import type { LiquidationStats, PerpStats, PoolInfo, SecurityScan, SpotStats, TokenReport } from '../domain/types.js';
 import {
@@ -143,6 +142,14 @@ export function renderScanCard(report: TokenReport): string {
     out.push(...tree(rows));
   }
 
+  // ── Risks ──
+  const risks = visibleRisks(report);
+  if (risks.length) {
+    const [riskEmoji, ...riskTitle] = (RISK_HEADER[overallRisk(report.risks)] ?? '⚠️ Risks').split(' ');
+    out.push('', section(riskEmoji!, riskTitle.join(' ')));
+    out.push(...tree(risks.slice(0, 8).map((r) => escapeHtml(r.message))));
+  }
+
   // ── Security ──
   const sec = report.security;
   if (sec) {
@@ -160,21 +167,13 @@ export function renderScanCard(report: TokenReport): string {
     out.push(...tree(perpRows));
   }
 
-  // ── Spot ──（CEX 上所、全链现货量与 24h 变化、CEX/DEX 拆分、白名单内各所占比、CEX 对 DEX 溢价）
+  // ── Spot ──（CEX 上所、全链现货量与 24h 变化、CEX/DEX 拆分、白名单内各所占比、合约对现货溢价）
   const spotRows = renderSpotRows(report, report.spot);
   if (spotRows.length) {
     const n = report.spot?.returnedPairs;
     const pairs = n ? `  ${report.spot!.complete ? n : `${n}+`} pairs` : '';
     out.push('', `${section('🏦', 'Spot')}${pairs}`);
     out.push(...tree(spotRows));
-  }
-
-  // ── Risks ──
-  const risks = visibleRisks(report);
-  if (risks.length) {
-    const [riskEmoji, ...riskTitle] = (RISK_HEADER[overallRisk(report.risks)] ?? '⚠️ Risks').split(' ');
-    out.push('', section(riskEmoji!, riskTitle.join(' ')));
-    out.push(...tree(risks.slice(0, 8).map((r) => escapeHtml(r.message))));
   }
 
   // ── Call ──（群内首次喊单：谁 @ 当时市值 [倍数] (多久前) 🔼原消息，放在卡片尾部）
@@ -355,7 +354,7 @@ function renderCallLine(c: NonNullable<TokenReport['call']>): string {
  *   Vol     $229.3M 🔴 −53.7% 24h
  *   Split   CEX $227.5M · DEX $1.8M · 99% CEX
  *   Top     Binance 25% · OKX 10% · Bybit 7%
- *   Premium CEX +0.2% vs DEX 🟢
+ *   Premium Futures +0.12% vs Spot 🟢
  * 任一项缺失整行省略；全缺返回空数组，调用方不渲染区块头。
  */
 function renderSpotRows(report: TokenReport, spot: SpotStats | undefined): string[] {
@@ -385,9 +384,11 @@ function renderSpotRows(report: TokenReport, spot: SpotStats | undefined): strin
       .map((v) => `${escapeHtml(v.name)} ${Math.round((v.volume24hUsd / spot.whitelistVolumeUsd) * 100)}%`);
     if (top.length) rows.push(`${label('Top')} ${top.join(' · ')}`);
   }
-  const premium = spotPremiumPct(core?.priceUsd, p.priceUsd);
-  if (premium !== undefined && Math.abs(premium) >= 0.05) {
-    rows.push(`${label('Premium')} CEX ${formatPercent(premium)} vs DEX ${changeEmoji(premium)}`);
+  // 合约对现货的溢价：白名单各所基差按 OI 加权。正 = 合约价高于现货（多头付费）🟢，负 🔴
+  const basis = report.perp?.basis;
+  if (basis !== undefined) {
+    const pct = basis * 100;
+    rows.push(`${label('Premium')} Futures ${formatPercent(pct)} vs Spot ${changeEmoji(pct)}`);
   }
   return rows;
 }
