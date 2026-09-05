@@ -9,9 +9,10 @@ import type { TokenReport } from '../src/domain/types.js';
 
 test('crossedMilestone：只报本次新跨过的最高档，已播过的不重复', () => {
   assert.equal(crossedMilestone(1.8, 0), undefined);
-  assert.equal(crossedMilestone(2.1, 0), 2);
-  assert.equal(crossedMilestone(2.5, 2), undefined);
-  assert.equal(crossedMilestone(5.2, 2), 5); // 跳过 3x 直接报 5x
+  assert.equal(crossedMilestone(2.1, 0), undefined); // 5x 以下不播
+  assert.equal(crossedMilestone(5.2, 0), 5);
+  assert.equal(crossedMilestone(12, 5), 10); // 跳过中间档只报最高的新档
+  assert.equal(crossedMilestone(7, 5), undefined);
   assert.equal(crossedMilestone(120, 50), 100);
   assert.equal(crossedMilestone(0.5, 0), undefined);
 });
@@ -33,7 +34,7 @@ test('formatCallAge / formatMultiple / messageLink', () => {
 const token = { networkSlug: 'bnb', address: '0xFE189E97832DA1573E4E4FF034F4FFC3A15C7777', symbol: 'MARSCOIN' };
 const caller = { userId: 9, username: 'aaronseaemcee', displayName: 'Aaron' };
 
-test('CallService：首次创建、后续算倍数与峰值、里程碑每档只播一次、按钮回调不创建', () => {
+test('CallService：首次创建、后续算倍数与峰值、里程碑 5x 起每档只播一次、按钮回调不创建', () => {
   const svc = new CallService(openMemoryDatabase());
   const t0 = 1_700_000_000_000;
   // 按钮回调（无 caller）不创建
@@ -47,11 +48,11 @@ test('CallService：首次创建、后续算倍数与峰值、里程碑每档只
   const second = svc.track({ chatId: -1001, token: { ...token, address: token.address.toLowerCase() }, mcapUsd: 48e6, mcapKind: 'mc', now: t0 + 3_600_000 })!;
   assert.equal(second.summary.isNew, false);
   assert.ok(Math.abs(second.summary.multiple - 48 / 21.5) < 1e-9);
-  assert.equal(second.milestone, 2);
+  assert.equal(second.milestone, undefined); // 2.2x，5x 以下不播
   assert.equal(second.callMessageId, 77);
 
-  const third = svc.track({ chatId: -1001, token, mcapUsd: 50e6, mcapKind: 'mc', now: t0 + 7_200_000 })!;
-  assert.equal(third.milestone, undefined); // 2x 已播过
+  const third = svc.track({ chatId: -1001, token, mcapUsd: 120e6, mcapKind: 'mc', now: t0 + 7_200_000 })!;
+  assert.equal(third.milestone, 5); // 5.6x
   const fourth = svc.track({ chatId: -1001, token, mcapUsd: 224e6, mcapKind: 'mc', now: t0 + 9_000_000 })!;
   assert.equal(fourth.milestone, 10);
   assert.ok(Math.abs(fourth.summary.peakMultiple - 224 / 21.5) < 1e-9);
