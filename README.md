@@ -139,7 +139,7 @@ The bot is a single long-running process (long polling), which is exactly what R
 
 **2. Create the service**: Railway dashboard → *New Project* → *Deploy from GitHub repo* → pick this repo. Railway detects `railway.json` and builds with the `Dockerfile`.
 
-**3. Add a Volume** (service → *Settings* → *Volumes*) mounted at `/data`, so the portfolio database survives redeploys. The image runs as the `node` user, so also set `RAILWAY_RUN_UID=1000` per Railway's volume docs; without a volume the bot still runs, portfolio is simply disabled.
+**3. Add a Volume** (service → *Settings* → *Volumes*) mounted at `/data`, so the portfolio database survives redeploys. Railway mounts volumes owned by root while the image runs as the `node` user, so also set `RAILWAY_RUN_UID=0` (Railway's documented workaround; with `1000` SQLite fails with `unable to open database file`). Without a volume the bot still runs, portfolio is simply disabled.
 
 **4. Set variables** in the service's *Variables* tab:
 
@@ -151,7 +151,7 @@ The bot is a single long-running process (long polling), which is exactly what R
 | `CMC_MAX_RETRIES` | `1` |
 | `LOG_LEVEL` | `info` |
 | `DATA_DIR` | `/data` — the Volume mount from step 3 (portfolio database) |
-| `RAILWAY_RUN_UID` | `1000` — lets the non-root `node` user write to the Volume |
+| `RAILWAY_RUN_UID` | `0` — needed for the Volume to be writable (see step 3) |
 
 Leave `TELEGRAM_WEBHOOK_DOMAIN` unset. Railway injects `PORT` automatically; the bot uses it to serve `/health` and the K-line chart images.
 

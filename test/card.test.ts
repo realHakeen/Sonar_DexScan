@@ -44,11 +44,11 @@ test('Perps 区块：OI / Top / Vol / Funding / Liq 各一行', () => {
       liquidations: { total24hUsd: 108e6, long24hUsd: 22e6, short24hUsd: 86e6, total1hUsd: 0.5e6, long1hUsd: 0.1e6, short1hUsd: 0.4e6 },
     }),
   );
-  assert.match(html, /📈 <b><u>Perps<\/u><\/b>  197 pairs/);
+  assert.match(html, /⚡ <b><u>Perps<\/u><\/b>  197 pairs/);
   assert.match(html, /OI\s*<\/code> \$9\.8B · 4 venues/);
   assert.match(html, /Top\s*<\/code> Binance 60% · OKX 16% · Bybit 12%/);
   assert.match(html, /Vol\s*<\/code> \$38\.2B \(3\.2× spot\)/);
-  assert.match(html, /Funding<\/code> 🔴 \+0\.0065% \(8h\) · \+7\.1% APR · Binance/);
+  assert.match(html, /Funding<\/code> \+0\.0065% \(8h\) · \+7\.1% APR · Binance 🔴/);
   assert.match(html, /Liq 24h<\/code> Long \$22\.0M · Short \$86\.0M · Net short 🟢/);
   assert.match(html, /Liq 1h\s*<\/code> Long \$100K · Short \$400K · Net short 🟢/);
   assert.match(html, /Split\s*<\/code> CEX \$11\.0B · DEX \$1\.0B · 92% CEX/);
@@ -57,7 +57,7 @@ test('Perps 区块：OI / Top / Vol / Funding / Liq 各一行', () => {
 test('无 perp 也无 liquidations 时不出 Perps 区块；只有爆仓也能单独出', () => {
   assert.doesNotMatch(renderScanCard(baseReport()), /Perps/);
   const html = renderScanCard(baseReport({ liquidations: { total24hUsd: 1622, long24hUsd: 1024, short24hUsd: 597 } }));
-  assert.match(html, /📈 <b><u>Perps<\/u><\/b>\n└ <code>Liq 24h<\/code> Long \$1K · Short \$597 · Net long 🔴/);
+  assert.match(html, /⚡ <b><u>Perps<\/u><\/b>\n└ <code>Liq 24h<\/code> Long \$1K · Short \$597 · Net long 🔴/);
 });
 
 test('1h 制费率标注 native 周期', () => {
@@ -72,7 +72,7 @@ test('1h 制费率标注 native 周期', () => {
       },
     }),
   );
-  assert.match(html, /Funding<\/code> 🔴 \+0\.0100% \(8h\) · \+10\.9% APR · Hyperliquid \(1h native\)/);
+  assert.match(html, /Funding<\/code> \+0\.0100% \(8h\) · \+10\.9% APR · Hyperliquid \(1h native\) 🔴/);
   assert.doesNotMatch(html, /Top\s*<\/code>/);
 });
 
@@ -89,7 +89,7 @@ test('涨绿跌红：Txns 用 emoji 色块，Flow 按买压 ≥50% 绿；负费�
   );
   assert.match(html, /Txns\s*<\/code> 🟢 ↑9\.9K · 🔴 ↓9\.1K/);
   assert.match(html, /Flow\s*<\/code> \+\$1\.8M \/ −\$1\.7M · 51% buy 🟢/);
-  assert.match(html, /Funding<\/code> 🟢 -0\.0200% \(8h\) · -21\.9% APR · Gate/);
+  assert.match(html, /Funding<\/code> -0\.0200% \(8h\) · -21\.9% APR · Gate 🟢/);
 });
 
 test('Pools：流动性数字链到 DexScan 代币页，锁仓 / 销毁用分隔符；Tags 每行两个', () => {
@@ -145,7 +145,7 @@ test('区块顺序：Market → Pools → Holders → Security → Perps；标�
       security: { provider: 'GoPlus', items: [], tags: [], extra: {} },
     }),
   );
-  const order = ['📊 <b><u>Market</u></b>', '💧 <b><u>Pools (1)</u></b>', '👥 <b><u>Holders</u></b>', '🛡 <b><u>Security</u></b>', '📈 <b><u>Perps</u></b>'].map((h) => html.indexOf(h));
+  const order = ['📊 <b><u>Market</u></b>', '💧 <b><u>Pools (1)</u></b>', '👥 <b><u>Holders</u></b>', '🛡 <b><u>Security</u></b>', '⚡ <b><u>Perps</u></b>'].map((h) => html.indexOf(h));
   assert.ok(order.every((i) => i >= 0), `missing header: ${order}`);
   assert.deepEqual([...order].sort((a, b) => a - b), order);
 });
@@ -165,8 +165,8 @@ test('Spot 区块：CEXs / Vol 变化 / Split / Top / Premium，位于 Perps 之
       perp: { openInterestUsd: 1e6, volume24hUsd: 0, totalPairs: 1, countedPairs: 1, venues: [{ slug: 'binance', name: 'Binance', kind: 'cex', openInterestUsd: 1e6, volume24hUsd: 0, fundingIntervalH: 8 }] },
     }),
   );
-  assert.match(html, /📈 <b><u>Spot<\/u><\/b>  100\+ pairs\n├ <code>CEXs   <\/code> 4 \(3 spot\) · Binance, Coinbase Exchange, Upbit…\n├ <code>Vol    <\/code> \$229\.3M 🔴 -53\.68% 24h\n├ <code>Split  <\/code> CEX \$227\.5M · DEX \$1\.8M · 99% CEX\n├ <code>Top    <\/code> Binance 50% · OKX 20% · Gate 16%\n└ <code>Premium<\/code> CEX \+0\.20% vs DEX 🟢/);
-  assert.doesNotMatch(html, /🏦/);
+  assert.match(html, /🏦 <b><u>Spot<\/u><\/b>  100\+ pairs\n├ <code>CEXs   <\/code> 4 \(3 spot\) · Binance, Coinbase Exchange, Upbit…\n├ <code>Vol    <\/code> \$229\.3M 🔴 -53\.68% 24h\n├ <code>Split  <\/code> CEX \$227\.5M · DEX \$1\.8M · 99% CEX\n├ <code>Top    <\/code> Binance 50% · OKX 20% · Gate 16%\n└ <code>Premium<\/code> CEX \+0\.20% vs DEX 🟢/);
+  assert.doesNotMatch(html, /^🏦 \d+ CEXs/m); // 旧头部的 CEX 行已并入 Spot 区块
   const order = ['<u>Holders</u>', '<u>Perps</u>', '<u>Spot</u>'].map((h) => html.indexOf(h));
   assert.deepEqual([...order].sort((a, b) => a - b), order);
 });

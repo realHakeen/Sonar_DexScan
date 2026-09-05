@@ -20,7 +20,7 @@ export function renderPerpCard(v: PerpView): string {
   const out: string[] = [];
   const p = v.perp;
   const venueCount = p?.venues.length ?? 0;
-  const head = [section('📈', `${v.symbol} Perps`)];
+  const head = [section('⚡', `${v.symbol} Perps`)];
   if (p) head.push(`${venueCount} venue${venueCount === 1 ? '' : 's'}`, `${p.totalPairs} pair${p.totalPairs === 1 ? '' : 's'}`);
   out.push(head.join(' · '));
 
@@ -35,18 +35,18 @@ export function renderPerpCard(v: PerpView): string {
     const cexOi = p.venues.filter((x) => x.kind === 'cex').reduce((s, x) => s + x.openInterestUsd, 0);
     const dexOi = p.openInterestUsd - cexOi;
     if (cexOi > 0 && dexOi > 0) rows.push(`${label('CEX/DEX')} ${formatUsdShort(cexOi)} / ${formatUsdShort(dexOi)} OI`);
-    if (p.funding) rows.push(`${label('Funding')} ${fundingEmoji(p.funding.rate8h)} ${formatFunding(p.funding.rate8h)} (8h) · ${formatApr(p.funding.apr)} APR`);
+    if (p.funding) rows.push(`${label('Funding')} ${formatFunding(p.funding.rate8h)} (8h) · ${formatApr(p.funding.apr)} APR ${fundingEmoji(p.funding.rate8h)}`);
     out.push(...tree(rows));
 
     // ── 按所 ──
-    out.push('', `${section('🏦', 'By venue')} · OI · Vol · Funding (8h)`);
+    out.push('', `${section('🏛', 'By venue')} · OI · Vol · Funding (8h)`);
     // 整行等宽才能对齐三列数字；36 列内：11 + 1 + 7 + 1 + 7 + 1 + 8
     // 费率色块放在等宽块前面（每行都有一个，宽度一致不破坏对齐）
     const venueRows = p.venues.slice(0, VENUE_ROWS).map((x) => {
       const r8 = x.fundingRate !== undefined ? normalizeFunding(x.name, x.fundingRate, x.fundingIntervalH).rate8h : undefined;
       const f = r8 !== undefined ? formatFunding(r8) : '—';
       const row = `${x.name.slice(0, VENUE_COL).padEnd(VENUE_COL)} ${formatUsdShort(x.openInterestUsd).padStart(7)} ${formatUsdShort(x.volume24hUsd).padStart(7)} ${f.padStart(8)}`;
-      return `${r8 !== undefined ? fundingEmoji(r8) : '⚪️'} <code>${escapeHtml(row)}</code>`;
+      return `<code>${escapeHtml(row)}</code> ${r8 !== undefined ? fundingEmoji(r8) : '⚪️'}`;
     });
     if (p.venues.length > VENUE_ROWS) venueRows.push(`+${p.venues.length - VENUE_ROWS} more`);
     out.push(...tree(venueRows));

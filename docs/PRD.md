@@ -61,13 +61,13 @@
 | Holders | 总数；Top10 / Top50 进度条；标签 🎯🧑‍💻🐳🤖🧠📣 持有人数（持仓占比 ≥ 0.1% 时显示），每行最多 2 个 |
 | Security | 来源 · 评级；税率 · 蜜罐状态；命中项逐条（🚨/⚠️/ℹ️ 按 r/y/g），未命中项只给数量 |
 | Pools | 紧跟 Market：前 3 个池子，DEX 缩写 / 报价币 · 流动性（数字即链接，指向该代币的 DexScan 页；DexScan 没有单独的池子页，池子地址 404、`/pair/` 重定向首页，2026-09-05 实测；链接内不能嵌 code）· 首池占比（括号）· 🔒 锁仓 / 🔥 销毁 |
-| Spot | 仅有 cid 的币（CEXs 行例外，来自 token 接口）：CEXs 上所家数（现货数）· 前 3 家；Vol 全链现货量 + 24h 变化色块；Split CEX / DEX 拆分 + CEX 占比；Top 现货成交量前 3 所占比（只在 `config/constants.ts#SPOT_EXCHANGE_WHITELIST` 约 20 家内计算，PEPE 原始排名第三到五是 WhiteBIT / UZX / Poloniex 刷量所）；Premium CEX 对 DEX 现货溢价（CMC 参考价 / 链上池子价 − 1，正值绿负值红，\|溢价\| < 0.05% 不显示，> 50% 视为脏数据）。标题带 pairs 数，达到 100 上限显示 `100+`。数据：`/v2/cryptocurrency/market-pairs/latest?category=spot&limit=100&sort=volume_24h_strict`，1 credit；`num_market_pairs` 等于返回条数不是总数 |
-| Perps | 仅有 cid 的币：OI 合计 · 交易所数；Top 3 所 OI 占比；合约成交量 + 合约/现货倍数；费率（折算 8h，写作 `+0.0498% (8h)`——不能写 `/8h`，Telegram 会当成 bot 命令渲染成链接；色块按 CoinGlass 习惯：正费率 🔴 负费率 🟢）· 年化 · 参考所（非 8h 制标注 native 周期）；Liq 24h 与 1h：`Long $516K · Short $4K · Net long 🔴`（多单爆得多 = 在跌 🔴，空单爆得多 = 在涨 🟢，相等 Even）。任一项缺失整行省略，全缺不出区块 |
+| Spot 🏦 | 仅有 cid 的币（CEXs 行例外，来自 token 接口）：CEXs 上所家数（现货数）· 前 3 家；Vol 全链现货量 + 24h 变化色块；Split CEX / DEX 拆分 + CEX 占比；Top 现货成交量前 3 所占比（只在 `config/constants.ts#SPOT_EXCHANGE_WHITELIST` 约 20 家内计算，PEPE 原始排名第三到五是 WhiteBIT / UZX / Poloniex 刷量所）；Premium CEX 对 DEX 现货溢价（CMC 参考价 / 链上池子价 − 1，正值绿负值红，\|溢价\| < 0.05% 不显示，> 50% 视为脏数据）。标题带 pairs 数，达到 100 上限显示 `100+`。数据：`/v2/cryptocurrency/market-pairs/latest?category=spot&limit=100&sort=volume_24h_strict`，1 credit；`num_market_pairs` 等于返回条数不是总数 |
+| Perps ⚡ | 仅有 cid 的币：OI 合计 · 交易所数；Top 3 所 OI 占比；合约成交量 + 合约/现货倍数；费率（折算 8h，写作 `+0.0498% (8h)`——不能写 `/8h`，Telegram 会当成 bot 命令渲染成链接；色块按 CoinGlass 习惯放行尾：正费率 🔴 负费率 🟢）· 年化 · 参考所（非 8h 制标注 native 周期）；Liq 24h 与 1h：`Long $516K · Short $4K · Net long 🔴`（多单爆得多 = 在跌 🔴，空单爆得多 = 在涨 🟢，相等 Even）。任一项缺失整行省略，全缺不出区块 |
 | Risks | 按 🚨 → ⚠️ → ℹ️ 排序，最多 8 条；Security 已逐项列出的合约级 warn 不重复；单一 LP 已在 Pools 显示不重复 |
 | Links | Website · X · TG · Explorer · Trade · DexScan（项目渠道在前，工具在后）；标签行与合约地址之间空一行 |
 | 脚注 | 有降级项时：`⚠️ Partial data — unavailable: …. Tap Refresh to retry.` |
 
-按钮：第一行 `🔄 Refresh` · `📈 Trade` · `📊 Perps`（有合约数据时）；第二行 `⭐ Add to Portfolio`（存储可用时）；有次要链时再一行「Switch to X」。文案尽量短，手机端一行放得下。
+按钮：第一行 `🔄 Refresh` · `📈 Trade` · `⚡ Perps`（有合约数据时）；第二行 `⭐ Add to Portfolio`（存储可用时）；有次要链时再一行「Switch to X」。文案尽量短，手机端一行放得下。
 
 **Perps 口径**（2026-09-04 定）：OI 与合约成交量只对 `config/constants.ts#PERP_EXCHANGE_WHITELIST` 的 16 家求和（12 CEX：Binance / OKX / Bybit / Bitget / Gate / KuCoin / MEXC / BingX / Kraken / Crypto.com / HTX / Deribit；4 DEX：Hyperliquid / Aster / Lighter / edgeX）。不能用 `exchange_score` 过滤：BTCC / Tapbit / Weex / Fameex 评分 7.7–8.8 却报全网前几的假 OI，而 Hyperliquid 的 liquidity_score 为 0、edgeX / dYdX 无评分。实测 9 家爆仓所只覆盖白名单 OI 的 63%–83%，缺口主要是 MEXC，所以 OI 不收窄到 9 家。白名单内再剔除 `outlier_detected` / `exclusions` 非空的合约对，并在最大所 OI 超过第二名 20 倍时视为抽风剔除。费率不跨所平均（结算周期不同），只显示 OI 最大所的值并折算到 8h。爆仓是 CMC 汇总的 9 家（Binance / Bitfinex / Hyperliquid / Bybit / Gate / OKX / HTX / Aster / Kraken），是下限。
 
@@ -77,7 +77,7 @@
 - 卡片按钮 `⭐ Add to Portfolio`：按 **Telegram 用户** 存（群里谁点进谁的列表），记录加入时的价格 / 市值 / cid，只回 toast 不改消息（群里按钮共用，不能反映个人状态）。数据优先取卡片渲染缓存的快照（10 分钟），过期再拉一次 token 详情。上限 20 个，满了提示先删。
 - `/portfolio`（`/pf`）：列出代币 · 链 · 当前价 · 自加入以来涨跌 · 24h 涨跌，脚注给市值；每行 `🔍` 重新扫描（新消息）、`🗑` 移除（原地重绘），末行 `🔄 Refresh`。群里发到私聊（列表是个人的），私聊未 /start 过则提示。
 - 行情：有 cid 的用 quotes 批量（1 credit / 100 个），无 cid 的逐个 token 详情（各 1 credit），链名与上游 plt 不一致时退到 search 反查。刷新走限流。
-- 存储：Node 内置 `node:sqlite`，文件在 `DATA_DIR/sonar.db`（默认 `./data`，已 gitignore）。Railway 上挂 Volume 到 `/data` 并设 `DATA_DIR=/data`；镜像以 `node` 用户运行，Volume 权限按 Railway 文档设 `RAILWAY_RUN_UID=1000`。数据库打不开时按钮不显示、命令提示暂不可用，扫描不受影响。
+- 存储：Node 内置 `node:sqlite`，文件在 `DATA_DIR/sonar.db`（默认 `./data`，已 gitignore）。Railway 上挂 Volume 到 `/data` 并设 `DATA_DIR=/data`；镜像以 `node` 用户运行而 Volume 归 root，需设 `RAILWAY_RUN_UID=0`（设 1000 实测报 `unable to open database file`）。数据库打不开时按钮不显示、命令提示暂不可用，扫描不受影响。
 
 ### F4 群组模式
 - 群内对地址、链接、`@bot …` 响应；裸名称不响应（避免"这个 pepe 不错"触发查询）。

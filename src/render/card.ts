@@ -155,7 +155,7 @@ export function renderScanCard(report: TokenReport): string {
   const perpRows = renderPerpRows(report.perp, report.liquidations, report.core?.spotVolume24hUsd ?? p.volume24hUsd);
   if (perpRows.length) {
     const pairs = report.perp?.totalPairs;
-    out.push('', `${section('📈', 'Perps')}${pairs ? `  ${pairs} pair${pairs === 1 ? '' : 's'}` : ''}`);
+    out.push('', `${section('⚡', 'Perps')}${pairs ? `  ${pairs} pair${pairs === 1 ? '' : 's'}` : ''}`);
     out.push(...tree(perpRows));
   }
 
@@ -164,7 +164,7 @@ export function renderScanCard(report: TokenReport): string {
   if (spotRows.length) {
     const n = report.spot?.returnedPairs;
     const pairs = n ? `  ${report.spot!.complete ? n : `${n}+`} pairs` : '';
-    out.push('', `${section('📈', 'Spot')}${pairs}`);
+    out.push('', `${section('🏦', 'Spot')}${pairs}`);
     out.push(...tree(spotRows));
   }
 
@@ -321,7 +321,7 @@ function renderPerpRows(perp: PerpStats | undefined, liq: LiquidationStats | und
     const f = perp.funding;
     const period = f.intervalH === 8 ? '' : ` (${f.intervalH}h native)`;
     // 不能写 "/8h"：Telegram 会把 "/8h" 当成 bot 命令渲染成链接
-    rows.push(`${label('Funding')} ${fundingEmoji(f.rate8h)} ${formatFunding(f.rate8h)} (8h) · ${formatApr(f.apr)} APR · ${escapeHtml(f.venue)}${period}`);
+    rows.push(`${label('Funding')} ${formatFunding(f.rate8h)} (8h) · ${formatApr(f.apr)} APR · ${escapeHtml(f.venue)}${period} ${fundingEmoji(f.rate8h)}`);
   }
   // 爆仓：多空分开，再给一个净方向。多单被爆得多 = 价格在跌 → 🔴；空单被爆得多 = 在涨 → 🟢；相等 Even
   const liqRow = (name: string, total?: number, long?: number, short?: number): string | undefined => {

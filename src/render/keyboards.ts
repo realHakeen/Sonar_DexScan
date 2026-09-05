@@ -17,7 +17,7 @@ export function scanCardKeyboard(report: TokenReport, portfolioEnabled = true): 
   ];
   // 有合约数据的币给一个展开按钮，原地切到 /perp 视图；带代币定位，视图里的 Back 用它回来
   if (report.perp && p.cmcId) {
-    first.push(Markup.button.callback('📊 Perps', encodeCallback({ action: 'perp', networkSlug: p.networkSlug, address: p.address, symbol: p.symbol })));
+    first.push(Markup.button.callback('⚡ Perps', encodeCallback({ action: 'perp', networkSlug: p.networkSlug, address: p.address, symbol: p.symbol })));
   }
   rows.push(first);
   if (portfolioEnabled) {
