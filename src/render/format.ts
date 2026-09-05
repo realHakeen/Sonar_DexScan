@@ -102,23 +102,11 @@ export function bar(pct: number | undefined, width = 10): string {
   return '▰'.repeat(filled) + '▱'.repeat(width - filled);
 }
 
-/** 等宽标签列：Telegram 只有 <code> 能对齐，标签补空格到固定宽度。（perp 按所表等仍在用） */
+/** 等宽标签列：Telegram 只有 <code> 能对齐，标签补空格到固定宽度。 */
 export function label(text: string, width = 7): string {
   return `<code>${text.padEnd(width)}</code>`;
 }
 
-/**
- * Rick bot 式排版：标签是普通文本，数值放进 <code>。
- * Telegram 文本没有颜色，但客户端会用主题强调色渲染 code（暗色主题下是蓝色），数字就从文字里跳出来了。
- */
-export function key(text: string): string {
-  return `${text}:`;
-}
-
-/** 数值：等宽 + 客户端强调色。传入已转义 / 无需转义的字符串。 */
-export function val(text: string): string {
-  return `<code>${text}</code>`;
-}
 
 /** 树形连接线：除最后一行用 └，其余用 ├。 */
 export function tree(rows: string[]): string[] {

@@ -45,19 +45,19 @@ test('Perps 区块：OI / Top / Vol / Funding / Liq 各一行', () => {
     }),
   );
   assert.match(html, /📈 Perps<\/b>  197 pairs/);
-  assert.match(html, /OI: <code>\$9\.8B<\/code> · <code>4<\/code> venues/);
-  assert.match(html, /Top: Binance <code>60%<\/code> · OKX <code>16%<\/code> · Bybit <code>12%<\/code>/);
-  assert.match(html, /Vol: <code>\$38\.2B<\/code> · <code>3\.2×<\/code> spot/);
-  assert.match(html, /Funding: 🔴 <code>\+0\.0065%\/8h<\/code> · <code>\+7\.1%<\/code> APR · Binance/);
-  assert.match(html, /Liq 24h: <code>\$108\.0M<\/code> · L <code>\$22\.0M<\/code> \/ S <code>\$86\.0M<\/code>/);
-  assert.match(html, /Liq 1h: <code>\$500K<\/code>/);
-  assert.match(html, /Spot: CEX <code>\$11\.0B<\/code> · DEX <code>\$1\.0B<\/code> · <code>92%<\/code> CEX/);
+  assert.match(html, /OI\s*<\/code> \$9\.8B · 4 venues/);
+  assert.match(html, /Top\s*<\/code> Binance 60% · OKX 16% · Bybit 12%/);
+  assert.match(html, /Vol\s*<\/code> \$38\.2B \(3\.2× spot\)/);
+  assert.match(html, /Funding<\/code> 🔴 \+0\.0065%\/8h · \+7\.1% APR · Binance/);
+  assert.match(html, /Liq 24h<\/code> \$108\.0M · L \$22\.0M \/ S \$86\.0M/);
+  assert.match(html, /Liq 1h\s*<\/code> \$500K/);
+  assert.match(html, /Spot\s*<\/code> CEX \$11\.0B · DEX \$1\.0B · 92% CEX/);
 });
 
 test('无 perp 也无 liquidations 时不出 Perps 区块；只有爆仓也能单独出', () => {
   assert.doesNotMatch(renderScanCard(baseReport()), /Perps/);
   const html = renderScanCard(baseReport({ liquidations: { total24hUsd: 1622, long24hUsd: 1024, short24hUsd: 597 } }));
-  assert.match(html, /📈 Perps<\/b>\n└ Liq 24h: <code>\$2K<\/code>/);
+  assert.match(html, /📈 Perps<\/b>\n└ <code>Liq 24h<\/code> \$2K/);
 });
 
 test('1h 制费率标注 native 周期', () => {
@@ -72,8 +72,8 @@ test('1h 制费率标注 native 周期', () => {
       },
     }),
   );
-  assert.match(html, /Funding: 🔴 <code>\+0\.0100%\/8h<\/code> · <code>\+10\.9%<\/code> APR · Hyperliquid \(1h native\)/);
-  assert.doesNotMatch(html, /Top:/);
+  assert.match(html, /Funding<\/code> 🔴 \+0\.0100%\/8h · \+10\.9% APR · Hyperliquid \(1h native\)/);
+  assert.doesNotMatch(html, /Top\s*<\/code>/);
 });
 
 test('涨绿跌红：Txns / Flow 用 emoji 色块；负费率标绿', () => {
@@ -87,9 +87,9 @@ test('涨绿跌红：Txns / Flow 用 emoji 色块；负费率标绿', () => {
       },
     }),
   );
-  assert.match(html, /Txns: 🟢 <code>↑9\.9K<\/code> · 🔴 <code>↓9\.1K<\/code>/);
-  assert.match(html, /Flow: 🟢 <code>\+\$1\.8M<\/code> \/ 🔴 <code>−\$1\.7M<\/code> · <code>51%<\/code> buy/);
-  assert.match(html, /Funding: 🟢 <code>-0\.0200%\/8h<\/code> · <code>-21\.9%<\/code> APR · Gate/);
+  assert.match(html, /Txns\s*<\/code> 🟢 ↑9\.9K · 🔴 ↓9\.1K/);
+  assert.match(html, /Flow\s*<\/code> 🟢 \+\$1\.8M \/ 🔴 −\$1\.7M · 51% buy/);
+  assert.match(html, /Funding<\/code> 🟢 -0\.0200%\/8h · -21\.9% APR · Gate/);
 });
 
 test('Pools：名字链接到浏览器的 LP 合约页，锁仓 / 销毁用分隔符；Tags 每行两个', () => {
@@ -103,9 +103,9 @@ test('Pools：名字链接到浏览器的 LP 合约页，锁仓 / 销毁用分�
       tags: { sniper: 1, dev: 1, whale: 500, bot: 2800, smartMoney: 9, kol: 57, holdingPct: { whale: 56, bot: 1.0 } },
     }),
   );
-  assert.match(html, /Pancake v2 \/ WBNB · <a href="https:\/\/bscscan\.com\/address\/0xa{40}">\$1\.4M<\/a> \(<code>94%<\/code>\) · 🔒 100%/);
+  assert.match(html, /Pancake v2 \/ WBNB · <a href="https:\/\/bscscan\.com\/address\/0xa{40}">\$1\.4M<\/a> \(94%\) · 🔒 100%/);
   assert.match(html, /Pancake v3 \/ USDT · <a href="https:\/\/bscscan\.com\/address\/0xb{40}">\$87K<\/a>$/m);
-  assert.match(html, /Tags: 🎯 <code>1<\/code> · 🧑‍💻 <code>1<\/code>\n├ 🐳 <code>500<\/code> \(<code>56%<\/code>\) · 🤖 <code>2\.8K<\/code> \(<code>1\.0%<\/code>\)\n└ 🧠 <code>9<\/code> · 📣 <code>57<\/code>/);
+  assert.match(html, /Tags\s*<\/code> 🎯 1 · 🧑‍💻 1\n├ <code>\s*<\/code> 🐳 500 \(56%\) · 🤖 2\.8K \(1\.0%\)\n└ <code>\s*<\/code> 🧠 9 · 📣 57/);
 });
 
 test('Holders 头部带 24h 变化；✅ 与 circ. 链接到 CMC 帮助中心', () => {
@@ -117,8 +117,8 @@ test('Holders 头部带 24h 变化；✅ 与 circ. 链接到 CMC 帮助中心', 
     }),
   );
   assert.match(html, /<b>ETH<\/b> <a href="https:\/\/support\.coinmarketcap\.com\/hc\/en-us\/articles\/16945563933723-CMC-Priority-CMCP">✅<\/a> · Ethereum/);
-  assert.match(html, /MC: <code>\$18\.7M<\/code> · <code>96%<\/code> <a href="https:\/\/support\.coinmarketcap\.com\/hc\/en-us\/articles\/360043396252-Supply-Circulating-Total-Max">circ\.<\/a>/);
-  assert.match(html, /👥 Holders<\/b>  <code>100\.4K<\/code> 🟢 <code>\+0\.10%<\/code> 24h/);
+  assert.match(html, /MC\s*<\/code> \$18\.7M \(96% <a href="https:\/\/support\.coinmarketcap\.com\/hc\/en-us\/articles\/360043396252-Supply-Circulating-Total-Max">circ\.<\/a>\)/);
+  assert.match(html, /👥 Holders<\/b>  100\.4K 🟢 \+0\.10% 24h/);
   const flat = renderScanCard(baseReport({ holders: { totalHolders: 5, change24h: 0, change24hPct: 0 } }));
-  assert.match(flat, /👥 Holders<\/b>  <code>5<\/code>(\n|$)/);
+  assert.match(flat, /👥 Holders<\/b>  5(\n|$)/);
 });
