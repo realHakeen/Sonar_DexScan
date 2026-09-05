@@ -95,7 +95,7 @@ export class CoinIndex {
    */
   lookup(query: string, limit = 5, opts: { includeNative?: boolean } = {}): CoinIndexHit[] {
     const q = query.trim();
-    if (q.length < 2) return [];
+    if (q.length < 1) return [];
     const lower = q.toLowerCase();
     const upper = q.toUpperCase();
 

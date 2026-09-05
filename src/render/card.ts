@@ -344,7 +344,8 @@ function renderPerpRows(perp: PerpStats | undefined, liq: LiquidationStats | und
 function renderCallLine(c: NonNullable<TokenReport['call']>): string {
   const who = c.username ? link(escapeHtml(c.username), userLink(c.username)!) : bold(c.displayName);
   const mult = Number.isFinite(c.multiple) ? ` [${formatMultiple(c.multiple)}]` : '';
-  const age = c.isNew ? 'now' : `${formatCallAge(c.calledAt)} ago`;
+  const rel = c.isNew ? 'now' : formatCallAge(c.calledAt);
+  const age = rel === 'now' ? 'now' : `${rel} ago`;
   const jump = c.messageUrl ? ` ${link('🔼', c.messageUrl)}` : '';
   return `🚀 ${who} @ ${formatUsdShort(c.mcapUsd)}${mult} (${age})${jump}`;
 }

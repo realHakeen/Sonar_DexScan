@@ -50,7 +50,8 @@ test('$TICKER cashtag：单独或混在句子里都识别，并标记 explicit',
 test('cashtag 不误判金额', () => {
   assert.equal(extractCashtag('US$100 million'), undefined);
   assert.equal(extractCashtag('costs $5'), undefined);
-  assert.equal(extractCashtag('$1inch'), undefined, '首字符必须是字母');
+  assert.equal(extractCashtag('$1inch'), '1inch', '整条消息形态：任何字符都算');
+  assert.equal(extractCashtag('paid $1inch worth'), undefined, '句子里数字开头当金额');
 });
 
 const SOL = 'AMC1qwR9KhiyrQBRPrxnfo4JfMeMZqEBvt5tgTytNNoc';
@@ -83,4 +84,20 @@ test('Birdshot 式 caption：地址与 DexScreener 链接混在长文里', () =>
   const r = parseMessage(caption, []);
   assert.equal(r.kind === 'address' && r.address, SOL);
   assert.equal(r.kind === 'address' && r.chainSlug, 'solana');
+});
+
+test('单字符 / 数字 / 中文 cashtag：整条消息形态一律触发；句子里的金额不触发', () => {
+  for (const [text, q] of [['$4', '4'], ['$M', 'M'], ['$牛来', '牛来'], [' $PEPE ', 'PEPE'], ['$100k', '100k']] as const) {
+    const r = parseInput(text);
+    assert.equal(r.kind, 'query', text);
+    assert.equal(r.kind === 'query' && r.query, q);
+    assert.equal(r.kind === 'query' && r.explicit, true);
+  }
+  const cjk = parseInput('$牛来 冲不冲');
+  assert.equal(cjk.kind === 'query' && cjk.query, '牛来');
+  assert.equal(cjk.kind === 'query' && cjk.explicit, true);
+  for (const text of ['it costs $5 for gas', 'raised US$100k today', 'up $4 since yesterday']) {
+    const r = parseInput(text);
+    assert.notEqual(r.kind === 'query' && r.explicit, true, text);
+  }
 });

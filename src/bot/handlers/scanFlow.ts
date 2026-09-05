@@ -29,6 +29,11 @@ export interface ScanFlowOptions {
   busyMode?: 'replace' | 'keep';
   /** 占位文案里的上下文，如 "TRIA · BNB Chain"。 */
   busyLabel?: string;
+  /**
+   * 回调路径也允许创建首次 call（候选选择 / 切链：点按钮的人就是把这个币带进群的人）。
+   * Refresh / Back 不传，只更新不创建。
+   */
+  recordCall?: boolean;
 }
 
 /** 正在扫描中的消息，key = chatId:messageId。防止用户连点导致重复请求。 */
@@ -202,17 +207,20 @@ function trackCall(ctx: BotContext, report: TokenReport, opts: ScanFlowOptions):
   const mcapUsd = mc !== undefined && mc > 0 ? mc : p.fdvUsd;
   const mcapKind: 'mc' | 'fdv' = mc !== undefined && mc > 0 ? 'mc' : 'fdv';
   if (mcapUsd === undefined || mcapUsd <= 0) return undefined;
-  const fromMessage = opts.editMessageId === undefined && ctx.message !== undefined && ctx.from !== undefined;
+  // 消息触发：贴地址的人 + 那条消息；回调触发且 recordCall：点按钮的人 + 卡片消息
+  const fromMessage = opts.editMessageId === undefined && ctx.message !== undefined;
+  const canCreate = ctx.from !== undefined && (fromMessage || opts.recordCall === true);
+  const callMessageId = fromMessage ? ctx.message!.message_id : opts.editMessageId;
   try {
     const result = calls.track({
       chatId: ctx.chat.id,
       token: { networkSlug: p.networkSlug, address: p.address, symbol: p.symbol },
       mcapUsd,
       mcapKind,
-      caller: fromMessage
+      caller: canCreate
         ? { userId: ctx.from!.id, username: ctx.from!.username, displayName: [ctx.from!.first_name, ctx.from!.last_name].filter(Boolean).join(' ') || ctx.from!.username || 'anon' }
         : undefined,
-      messageId: fromMessage ? ctx.message!.message_id : undefined,
+      messageId: canCreate ? callMessageId : undefined,
     });
     if (result) report.call = result.summary;
     return result;

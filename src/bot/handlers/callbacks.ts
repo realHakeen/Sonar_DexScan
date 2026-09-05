@@ -116,6 +116,8 @@ callbackHandlers.on('callback_query', async (ctx) => {
       editMessageId: messageId,
       busyMode: action === 'refresh' ? 'keep' : 'replace',
       busyLabel: chainName ? `${subject} · ${chainName}` : subject,
+      // 候选选择 / 切链是"把这个币带进群"的动作，允许创建首次 call；刷新只更新
+      recordCall: action === 'scan' || action === 'chain',
     },
   );
 });

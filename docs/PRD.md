@@ -81,7 +81,7 @@
 - 存储：Node 内置 `node:sqlite`，文件在 `DATA_DIR/sonar.db`（默认 `./data`，已 gitignore）。Railway 上挂 Volume 到 `/data` 并设 `DATA_DIR=/data`；镜像以 `node` 用户运行而 Volume 归 root，需设 `RAILWAY_RUN_UID=0`（设 1000 实测报 `unable to open database file`）。数据库打不开时按钮不显示、命令提示暂不可用，扫描不受影响。
 
 ### F3e 群内 Call 追踪与里程碑横幅（方案 A：扫描时触发，零 credit）
-- **记录**：群里第一个通过消息（地址 / 链接 / `$TICKER` / 转发播报）触发某个币卡片的人算首次 call，存 群 · 代币 · 用户 · 消息 id · 时间 · 当时市值（优先真实流通市值，否则 FDV，记口径）。按钮回调（Refresh / 切链 / 候选）只更新不创建。私聊不记。
+- **记录**：群里第一个通过消息（地址 / 链接 / `$TICKER` / 转发播报）触发某个币卡片的人算首次 call，存 群 · 代币 · 用户 · 消息 id · 时间 · 当时市值（优先真实流通市值，否则 FDV，记口径）。候选选择与切链的回调也可创建（点按钮的人 + 卡片消息）；Refresh / Back 只更新不创建。私聊不记。
 - **卡片行**：卡片尾部（Risks 之后、降级脚注之前）一行 `🚀 aaronseaemcee @ $21.5M [10.5x] (37d 1h ago) 🔼`，用户名链到 t.me，🔼 链到原消息（仅超级群有链接）。首次 call 显示 `[1.0x] (now)`。前后口径不同（一次 MC 一次 FDV）只显示记录不算倍数。
 - **里程碑**：5 / 10 / 20 / 50 / 100x（2x、3x 在 meme 币上太常见，不播），每群每币每档只播一次；只报本次新跨过的最高档（4x → 12x 只报 10x）。跨档时发横幅 PNG（`assets/banner-bg.jpg` 背景 + `$SYMBOL` / 倍数 / Called at 市值 · 时长 / 喊单人名牌，resvg 渲染），`sendPhoto` 回复原 call 消息，原消息已删则不引用重发；caption 三行：币与倍数、喊单人 @ 市值 (时长)、合约地址。发送失败只记日志。
 - **峰值**：每次扫描更新 `peak_mcap`，供以后的 ATH 倍数与排行榜使用。

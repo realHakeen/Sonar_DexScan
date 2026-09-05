@@ -7,12 +7,18 @@ export type ParsedInput =
   | { kind: 'query'; query: string; explicit?: boolean }
   | { kind: 'none' };
 
-/** $marscoin / $PEPE 这类 cashtag。2–15 位字母数字下划线，前面不能是字母数字（避免 US$100 之类误判）。 */
-const CASHTAG_RE = /(?:^|[^A-Za-z0-9])\$([A-Za-z][A-Za-z0-9_]{1,14})\b/;
+/**
+ * cashtag 两种形态：
+ * - 整条消息就是一个 cashtag（`$4` / `$M` / `$牛来`）：`$` 后面任何 1–20 个非空白字符都算，用户意图明确；
+ * - 混在句子里：只认字母开头、2–15 位字母数字下划线（`买点 $PEPE`），或 1–8 个中日韩字符（`$牛来 冲不冲`）。
+ *   句子里的 `$4`、`$100k`、`US$100` 是金额不是代币，不触发。
+ */
+const CASHTAG_WHOLE_RE = /^\$(\S{1,20})$/;
+const CASHTAG_INLINE_RE = /(?:^|[^A-Za-z0-9])\$([A-Za-z][A-Za-z0-9_]{1,14}\b|[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]{1,8})/;
 
 export function extractCashtag(text: string): string | undefined {
-  const m = CASHTAG_RE.exec(text);
-  return m?.[1];
+  const t = text.trim();
+  return CASHTAG_WHOLE_RE.exec(t)?.[1] ?? CASHTAG_INLINE_RE.exec(t)?.[1];
 }
 
 /** 从链接域名直接推断链，零 API 消耗。 */
@@ -179,7 +185,7 @@ export function parseInput(text: string): ParsedInput {
   const cashtag = extractCashtag(trimmed);
   if (cashtag) return { kind: 'query', query: cashtag, explicit: true };
 
-  const query = trimmed.replace(/^[#/@]+/, '').trim();
+  const query = trimmed.replace(/^[#/@$]+/, '').trim();
   return isPlausibleQuery(query) ? { kind: 'query', query } : { kind: 'none' };
 }
 

@@ -36,3 +36,11 @@ test('地址反查（正版识别）', () => {
 test('过短查询返回空', () => {
   assert.equal(index.lookup('p').length, 0);
 });
+
+test('单字符 symbol 也能精确命中（$4 这类币）', async () => {
+  const { CoinIndex } = await import('../src/domain/coinIndex.js');
+  const idx = new CoinIndex();
+  idx.load([{ id: 1, name: 'Four', symbol: '4', slug: 'four', rank: 684, platform: { name: 'BNB Smart Chain (BEP20)', token_address: '0x' + '4'.repeat(40) } }]);
+  assert.equal(idx.lookup('4')[0]?.cmcId, 1);
+  assert.equal(idx.lookup('x').length, 0);
+});

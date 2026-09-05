@@ -90,5 +90,7 @@ test('卡片 call 行：用户名链接 · 市值 · 倍数 · 时长 · 🔼', 
   assert.match(html, /🚀 <a href="https:\/\/t\.me\/aaronseaemcee">aaronseaemcee<\/a> @ \$21\.5M \[10\.5x\] \(37d 1h ago\) <a href="https:\/\/t\.me\/c\/1\/77">🔼<\/a>/);
   const fresh = renderScanCard({ ...report, call: { ...report.call!, isNew: true, multiple: 1, username: undefined, messageUrl: undefined } });
   assert.match(fresh, /\n\n🚀 <b>Aaron<\/b> @ \$21\.5M \[1\.0x\] \(now\)$/);
+  const justNow = renderScanCard({ ...report, call: { ...report.call!, isNew: false, calledAt: Date.now() - 20_000, multiple: 1 } });
+  assert.match(justNow, /\[1\.0x\] \(now\)/, '一分钟内不写 "now ago"');
   assert.ok(html.indexOf('🚀') > html.indexOf('<code>0x'), 'call 行在合约地址之后（卡片尾部）');
 });
