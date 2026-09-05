@@ -305,6 +305,8 @@ export interface TokenReport {
   security?: SecurityScan;
   pools: PoolInfo[];
   core?: CoreMarketData;
+  /** 群内首次喊单记录（仅群聊，见 services/callService.ts）。 */
+  call?: CallSummary;
   /** 只有 cmcId 已知时才请求。 */
   spot?: SpotStats;
   /** 只有 cmcId 已知时才请求；无合约的币为 undefined。 */
@@ -343,4 +345,21 @@ export interface PortfolioEntry {
   /** 加入时的价格 / 市值，用来算"自加入以来"的涨跌。 */
   addedPriceUsd?: number;
   addedMcapUsd?: number;
+}
+
+/** 群内某个币的首次 call：谁、什么时候、当时市值，以及相对当时的倍数。 */
+export interface CallSummary {
+  displayName: string;
+  username?: string;
+  /** 原消息的可点链接（超级群才有）。 */
+  messageUrl?: string;
+  calledAt: number;
+  mcapUsd: number;
+  /** 'mc' 真实流通市值 / 'fdv'。前后两次比较必须同口径。 */
+  mcapKind: 'mc' | 'fdv';
+  /** 当前市值 / call 时市值。 */
+  multiple: number;
+  peakMultiple: number;
+  /** 本次扫描就是首次 call。 */
+  isNew: boolean;
 }

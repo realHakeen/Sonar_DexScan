@@ -45,6 +45,7 @@ src/
 │   ├── chains.ts        chain registry: slug / platform name / explorer / DexScreener id
 │   ├── derivatives.ts   perp OI / volume / funding aggregation over the exchange whitelist; liquidation mapping
 │   ├── spot.ts          spot venue share over the spot whitelist; CEX-vs-DEX premium
+│   ├── calls.ts         call milestones (2x…100x), call age / multiple formatting, Telegram message links
 │   ├── detectChain.ts   F1 regex chain-family detection
 │   ├── inputParser.ts   F5 link parsing + input classification
 │   ├── ranking.ts       F2 re-ranking and disambiguation
@@ -75,6 +76,7 @@ Dependency direction: `bot → services → domain / api → infra`. `domain` an
 | F6 | Placeholder → `editMessageText`, concurrent fetches, refresh button | `bot/handlers/scanFlow.ts`, `services/scanService.ts` |
 | — | K-line chart preview above the card (market-cap candles, ATH, volume) | `render/chart.ts`, `services/chartService.ts`, `infra/httpServer.ts` |
 | F3b | Perps block: open interest, perp volume, funding, liquidations (cid-only) | `domain/derivatives.ts`, `api/cmc/coreApi.ts`, `render/card.ts` |
+| F3e | Group call tracking: first caller line on the card (`🚀 user @ $21.5M [10.5x] (37d ago) 🔼`) and a milestone banner (2x…100x, once per group/token) posted when a rescan crosses a threshold; zero extra credits | `services/callService.ts`, `domain/calls.ts`, `render/banner.ts`, `assets/banner-bg.jpg` |
 | F3d | `⭐ Add to Portfolio` + `/portfolio`: per-user starred tokens with change since added (SQLite via `node:sqlite`, `DATA_DIR`) | `infra/db.ts`, `services/portfolioService.ts`, `bot/handlers/portfolio.ts` |
 | F3c | Spot block: CEX listings, spot volume + 24h change, CEX/DEX split, top venues by volume (whitelist), CEX-vs-DEX premium | `domain/spot.ts`, `api/cmc/coreApi.ts`, `render/card.ts` |
 | — | `/perp <ticker or address>`: per-venue OI / volume / funding, basis vs index, 1h / 4h / 24h liquidations; native coins supported | `services/perpService.ts`, `render/perpCard.ts`, `bot/handlers/perpFlow.ts` |

@@ -2,6 +2,7 @@ import { chainRegistry } from '../domain/chains.js';
 import { overallRisk } from '../domain/risk.js';
 import { CMC_LISTING_URL, CMC_SUPPLY_METHODOLOGY_URL, PERP_TOP_VENUES, SPOT_TOP_VENUES } from '../config/constants.js';
 import { spotPremiumPct } from '../domain/spot.js';
+import { formatCallAge, formatMultiple, userLink } from '../domain/calls.js';
 import type { LiquidationStats, PerpStats, PoolInfo, SecurityScan, SpotStats, TokenReport } from '../domain/types.js';
 import {
   bar,
@@ -176,6 +177,9 @@ export function renderScanCard(report: TokenReport): string {
     out.push(...tree(risks.slice(0, 8).map((r) => escapeHtml(r.message))));
   }
 
+  // ── Call ──（群内首次喊单：谁 @ 当时市值 [倍数] (多久前) 🔼原消息，放在卡片尾部）
+  if (report.call) out.push('', renderCallLine(report.call));
+
   if (report.degraded.length) {
     const names = [...new Set(report.degraded.map((d) => DEGRADED_LABEL[d] ?? d))];
     out.push('', `<i>⚠️ Partial data — unavailable: ${escapeHtml(names.join(', '))}. Tap Refresh to retry.</i>`);
@@ -334,6 +338,15 @@ function renderPerpRows(perp: PerpStats | undefined, liq: LiquidationStats | und
     if (row) rows.push(row);
   }
   return rows;
+}
+
+/** 🚀 aaronseaemcee @ $21.5M [10.5x] (37d 1h ago) 🔼 */
+function renderCallLine(c: NonNullable<TokenReport['call']>): string {
+  const who = c.username ? link(escapeHtml(c.username), userLink(c.username)!) : bold(c.displayName);
+  const mult = Number.isFinite(c.multiple) ? ` [${formatMultiple(c.multiple)}]` : '';
+  const age = c.isNew ? 'now' : `${formatCallAge(c.calledAt)} ago`;
+  const jump = c.messageUrl ? ` ${link('🔼', c.messageUrl)}` : '';
+  return `🚀 ${who} @ ${formatUsdShort(c.mcapUsd)}${mult} (${age})${jump}`;
 }
 
 /**

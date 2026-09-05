@@ -128,6 +128,11 @@ export class ChartService {
     return png;
   }
 
+  /** 里程碑横幅等其它渲染也要用 logo，公开一个入口（同一份缓存）。 */
+  logoDataUri(url: string | undefined): Promise<string | undefined> {
+    return this.logo(url);
+  }
+
   private async logo(url: string | undefined): Promise<string | undefined> {
     if (!url) return undefined;
     const cached = this.logos.get(url);

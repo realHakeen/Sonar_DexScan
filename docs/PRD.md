@@ -65,6 +65,7 @@
 | Perps ⚡ | 仅有 cid 的币：OI 合计 · 交易所数；Top 3 所 OI 占比；合约成交量 + 合约/现货倍数；费率（折算 8h，写作 `+0.0498% (8h)`——不能写 `/8h`，Telegram 会当成 bot 命令渲染成链接；色块按 CoinGlass 习惯放行尾：正费率 🔴 负费率 🟢）· 年化 · 参考所（非 8h 制标注 native 周期）；Liq 24h 与 1h：`Long $516K · Short $4K · Net long 🔴`（多单爆得多 = 在跌 🔴，空单爆得多 = 在涨 🟢，相等 Even）。任一项缺失整行省略，全缺不出区块 |
 | Risks | 按 🚨 → ⚠️ → ℹ️ 排序，最多 8 条；Security 已逐项列出的合约级 warn 不重复；单一 LP 已在 Pools 显示不重复 |
 | Links | Website · X · TG · Explorer · Trade · DexScan（项目渠道在前，工具在后）；标签行与合约地址之间空一行 |
+| Call | 卡片尾部的群内首次喊单行，见 F3e |
 | 脚注 | 有降级项时：`⚠️ Partial data — unavailable: …. Tap Refresh to retry.` |
 
 按钮：第一行 `🔄 Refresh` · `📈 Trade` · `⚡ Perps`（有合约数据时）；第二行 `⭐ Add to Portfolio`（存储可用时）；有次要链时再一行「Switch to X」。文案尽量短，手机端一行放得下。
@@ -78,6 +79,13 @@
 - `/portfolio`（`/pf`）：列出代币 · 链 · 当前价 · 自加入以来涨跌 · 24h 涨跌，脚注给市值；每行 `🔍` 重新扫描（新消息）、`🗑` 移除（原地重绘），末行 `🔄 Refresh`。群里发到私聊（列表是个人的），私聊未 /start 过则提示。
 - 行情：有 cid 的用 quotes 批量（1 credit / 100 个），无 cid 的逐个 token 详情（各 1 credit），链名与上游 plt 不一致时退到 search 反查。刷新走限流。
 - 存储：Node 内置 `node:sqlite`，文件在 `DATA_DIR/sonar.db`（默认 `./data`，已 gitignore）。Railway 上挂 Volume 到 `/data` 并设 `DATA_DIR=/data`；镜像以 `node` 用户运行而 Volume 归 root，需设 `RAILWAY_RUN_UID=0`（设 1000 实测报 `unable to open database file`）。数据库打不开时按钮不显示、命令提示暂不可用，扫描不受影响。
+
+### F3e 群内 Call 追踪与里程碑横幅（方案 A：扫描时触发，零 credit）
+- **记录**：群里第一个通过消息（地址 / 链接 / `$TICKER` / 转发播报）触发某个币卡片的人算首次 call，存 群 · 代币 · 用户 · 消息 id · 时间 · 当时市值（优先真实流通市值，否则 FDV，记口径）。按钮回调（Refresh / 切链 / 候选）只更新不创建。私聊不记。
+- **卡片行**：卡片尾部（Risks 之后、降级脚注之前）一行 `🚀 aaronseaemcee @ $21.5M [10.5x] (37d 1h ago) 🔼`，用户名链到 t.me，🔼 链到原消息（仅超级群有链接）。首次 call 显示 `[1.0x] (now)`。前后口径不同（一次 MC 一次 FDV）只显示记录不算倍数。
+- **里程碑**：2 / 3 / 5 / 10 / 20 / 50 / 100x，每群每币每档只播一次；只报本次新跨过的最高档（1.8x → 5.2x 只报 5x）。跨档时发横幅 PNG（`assets/banner-bg.jpg` 背景 + `$SYMBOL` / 倍数 / Called at 市值 · 时长 / 喊单人名牌，resvg 渲染），`sendPhoto` 回复原 call 消息，原消息已删则不引用重发；caption 三行：币与倍数、喊单人 @ 市值 (时长)、合约地址。发送失败只记日志。
+- **峰值**：每次扫描更新 `peak_mcap`，供以后的 ATH 倍数与排行榜使用。
+- **未做（方案 B）**：后台定时盯盘主动推送。需要按 call 数预算 credit（约 290 / call / 周），待观察真实 call 量后决定。
 
 ### F4 群组模式
 - 群内对地址、链接、`@bot …` 响应；裸名称不响应（避免"这个 pepe 不错"触发查询）。

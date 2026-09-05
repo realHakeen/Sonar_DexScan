@@ -10,7 +10,11 @@ import { escapeHtml } from '../../render/format.js';
 import { renderCandidateList } from '../../render/candidates.js';
 import { candidateKeyboard, scanCardKeyboard } from '../../render/keyboards.js';
 import { encodeCallback } from '../callbackData.js';
-import type { BotContext } from '../context.js';
+import { isGroup, type BotContext } from '../context.js';
+import { renderBannerPng } from '../../render/banner.js';
+import { formatCallAge, formatMultiple, userLink } from '../../domain/calls.js';
+import { formatUsdShort } from '../../render/format.js';
+import type { TrackResult } from '../../services/callService.js';
 
 const HTML = { parse_mode: 'HTML' as const, link_preview_options: { is_disabled: true } };
 
@@ -98,7 +102,9 @@ export async function runScanFlow(
       const report = await ctx.services.scan.scanByAddress(input.address, {
         chainSlug: input.chainSlug,
       });
+      const tracked = trackCall(ctx, report, opts);
       await renderReport(ctx, messageId, report);
+      await postMilestone(ctx, report, tracked);
       return;
     }
 
@@ -110,7 +116,9 @@ export async function runScanFlow(
     // 头部结果明显占优（官方收录，或流动性甩开第二名一个量级）时直接出卡片
     if (candidates.length === 1 || isDominant(candidates)) {
       const report = await ctx.services.scan.buildReport(top.candidate, []);
+      const tracked = trackCall(ctx, report, opts);
       await renderReport(ctx, messageId, report);
+      await postMilestone(ctx, report, tracked);
       return;
     }
 
@@ -179,6 +187,72 @@ async function renderReport(ctx: BotContext, messageId: number, report: TokenRep
       marketCapUsd: report.core?.marketCapUsd ?? p.fdvUsd,
     },
   });
+}
+
+/**
+ * 群内 call 追踪（PRD F3e）：消息触发的扫描可以创建首次 call（谁贴的算谁的）；按钮回调只更新倍数 / 峰值。
+ * 市值口径：优先真实流通市值，没有就 FDV，前后比较必须同口径（callService 里校验）。
+ * 任何异常都吞掉 —— 这是卡片的附加信息，不能影响出卡。
+ */
+function trackCall(ctx: BotContext, report: TokenReport, opts: ScanFlowOptions): TrackResult | undefined {
+  const calls = ctx.services.calls;
+  if (!calls || !isGroup(ctx) || ctx.chat === undefined) return undefined;
+  const p = report.primary;
+  const mc = report.core?.marketCapUsd;
+  const mcapUsd = mc !== undefined && mc > 0 ? mc : p.fdvUsd;
+  const mcapKind: 'mc' | 'fdv' = mc !== undefined && mc > 0 ? 'mc' : 'fdv';
+  if (mcapUsd === undefined || mcapUsd <= 0) return undefined;
+  const fromMessage = opts.editMessageId === undefined && ctx.message !== undefined && ctx.from !== undefined;
+  try {
+    const result = calls.track({
+      chatId: ctx.chat.id,
+      token: { networkSlug: p.networkSlug, address: p.address, symbol: p.symbol },
+      mcapUsd,
+      mcapKind,
+      caller: fromMessage
+        ? { userId: ctx.from!.id, username: ctx.from!.username, displayName: [ctx.from!.first_name, ctx.from!.last_name].filter(Boolean).join(' ') || ctx.from!.username || 'anon' }
+        : undefined,
+      messageId: fromMessage ? ctx.message!.message_id : undefined,
+    });
+    if (result) report.call = result.summary;
+    return result;
+  } catch (err) {
+    ctx.log.warn('call tracking failed', { err: String(err) });
+    return undefined;
+  }
+}
+
+/** 跨过新里程碑：发横幅图，回复到原 call 消息；失败只记日志。 */
+async function postMilestone(ctx: BotContext, report: TokenReport, tracked: TrackResult | undefined): Promise<void> {
+  if (!tracked?.milestone || !report.call || ctx.chat === undefined) return;
+  const c = report.call;
+  const p = report.primary;
+  try {
+    const png = renderBannerPng({
+      symbol: p.symbol,
+      multiple: c.multiple,
+      calledMcapUsd: c.mcapUsd,
+      calledAt: c.calledAt,
+      callerName: c.username ?? c.displayName,
+      logoDataUri: await ctx.services.chart.logoDataUri(p.logo),
+    });
+    const who = c.username ? `<a href="${userLink(c.username)}">${escapeHtml(c.username)}</a>` : `<b>${escapeHtml(c.displayName)}</b>`;
+    const caption = [
+      `🚀 <b>$${escapeHtml(p.symbol)}</b> · <b>${formatMultiple(c.multiple)}</b>`,
+      `${who} @ ${formatUsdShort(c.mcapUsd)} (${formatCallAge(c.calledAt)})`,
+      `<code>${escapeHtml(p.address)}</code>`,
+    ].join('\n');
+    const base = { caption, parse_mode: 'HTML' as const };
+    try {
+      await ctx.telegram.sendPhoto(ctx.chat.id, { source: png }, tracked.callMessageId ? { ...base, reply_parameters: { message_id: tracked.callMessageId } } : base);
+    } catch {
+      // 原消息可能已被删除：不引用重发一次
+      await ctx.telegram.sendPhoto(ctx.chat.id, { source: png }, base);
+    }
+    ctx.log.info('milestone banner sent', { symbol: p.symbol, milestone: tracked.milestone });
+  } catch (err) {
+    ctx.log.warn('milestone banner failed', { err: String(err) });
+  }
 }
 
 /** 第一名流动性 ≥ 第二名 10 倍，或第一名是官方收录而第二名不是。 */

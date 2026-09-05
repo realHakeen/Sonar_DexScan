@@ -117,3 +117,6 @@ export const SPOT_PAIRS_LIMIT = 100;
 
 /** 每个用户 portfolio 最多存多少个代币（/portfolio 刷新时每个非 cid 代币 1 credit，封顶控制成本）。 */
 export const PORTFOLIO_MAX_TOKENS = 20;
+
+/** call 追踪的里程碑倍数，每群每币每档只播一次。 */
+export const CALL_MILESTONES: readonly number[] = [2, 3, 5, 10, 20, 50, 100];
