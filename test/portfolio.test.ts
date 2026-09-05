@@ -50,15 +50,14 @@ test('listWithQuotes：有 cid 走批量行情并算自加入以来涨跌；无 
 });
 
 test('renderPortfolio：空列表提示；有行情时显示价格、自加入涨跌与 24h', () => {
-  assert.match(renderPortfolio([]), /⭐ <b><u>Portfolio<\/u><\/b>\n\nEmpty\./);
+  assert.match(renderPortfolio([]), /⭐ <b><u>Watchlist<\/u><\/b>\n\nEmpty\./);
   const html = renderPortfolio([
     { entry: { ...PEPE, addedAt: 0 }, priceUsd: 0.000012, sinceAddedPct: 20, change24hPct: -5.1, marketCapUsd: 5e9 },
     { entry: { userId: 7, networkSlug: 'bnb', address: '0xd', symbol: 'NOQUOTE', addedAt: 0 } },
   ]);
-  assert.match(html, /⭐ <b><u>Portfolio<\/u><\/b>  2 tokens/);
-  assert.match(html, /├ PEPE · Ethereum  \$0\.0₄1200 · 🟢 \+20\.00% since add · 🔴 -5\.10% 24h/);
-  assert.match(html, /└ NOQUOTE · BNB Chain$/m);
-  assert.match(html, /MC PEPE \$5\.0B/);
+  assert.match(html, /⭐ <b><u>Watchlist<\/u><\/b>  2 tokens/);
+  assert.match(html, /<b>PEPE<\/b> · Ethereum\n├ <code>Price  <\/code> \$0\.0₄1200\n├ <code>MC     <\/code> \$5\.0B\n├ \+20\.00% since add 🟢\n└ -5\.10% 24h 🔴/);
+  assert.match(html, /<b>NOQUOTE<\/b> · BNB Chain\n\n<i>Tap/);
 });
 
 test('portfolio 回调码往返，port_refresh 不带地址也能解码', () => {

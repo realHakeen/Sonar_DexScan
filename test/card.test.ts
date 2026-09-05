@@ -76,7 +76,7 @@ test('1h 制费率标注 native 周期', () => {
   assert.doesNotMatch(html, /Top\s*<\/code>/);
 });
 
-test('涨绿跌红：Txns 用 emoji 色块，Flow 按买压 ≥50% 绿；负费率标绿', () => {
+test('Txns 不带色块；Flow 按买压 ≥50% 绿；负费率标绿', () => {
   const html = renderScanCard(
     baseReport({
       primary: { ...baseReport().primary, buys24h: 9900, sells24h: 9100, buyVolume24hUsd: 1.8e6, sellVolume24hUsd: 1.7e6 },
@@ -87,7 +87,7 @@ test('涨绿跌红：Txns 用 emoji 色块，Flow 按买压 ≥50% 绿；负费�
       },
     }),
   );
-  assert.match(html, /Txns\s*<\/code> 🟢 ↑9\.9K · 🔴 ↓9\.1K/);
+  assert.match(html, /Txns\s*<\/code> ↑9\.9K · ↓9\.1K/);
   assert.match(html, /Flow\s*<\/code> \+\$1\.8M \/ −\$1\.7M · 51% buy 🟢/);
   assert.match(html, /Funding<\/code> -0\.0200% \(8h\) · -21\.9% APR · Gate 🟢/);
 });

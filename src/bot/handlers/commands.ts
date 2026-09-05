@@ -18,7 +18,7 @@ const START_TEXT = [
   '<b>Commands</b>',
   '/s &lt;address or name&gt; — scan a token',
   '/perp &lt;ticker or address&gt; — open interest, funding, liquidations by venue',
-  '/portfolio — tokens you starred, with change since you added them',
+  '/watchlist — tokens you starred, with change since you added them',
   '/help — how it works',
   '',
   'Add me to a group and any address posted there gets a report automatically.',
@@ -33,7 +33,7 @@ const HELP_TEXT = [
   '<b>Commands</b>',
   '/s &lt;address | name | link&gt; — full report',
   '/perp &lt;ticker | address&gt; — perpetuals view, e.g. <code>/perp BTC</code> or <code>/perp PEPE</code>',
-  '/portfolio — your starred tokens: price, change since you added, 24h change. Tap ⭐ Add to Portfolio under any report to star one (up to 20)',
+  '/watchlist — your starred tokens: price, market cap, change since you added, 24h change. Tap ⭐ Watchlist under any report to star one (up to 20)',
   '/help — this message',
   '',
   '<b>What the report shows</b>',
@@ -88,8 +88,8 @@ commandHandlers.command('perp', async (ctx) => {
   await runPerpFlow(ctx, { query: arg });
 });
 
-/** /portfolio — 个人收藏列表（群里发到私聊）。刷新行情也算一次请求，走限流。 */
-commandHandlers.command(['portfolio', 'pf'], async (ctx) => {
+/** /watchlist — 个人收藏列表（群里发到私聊）。刷新行情也算一次请求，走限流。 */
+commandHandlers.command('watchlist', async (ctx) => {
   if (!(await admitScan(ctx))) return;
   await sendPortfolio(ctx);
 });

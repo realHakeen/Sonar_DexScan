@@ -95,9 +95,8 @@ export function renderScanCard(report: TokenReport): string {
   const volLiq = formatRatio(p.volume24hUsd, p.liquidityUsd);
   market.push(`${label('Vol')} ${formatUsdShort(p.volume24hUsd)}${volLiq ? `  (${volLiq} liq)` : ''}`);
   if (p.traders24h !== undefined) market.push(`${label('Traders')} ${formatCount(p.traders24h)}`);
-  // 涨绿跌红只能靠 emoji 色块：Telegram 文本不支持颜色
   if (p.buys24h !== undefined || p.sells24h !== undefined) {
-    market.push(`${label('Txns')} 🟢 ↑${formatCount(p.buys24h)} · 🔴 ↓${formatCount(p.sells24h)}`);
+    market.push(`${label('Txns')} ↑${formatCount(p.buys24h)} · ↓${formatCount(p.sells24h)}`);
   } else if (p.txns24h !== undefined) {
     market.push(`${label('Txns')} ${formatCount(p.txns24h)}`);
   }

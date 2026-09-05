@@ -6,15 +6,15 @@ import { isGroup, type BotContext } from '../context.js';
 import { cachedSnapshot, runScanFlow } from './scanFlow.js';
 
 const HTML = { parse_mode: 'HTML' as const, link_preview_options: { is_disabled: true } };
-const UNAVAILABLE = '⭐ Portfolio is unavailable right now (storage not configured).';
+const UNAVAILABLE = '⭐ Watchlist is unavailable right now (storage not configured).';
 
-/** 群里点 ⭐ 的人是谁，就进谁的 portfolio。 */
+/** 群里点 ⭐ 的人是谁，就进谁的 watchlist。（内部命名仍叫 portfolio，用户可见文案统一为 Watchlist） */
 function userIdOf(ctx: BotContext): number | undefined {
   return ctx.from?.id;
 }
 
 /**
- * ⭐ Add to Portfolio：优先用卡片渲染缓存里的快照（价格 / 市值 / cid，10 分钟内有效），
+ * ⭐ Watchlist 按钮：优先用卡片渲染缓存里的快照（价格 / 市值 / cid，10 分钟内有效），
  * 缓存过期就重新拉一次 token 详情（1 credit）。只回 toast，不改消息 —— 群里的按钮是大家共用的，不能反映某个人的状态。
  */
 export async function handlePortfolioAdd(ctx: BotContext, loc: { networkSlug?: string; address: string; symbol?: string }, messageId?: number): Promise<void> {
@@ -33,7 +33,7 @@ export async function handlePortfolioAdd(ctx: BotContext, loc: { networkSlug?: s
       return;
     }
     if (svc.has(userId, slug, loc.address)) {
-      await ctx.answerCbQuery(`${loc.symbol ?? 'Token'} is already in your portfolio · /portfolio`);
+      await ctx.answerCbQuery(`${loc.symbol ?? 'Token'} is already on your watchlist · /watchlist`);
       return;
     }
     const detail = await ctx.services.cmc.dex
@@ -64,14 +64,14 @@ export async function handlePortfolioAdd(ctx: BotContext, loc: { networkSlug?: s
   ctx.log.info('portfolio add', { userId, symbol: snap.symbol, result });
   const toast =
     result === 'added'
-      ? `⭐ Added ${snap.symbol} to your portfolio · /portfolio`
+      ? `⭐ Added ${snap.symbol} to your watchlist · /watchlist`
       : result === 'exists'
-        ? `${snap.symbol} is already in your portfolio · /portfolio`
-        : `Portfolio is full (${svc.size(userId)} tokens). Remove one in /portfolio first.`;
+        ? `${snap.symbol} is already on your watchlist · /watchlist`
+        : `Watchlist is full (${svc.size(userId)} tokens). Remove one in /watchlist first.`;
   await ctx.answerCbQuery(toast, { show_alert: result === 'full' });
 }
 
-/** /portfolio：群里发到私聊（列表是个人的），私聊直接回。 */
+/** /watchlist：群里发到私聊（列表是个人的），私聊直接回。 */
 export async function sendPortfolio(ctx: BotContext): Promise<void> {
   const svc = ctx.services.portfolio;
   const userId = userIdOf(ctx);
@@ -85,9 +85,9 @@ export async function sendPortfolio(ctx: BotContext): Promise<void> {
   if (isGroup(ctx)) {
     try {
       await ctx.telegram.sendMessage(userId, text, { ...HTML, ...(keyboard ?? {}) });
-      await ctx.reply('⭐ Sent your portfolio in private.', { reply_parameters: ctx.message ? { message_id: ctx.message.message_id } : undefined });
+      await ctx.reply('⭐ Sent your watchlist in private.', { reply_parameters: ctx.message ? { message_id: ctx.message.message_id } : undefined });
     } catch {
-      await ctx.reply(`⭐ Open a private chat with @${ctx.botInfo?.username ?? 'the bot'} and send /start first, then /portfolio works here.`);
+      await ctx.reply(`⭐ Open a private chat with @${ctx.botInfo?.username ?? 'the bot'} and send /start first, then /watchlist works here.`);
     }
     return;
   }
@@ -122,7 +122,7 @@ export async function handlePortfolioCallback(
       return;
     }
     const removed = svc.remove(userId, loc.networkSlug, loc.address);
-    await ctx.answerCbQuery(removed ? `Removed ${loc.symbol ?? ''}`.trim() : 'Not in your portfolio');
+    await ctx.answerCbQuery(removed ? `Removed ${loc.symbol ?? ''}`.trim() : 'Not on your watchlist');
   } else {
     await ctx.answerCbQuery('Refreshing…');
   }

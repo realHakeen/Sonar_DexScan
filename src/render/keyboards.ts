@@ -21,7 +21,7 @@ export function scanCardKeyboard(report: TokenReport, portfolioEnabled = true): 
   }
   rows.push(first);
   if (portfolioEnabled) {
-    rows.push([Markup.button.callback('⭐ Add to Portfolio', encodeCallback({ action: 'port_add', networkSlug: p.networkSlug, address: p.address, symbol: p.symbol }))]);
+    rows.push([Markup.button.callback('⭐ Watchlist', encodeCallback({ action: 'port_add', networkSlug: p.networkSlug, address: p.address, symbol: p.symbol }))]);
   }
 
   // PRD F1 第 5 步：提供 inline button 供用户切链
@@ -51,7 +51,7 @@ export function candidateKeyboard(
   return Markup.inlineKeyboard(rows);
 }
 
-/** /portfolio 列表：每个代币一行「🔍 SYMBOL」重新扫描 + 「🗑」移除；末行刷新。 */
+/** /watchlist 列表：每个代币一行「🔍 SYMBOL」重新扫描 + 「🗑」移除；末行刷新。 */
 export function portfolioKeyboard(
   entries: Array<{ networkSlug: string; address: string; symbol: string }>,
 ): Markup.Markup<InlineKeyboardMarkup> {
