@@ -62,7 +62,7 @@
 | Security | 来源 · 评级；税率 · 蜜罐状态；命中项逐条（🚨/⚠️/ℹ️ 按 r/y/g），未命中项只给数量 |
 | Pools | 紧跟 Market：前 3 个池子，DEX 缩写 / 报价币 · 流动性（数字即链接，指向该代币的 DexScan 页；DexScan 没有单独的池子页，池子地址 404、`/pair/` 重定向首页，2026-09-05 实测；链接内不能嵌 code）· 首池占比（括号）· 🔒 锁仓 / 🔥 销毁 |
 | Spot 🏦 | 仅有 cid 的币（CEXs 行例外，来自 token 接口）：CEXs 上所家数（现货数）· 前 3 家；Vol 全链现货量 + 24h 变化色块；Split CEX / DEX 拆分 + CEX 占比；Top 现货成交量前 3 所占比（只在 `config/constants.ts#SPOT_EXCHANGE_WHITELIST` 约 20 家内计算，PEPE 原始排名第三到五是 WhiteBIT / UZX / Poloniex 刷量所）；Premium 合约对现货溢价（白名单各所标记价对指数价的基差按 OI 加权；正 = 合约溢价 🟢，负 🔴；无合约数据不显示）。标题带 pairs 数，达到 100 上限显示 `100+`。数据：`/v2/cryptocurrency/market-pairs/latest?category=spot&limit=100&sort=volume_24h_strict`，1 credit；`num_market_pairs` 等于返回条数不是总数 |
-| Perps ⚡ | 仅有 cid 的币：OI 合计 · 交易所数；Top 3 所 OI 占比；合约成交量 + 合约/现货倍数；费率（折算 8h，写作 `+0.0498% (8h)`——不能写 `/8h`，Telegram 会当成 bot 命令渲染成链接；色块按 CoinGlass 习惯放行尾：正费率 🔴 负费率 🟢）· 年化 · 参考所（非 8h 制标注 native 周期）；Liq 24h 与 1h：`Long $516K · Short $4K · Net long 🔴`（多单爆得多 = 在跌 🔴，空单爆得多 = 在涨 🟢，相等 Even）。任一项缺失整行省略，全缺不出区块 |
+| Perps ⚡ | 仅有 cid 的币：OI 合计 · 交易所数；Top 3 所 OI 占比；合约成交量 + 合约/现货倍数；费率（折算 8h，写作 `+0.0498% (8h)`——不能写 `/8h`，Telegram 会当成 bot 命令渲染成链接；色块按 CoinGlass 习惯放行尾：正费率 🔴 负费率 🟢；不显示参考所，按所明细在 /perp）· 年化；Liq 24h 与 1h：`$1.0M · 69% short 🟢`（总额 + 占多数一方及占比；多单爆得多 = 在跌 🔴，空单爆得多 = 在涨 🟢，持平 50/50）。任一项缺失整行省略，全缺不出区块 |
 | Risks | 紧跟 Holders；按 🚨 → ⚠️ → ℹ️ 排序，最多 8 条；Security 已逐项列出的合约级 warn 不重复；单一 LP 已在 Pools 显示不重复 |
 | Links | Website · X · TG · Explorer · Trade · DexScan（项目渠道在前，工具在后）；标签行与合约地址之间空一行 |
 | Call | 卡片尾部的群内首次喊单行，见 F3e |

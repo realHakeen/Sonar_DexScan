@@ -48,19 +48,19 @@ test('Perps 区块：OI / Top / Vol / Funding / Liq 各一行', () => {
   assert.match(html, /OI\s*<\/code> \$9\.8B · 4 venues/);
   assert.match(html, /Top\s*<\/code> Binance 60% · OKX 16% · Bybit 12%/);
   assert.match(html, /Vol\s*<\/code> \$38\.2B \(3\.2× spot\)/);
-  assert.match(html, /Funding<\/code> \+0\.0065% \(8h\) · \+7\.1% APR · Binance 🔴/);
-  assert.match(html, /Liq 24h<\/code> Long \$22\.0M · Short \$86\.0M · Net short 🟢/);
-  assert.match(html, /Liq 1h\s*<\/code> Long \$100K · Short \$400K · Net short 🟢/);
+  assert.match(html, /Funding<\/code> \+0\.0065% \(8h\) · \+7\.1% APR 🔴/);
+  assert.match(html, /Liq 24h<\/code> \$108\.0M · 80% short 🟢/);
+  assert.match(html, /Liq 1h\s*<\/code> \$500K · 80% short 🟢/);
   assert.match(html, /Split\s*<\/code> CEX \$11\.0B · DEX \$1\.0B · 92% CEX/);
 });
 
 test('无 perp 也无 liquidations 时不出 Perps 区块；只有爆仓也能单独出', () => {
   assert.doesNotMatch(renderScanCard(baseReport()), /Perps/);
   const html = renderScanCard(baseReport({ liquidations: { total24hUsd: 1622, long24hUsd: 1024, short24hUsd: 597 } }));
-  assert.match(html, /⚡ <b><u>Perps<\/u><\/b>\n└ <code>Liq 24h<\/code> Long \$1K · Short \$597 · Net long 🔴/);
+  assert.match(html, /⚡ <b><u>Perps<\/u><\/b>\n└ <code>Liq 24h<\/code> \$2K · 63% long 🔴/);
 });
 
-test('1h 制费率标注 native 周期', () => {
+test('1h 制费率已折算 8h，不再显示交易所与 native 周期', () => {
   const html = renderScanCard(
     baseReport({
       perp: {
@@ -72,7 +72,8 @@ test('1h 制费率标注 native 周期', () => {
       },
     }),
   );
-  assert.match(html, /Funding<\/code> \+0\.0100% \(8h\) · \+10\.9% APR · Hyperliquid \(1h native\) 🔴/);
+  assert.match(html, /Funding<\/code> \+0\.0100% \(8h\) · \+10\.9% APR 🔴/);
+  assert.doesNotMatch(html, /Hyperliquid|native/);
   assert.doesNotMatch(html, /Top\s*<\/code>/);
 });
 
@@ -89,7 +90,7 @@ test('Txns 不带色块；Flow 按买压 ≥50% 绿；负费率标绿', () => {
   );
   assert.match(html, /Txns\s*<\/code> ↑9\.9K · ↓9\.1K/);
   assert.match(html, /Flow\s*<\/code> \+\$1\.8M \/ −\$1\.7M · 51% buy 🟢/);
-  assert.match(html, /Funding<\/code> -0\.0200% \(8h\) · -21\.9% APR · Gate 🟢/);
+  assert.match(html, /Funding<\/code> -0\.0200% \(8h\) · -21\.9% APR 🟢/);
 });
 
 test('Pools：流动性数字链到 DexScan 代币页，锁仓 / 销毁用分隔符；Tags 每行两个', () => {
@@ -171,9 +172,9 @@ test('Spot 区块：CEXs / Vol 变化 / Split / Top / Premium，位于 Perps 之
   assert.deepEqual([...order].sort((a, b) => a - b), order);
 });
 
-test('爆仓多空相等显示 Even；缺多空拆分只给总额', () => {
+test('爆仓多空相等显示 50/50；缺多空拆分只给总额', () => {
   const even = renderScanCard(baseReport({ liquidations: { total1hUsd: 904, long1hUsd: 452, short1hUsd: 452 } }));
-  assert.match(even, /Liq 1h\s*<\/code> Long \$452 · Short \$452 · Even/);
+  assert.match(even, /Liq 1h\s*<\/code> \$904 · 50\/50/);
   const totalOnly = renderScanCard(baseReport({ liquidations: { total24hUsd: 5e6 } }));
   assert.match(totalOnly, /Liq 24h<\/code> \$5\.0M(\n|$)/);
 });

@@ -321,16 +321,18 @@ function renderPerpRows(perp: PerpStats | undefined, liq: LiquidationStats | und
   }
   if (perp?.funding) {
     const f = perp.funding;
-    const period = f.intervalH === 8 ? '' : ` (${f.intervalH}h native)`;
-    // 不能写 "/8h"：Telegram 会把 "/8h" 当成 bot 命令渲染成链接
-    rows.push(`${label('Funding')} ${formatFunding(f.rate8h)} (8h) · ${formatApr(f.apr)} APR · ${escapeHtml(f.venue)}${period} ${fundingEmoji(f.rate8h)}`);
+    // 不能写 "/8h"：Telegram 会把 "/8h" 当成 bot 命令渲染成链接。参考所名字不显示，/perp 里有按所明细
+    rows.push(`${label('Funding')} ${formatFunding(f.rate8h)} (8h) · ${formatApr(f.apr)} APR ${fundingEmoji(f.rate8h)}`);
   }
-  // 爆仓：多空分开，再给一个净方向。多单被爆得多 = 价格在跌 → 🔴；空单被爆得多 = 在涨 → 🟢；相等 Even
+  // 爆仓：总额 + 占多数的一方及其占比。多单被爆得多 = 价格在跌 → 🔴；空单被爆得多 = 在涨 → 🟢；持平 50/50
   const liqRow = (name: string, total?: number, long?: number, short?: number): string | undefined => {
     if (total === undefined || total <= 0) return undefined;
     if (long === undefined || short === undefined) return `${label(name)} ${formatUsdShort(total)}`;
-    const net = long > short ? 'Net long 🔴' : short > long ? 'Net short 🟢' : 'Even';
-    return `${label(name)} Long ${formatUsdShort(long)} · Short ${formatUsdShort(short)} · ${net}`;
+    const sum = long + short;
+    if (sum <= 0) return `${label(name)} ${formatUsdShort(total)}`;
+    const shortPct = Math.round((short / sum) * 100);
+    const side = shortPct > 50 ? `${shortPct}% short 🟢` : shortPct < 50 ? `${100 - shortPct}% long 🔴` : '50/50';
+    return `${label(name)} ${formatUsdShort(total)} · ${side}`;
   };
   for (const row of [liqRow('Liq 24h', liq?.total24hUsd, liq?.long24hUsd, liq?.short24hUsd), liqRow('Liq 1h', liq?.total1hUsd, liq?.long1hUsd, liq?.short1hUsd)]) {
     if (row) rows.push(row);
