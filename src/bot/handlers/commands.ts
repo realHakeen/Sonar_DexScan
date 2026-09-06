@@ -102,7 +102,13 @@ commandHandlers.command('watchlist', async (ctx) => {
 
 /** /stats — 仅 ADMIN_USER_IDS：一张 30 天图 + 文字 caption。 */
 commandHandlers.command('stats', async (ctx) => {
-  if (!ctx.from || !adminUserIds.has(ctx.from.id)) return;
+  if (!ctx.from) return;
+  // 还没配管理员：告诉发命令的人怎么配（带上他的 id）；配了但不在名单里：静默
+  if (adminUserIds.size === 0) {
+    await ctx.reply(`📊 /stats is admin-only. Set ADMIN_USER_IDS=${ctx.from.id} in the bot's environment and redeploy.`);
+    return;
+  }
+  if (!adminUserIds.has(ctx.from.id)) return;
   const stats = ctx.services.stats;
   if (!stats) {
     await ctx.reply('📊 Stats unavailable (storage not configured).');

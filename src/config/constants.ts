@@ -118,8 +118,8 @@ export const SPOT_PAIRS_LIMIT = 100;
 /** 每个用户 portfolio 最多存多少个代币（/portfolio 刷新时每个非 cid 代币 1 credit，封顶控制成本）。 */
 export const PORTFOLIO_MAX_TOKENS = 20;
 
-/** call 追踪的里程碑倍数，每群每币每档只播一次。5x 起播：2x / 3x 在 meme 币上太常见，播了是噪音。 */
-export const CALL_MILESTONES: readonly number[] = [5, 10, 20, 50, 100];
+/** call 追踪的里程碑倍数，每群每币每档只播一次。3x 起播：2x 在 meme 币上太常见，播了是噪音。 */
+export const CALL_MILESTONES: readonly number[] = [3, 5, 10, 20, 50, 100];
 
 /** watchlist 分享链接的有效期。 */
 export const WATCHLIST_SHARE_TTL_MS = 7 * 24 * 60 * 60 * 1000;

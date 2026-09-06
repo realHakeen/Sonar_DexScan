@@ -1,6 +1,6 @@
 import { CANDIDATE_LIMIT, CARD_CACHE_TTL_MS, PLACEHOLDER_TEXT } from '../../config/constants.js';
 import { TtlCache } from '../../infra/cache.js';
-import { InvalidInputError, toUserMessage } from '../../infra/errors.js';
+import { InvalidInputError, NotFoundError, toUserMessage } from '../../infra/errors.js';
 import type { ParsedInput } from '../../domain/inputParser.js';
 import type { ScoredCandidate } from '../../domain/ranking.js';
 import type { TokenReport } from '../../domain/types.js';
@@ -106,19 +106,29 @@ export async function runScanFlow(
   inflight.add(key);
 
   try {
+    let query: string | undefined = input.kind === 'query' ? input.query : undefined;
     if (input.kind === 'address') {
-      const report = await ctx.services.scan.scanByAddress(input.address, {
-        chainSlug: input.chainSlug,
-      });
-      const tracked = trackCall(ctx, report, opts);
-      await renderReport(ctx, messageId, report);
-      recordScan(ctx, report, opts, startedAt);
-      await postMilestone(ctx, report, tracked);
-      return;
+      try {
+        const report = await ctx.services.scan.scanByAddress(input.address, {
+          chainSlug: input.chainSlug,
+          preferPair: input.pair,
+          // 消息里还有 $TICKER：地址查不到先退到 ticker，池子反查放最后
+          pairFallback: !input.fallbackQuery,
+        });
+        const tracked = trackCall(ctx, report, opts);
+        await renderReport(ctx, messageId, report);
+        recordScan(ctx, report, opts, startedAt);
+        await postMilestone(ctx, report, tracked);
+        return;
+      } catch (err) {
+        if (!(err instanceof NotFoundError) || !input.fallbackQuery) throw err;
+        ctx.log.info('address not found, falling back to cashtag', { address: input.address, query: input.fallbackQuery });
+        query = input.fallbackQuery;
+      }
     }
 
     // 名称 / symbol：先消歧
-    const candidates = await ctx.services.search.searchByName(input.query, CANDIDATE_LIMIT);
+    const candidates = await ctx.services.search.searchByName(query!, CANDIDATE_LIMIT);
     const top = candidates[0];
     if (!top) throw new InvalidInputError('no search results');
 
@@ -136,7 +146,7 @@ export async function runScanFlow(
       ctx.chat!.id,
       messageId,
       undefined,
-      renderCandidateList(input.query, candidates),
+      renderCandidateList(query!, candidates),
       { ...HTML, ...candidateKeyboard(candidates) },
     );
   } catch (err) {

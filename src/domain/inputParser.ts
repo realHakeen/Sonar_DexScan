@@ -2,7 +2,8 @@ import { chainRegistry } from './chains.js';
 import { looksLikeAddress } from './detectChain.js';
 
 export type ParsedInput =
-  | { kind: 'address'; address: string; chainSlug?: string; source: 'raw' | 'link' }
+  /** pair = 链接里是池子地址（DexScreener / GeckoTerminal），扫描前先反查代币。 */
+  | { kind: 'address'; address: string; chainSlug?: string; source: 'raw' | 'link'; pair?: boolean; /** 同一条消息里的 cashtag：地址查不到时退到它 */ fallbackQuery?: string }
   /** explicit = 用户用 $TICKER 形式明确要查（群里允许触发） */
   | { kind: 'query'; query: string; explicit?: boolean }
   | { kind: 'none' };
@@ -103,6 +104,8 @@ export function parseLink(rawUrl: string): ParsedInput {
         address,
         chainSlug: spec?.slug,
         source: 'link',
+        // DexScreener / GeckoTerminal 的 URL 都是池子地址（EVM 上池子本身也是个 LP 代币，直接扫会扫出 UNI-V2）
+        pair: true,
       };
     }
   }
@@ -110,10 +113,11 @@ export function parseLink(rawUrl: string): ParsedInput {
   // birdeye.so/token/{address}?chain=solana
   const chainParam = url.searchParams.get('chain') ?? url.searchParams.get('network');
 
-  // 通用区块浏览器：域名决定链，路径末段取地址
+  // 通用：域名决定链；不认识的域名（padre / gmgn / photon / axiom…）从路径段或 ?chain= 里找链名；路径末段取地址
   const address = segments.filter((s) => !PATH_NOISE.has(s.toLowerCase())).at(-1);
   if (address && looksLikeAddress(address)) {
-    const slug = HOST_TO_CHAIN[host] ?? (chainParam ? chainRegistry.fromDexscreenerId(chainParam)?.slug : undefined);
+    const fromPath = segments.map((s) => chainRegistry.fromDexscreenerId(s.toLowerCase())?.slug).find((s): s is string => Boolean(s));
+    const slug = HOST_TO_CHAIN[host] ?? (chainParam ? chainRegistry.fromDexscreenerId(chainParam)?.slug : undefined) ?? fromPath;
     return { kind: 'address', address, chainSlug: slug, source: 'link' };
   }
 
@@ -162,11 +166,16 @@ export function parseInput(text: string): ParsedInput {
   const trimmed = text.trim();
   if (trimmed === '') return { kind: 'none' };
 
+  // 消息里同时有 cashtag 时记下来：链接里的地址可能是池子或未收录的币，查不到就退到 $TICKER
+  const cashtagInText = extractCashtag(trimmed.replace(URL_RE, ' '));
+  const withFallback = (r: ParsedInput): ParsedInput =>
+    r.kind === 'address' && cashtagInText && cashtagInText.toLowerCase() !== r.address.toLowerCase() ? { ...r, fallbackQuery: cashtagInText } : r;
+
   const urls = trimmed.match(URL_RE);
   if (urls) {
     for (const u of urls) {
       const parsed = parseLink(u.replace(/[.,;]+$/, ''));
-      if (parsed.kind !== 'none') return parsed;
+      if (parsed.kind !== 'none') return withFallback(parsed);
     }
   }
 
@@ -177,7 +186,7 @@ export function parseInput(text: string): ParsedInput {
   // 群聊里地址常混在一句话里，扫描每个词
   for (const token of trimmed.split(/[\s,;|]+/)) {
     if (looksLikeAddress(token)) {
-      return { kind: 'address', address: token, source: 'raw' };
+      return withFallback({ kind: 'address', address: token, source: 'raw' });
     }
   }
 

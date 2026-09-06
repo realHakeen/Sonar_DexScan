@@ -1,5 +1,5 @@
 import { Telegraf } from 'telegraf';
-import { env } from '../config/env.js';
+import { adminUserIds, env } from '../config/env.js';
 import { createLogger } from '../infra/logger.js';
 import { chainRegistry } from '../domain/chains.js';
 import { createServices, type Services } from '../services/index.js';
@@ -67,6 +67,12 @@ export async function warmup(built: BuiltBot): Promise<void> {
     built.bot.telegram.setMyCommands(COMMANDS).catch((err) => {
       log.warn('setMyCommands failed', { err: String(err) });
     }),
+    // /stats 只在管理员自己的私聊菜单里出现（按聊天范围注册），其他人看不到
+    ...[...adminUserIds].map((chatId) =>
+      built.bot.telegram
+        .setMyCommands([...COMMANDS, { command: 'stats', description: 'Usage stats (admin)' }], { scope: { type: 'chat', chat_id: chatId } })
+        .catch((err) => log.warn('setMyCommands(admin) failed', { chatId, err: String(err) })),
+    ),
   ]);
 
   if (networks.status === 'fulfilled' && networks.value.length > 0) {

@@ -3,7 +3,7 @@ import { decodeCallback } from '../callbackData.js';
 import type { BotContext } from '../context.js';
 import { chainRegistry } from '../../domain/chains.js';
 import { shortenAddress } from '../../render/format.js';
-import { isScanInflight, restoreCard, runScanFlow } from './scanFlow.js';
+import { cachedSnapshot, isScanInflight, restoreCard, runScanFlow } from './scanFlow.js';
 import { isPerpInflight, runPerpFlow } from './perpFlow.js';
 import { handlePortfolioAdd, handlePortfolioCallback, handlePortfolioCopy } from './portfolio.js';
 
@@ -69,7 +69,10 @@ callbackHandlers.on('callback_query', async (ctx) => {
     await ctx.answerCbQuery(action === 'perp_refresh' ? 'Refreshing…' : 'Loading perps…');
     // address 两用：纯数字且无链 = cid（/perp BTC）；否则是代币定位（从扫描卡进来，可 Back）
     const isCid = !networkSlug && /^\d+$/.test(address);
-    const input = isCid ? { cmcId: Number(address) } : { origin: { networkSlug, address, symbol } };
+    // 从卡片进来的：优先用卡片缓存里的 cid（桥接资产按地址反查不到 cid，例如 zec.omft.near）
+    const snap = chatId !== undefined ? cachedSnapshot(chatId, messageId) : undefined;
+    const snapCid = snap && snap.address.toLowerCase() === address.toLowerCase() ? snap.cmcId : undefined;
+    const input = isCid ? { cmcId: Number(address) } : { cmcId: snapCid, origin: { networkSlug, address, symbol } };
     ctx.log.info('callback', { action, messageId, ...(isCid ? { cmcId: Number(address) } : { address }) });
     // 从卡片打开与视图内刷新都只换按钮、正文不动；候选选择才整条替换
     await runPerpFlow(ctx, input, {

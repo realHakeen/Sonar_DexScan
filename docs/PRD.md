@@ -52,7 +52,7 @@
 4. 交互：第一名明显占优（官方收录而第二名不是，或流动性 ≥ 10×）直接出卡；否则返回 Top 5 候选列表，按钮标注 `✅ SYMBOL · 链 · 流动性`。
 
 ### F3 扫描卡片
-单条 HTML 消息，按手机 36 列宽度设计，等宽标签列 + 树形连接线，区块标题加粗加下划线（emoji 在下划线外）。区块顺序：头部 → Links → Market → Pools → Holders → Risks → Security → Perps → Spot → Call。（曾试过 Rick bot 式的「数值进 `<code>`」排版，但 code 的颜色由客户端主题决定，iOS 浅色主题下是黑色，没有预期的高亮效果，已退回标签对齐方案。）区块与字段：
+单条 HTML 消息，按手机 36 列宽度设计，等宽标签列 + 树形连接线，区块标题加粗加下划线（emoji 在下划线外）。区块顺序：头部 → Links → Market → Pools → Holders → Risks → Security → ［分隔线］→ Spot → Perps → Call。链上数据与 CEX 数据之间一条 `<code>` 等宽的 24 个 `─`（等宽保证手机上不折行）。色块 🟢🔴 一律放在百分比**前面**。（曾试过 Rick bot 式的「数值进 `<code>`」排版，但 code 的颜色由客户端主题决定，iOS 浅色主题下是黑色，没有预期的高亮效果，已退回标签对齐方案。）区块与字段：
 
 | 区块 | 内容 |
 |---|---|
@@ -61,10 +61,10 @@
 | Holders | 总数；Top10 / Top50 进度条；标签 🎯🧑‍💻🐳🤖🧠📣 持有人数（持仓占比 ≥ 0.1% 时显示），每行最多 2 个 |
 | Security | 来源 · 评级；税率 · 蜜罐状态；命中项逐条（🚨/⚠️/ℹ️ 按 r/y/g），未命中项只给数量 |
 | Pools | 紧跟 Market：前 3 个池子，DEX 缩写 / 报价币 · 流动性（数字即链接，指向该代币的 DexScan 页；DexScan 没有单独的池子页，池子地址 404、`/pair/` 重定向首页，2026-09-05 实测；链接内不能嵌 code）· 首池占比（括号）· 🔒 锁仓 / 🔥 销毁 |
-| Spot 🏦 | 仅有 cid 的币（CEXs 行例外，来自 token 接口）：CEXs 上所家数（现货数）· 前 3 家；Vol 全链现货量 + 24h 变化色块；Split CEX / DEX 拆分 + CEX 占比；Top 现货成交量前 3 所占比（只在 `config/constants.ts#SPOT_EXCHANGE_WHITELIST` 约 20 家内计算，PEPE 原始排名第三到五是 WhiteBIT / UZX / Poloniex 刷量所）；Premium 合约对现货溢价（白名单各所标记价对指数价的基差按 OI 加权；正 = 合约溢价 🟢，负 🔴；无合约数据不显示）。标题带 pairs 数，达到 100 上限显示 `100+`。数据：`/v2/cryptocurrency/market-pairs/latest?category=spot&limit=100&sort=volume_24h_strict`，1 credit；`num_market_pairs` 等于返回条数不是总数 |
-| Perps ⚡ | 仅有 cid 的币：OI 合计 · 交易所数；Top 3 所 OI 占比；合约成交量 + 合约/现货倍数；费率（折算 8h，写作 `+0.0498% (8h)`——不能写 `/8h`，Telegram 会当成 bot 命令渲染成链接；色块按 CoinGlass 习惯放行尾：正费率 🔴 负费率 🟢；不显示参考所，按所明细在 /perp）· 年化；Liq 24h 与 1h：`$1.0M · 69% short 🟢`（总额 + 占多数一方及占比；多单爆得多 = 在跌 🔴，空单爆得多 = 在涨 🟢，持平 50/50）。任一项缺失整行省略，全缺不出区块 |
+| Spot 🏦 | 仅有 cid 的币（CEXs 行例外，来自 token 接口）：CEXs 上所家数（现货数）· 前 3 家；Vol 全链现货量 + 24h 变化色块；Split CEX / DEX 拆分 + CEX 占比；Top 现货成交量前 3 所占比（只在 `config/constants.ts#SPOT_EXCHANGE_WHITELIST` 约 20 家内计算，PEPE 原始排名第三到五是 WhiteBIT / UZX / Poloniex 刷量所）；Premium：**现货溢价** = 现货价 / 合约价 − 1，由白名单各所标记价对指数价的基差 b 按 OI 加权后取 1/(1+b) − 1；负值 = 合约比现货贵（多头付费）🔴，正值 = 现货贵 🟢；无合约数据不显示。标题带 pairs 数，达到 100 上限显示 `100+`。数据：`/v2/cryptocurrency/market-pairs/latest?category=spot&limit=100&sort=volume_24h_strict`，1 credit；`num_market_pairs` 等于返回条数不是总数 |
+| Perps ⚡ | 仅有 cid 的币，行序 OI → Funding → Vol → Top → Liq：OI 合计 · 交易所数；费率（折算 8h，写作 `+0.0498% (8h)`——不能写 `/8h`，Telegram 会当成 bot 命令渲染成链接；色块按 CoinGlass 习惯放行尾：正费率 🔴 负费率 🟢；不显示参考所，按所明细在 /perp）· 年化；Liq 24h 与 1h：`$1.0M · 69% short 🟢`（总额 + 占多数一方及占比；多单爆得多 = 在跌 🔴，空单爆得多 = 在涨 🟢，持平 50/50）。任一项缺失整行省略，全缺不出区块 |
 | Risks | 紧跟 Holders；按 🚨 → ⚠️ → ℹ️ 排序，最多 8 条；Security 已逐项列出的合约级 warn 不重复；单一 LP 已在 Pools 显示不重复 |
-| Links | Website · X · TG · Explorer · Trade · DexScan（项目渠道在前，工具在后）；标签行与合约地址之间空一行 |
+| Links | Website · X · TG · Explorer · Trade · DexScan · CMC（CMC 币种页，仅收录币有 slug 时显示；项目渠道在前，工具在后）；标签行与合约地址之间空一行 |
 | Call | 卡片尾部的群内首次喊单行，见 F3e |
 | 脚注 | 有降级项时：`⚠️ Partial data — unavailable: …. Tap Refresh to retry.` |
 
@@ -83,11 +83,11 @@
 ### F3e 群内 Call 追踪与里程碑横幅（方案 A：扫描时触发，零 credit）
 - **记录**：群里第一个通过消息（地址 / 链接 / `$TICKER` / 转发播报）触发某个币卡片的人算首次 call，存 群 · 代币 · 用户 · 消息 id · 时间 · 当时市值（优先真实流通市值，否则 FDV，记口径）。候选选择与切链的回调也可创建（点按钮的人 + 卡片消息）；Refresh / Back 只更新不创建。私聊不记。
 - **卡片行**：卡片尾部（Risks 之后、降级脚注之前）一行 `🚀 aaronseaemcee @ $21.5M [10.5x] (37d 1h ago) 🔼`，用户名链到 t.me，🔼 链到原消息（仅超级群有链接）。首次 call 显示 `[1.0x] (now)`。前后口径不同（一次 MC 一次 FDV）只显示记录不算倍数。
-- **里程碑**：5 / 10 / 20 / 50 / 100x（2x、3x 在 meme 币上太常见，不播），每群每币每档只播一次；只报本次新跨过的最高档（4x → 12x 只报 10x）。跨档时发横幅 PNG（`assets/banner-bg.jpg` 背景 + `$SYMBOL` / 倍数 / Called at 市值 · 时长 / 喊单人名牌，resvg 渲染），`sendPhoto` 回复原 call 消息，原消息已删则不引用重发；caption 三行：币与倍数、喊单人 @ 市值 (时长)、合约地址。发送失败只记日志。
+- **里程碑**：3 / 5 / 10 / 20 / 50 / 100x（2x 在 meme 币上太常见，不播），每群每币每档只播一次；只报本次新跨过的最高档（2.5x → 12x 只报 10x）。跨档时发横幅 PNG（`assets/banner-bg.jpg` 背景 + `$SYMBOL` / 倍数 / Called at 市值 · 时长 / 喊单人名牌，resvg 渲染），`sendPhoto` 回复原 call 消息，原消息已删则不引用重发；caption 三行：币与倍数、喊单人 @ 市值 (时长)、合约地址。发送失败只记日志。
 - **峰值**：每次扫描更新 `peak_mcap`，供以后的 ATH 倍数与排行榜使用。
 - **未做（方案 B）**：后台定时盯盘主动推送。需要按 call 数预算 credit（约 290 / call / 周），待观察真实 call 量后决定。
 
-### F3f 使用统计 `/stats`（仅 `ADMIN_USER_IDS`）
+### F3f 使用统计 `/stats`（仅 `ADMIN_USER_IDS`；命令菜单按聊天范围只给管理员注册；变量未配置时回一条带用户 id 的配置提示，配置后非管理员静默）
 - 数据：`events` 表记每次交互（时间、UTC 日、用户 id、聊天 id 与类型、事件类型、触发方式、代币、耗时、是否降级），不存正文；`groups` 表由 `my_chat_member` 事件维护 bot 进出群；`credits` 表按日累加 CMC 响应里的 `credit_count`（api 层通过 `infra/creditMeter` 上报，不依赖 services）。
 - 事件类型：scan（触发方式 address / link / cashtag / name / forward / command / refresh / candidate / chain / back / watchlist）、perp（command / button / refresh / pick）、watch_add / watch_del / watch_view、share / share_open / share_copy、ratelimited。
 - 输出：一张 30 天图（每日扫描柱 + 活跃用户折线；分享漏斗；触发方式占比）+ caption：today · 7d · 30d 三列的 Users / Groups (in N) / New u/g / Scans + 触发占比 / Retain D1 D7（首见次日 / 第 7 日回访比例，样本 < 5 不算）/ Watch / Share 漏斗 / Perps / Health（平均耗时、降级率、限流数）/ Credits（当日、30 天与 200 万额度占比）/ Top 7d 代币。
@@ -99,7 +99,7 @@
 - 限流：只对确认触发扫描的消息计数，闲聊不占额度。群 6 次/分钟 + 3s 冷却，冷却期内的扫描排队依次执行而不是丢弃，窗口内 6 个槽位用完才静默丢弃；私聊 20 次/分钟无冷却，超限提示等待秒数。按钮回调不限流。
 
 ### F5 链接解析（零 API 消耗）
-识别 `dex.coinmarketcap.com/token/{net}/{addr}`、DexScreener、GeckoTerminal、Birdeye、pump.fun 及 30+ 区块浏览器域名，从 URL 直接得到链与地址；混在句子里的地址和链接也能提取。
+识别 `dex.coinmarketcap.com/token/{net}/{addr}`、DexScreener、GeckoTerminal、Birdeye、pump.fun 及 30+ 区块浏览器域名，从 URL 直接得到链与地址；混在句子里的地址和链接也能提取。DexScreener / GeckoTerminal 的 URL 是**池子地址**（EVM 上池子本身也是 LP 代币，直接扫会得到 UNI-V2），标记 `pair: true` 后 scanService 先用 `pairs/quotes` 反查 `base_asset_contract_address` 再扫（1 credit），反查不到再按普通地址处理。不认识的域名（padre / gmgn / photon / axiom …）从路径段取链名；同一条消息里还有 `$TICKER` 时记为 `fallbackQuery`，地址查不到就退到 ticker 搜索（此时不做池子反查，因为池子的 base 资产常是报价币那一边，ZCAT/ZEC 池会解析成 ZEC）。
 
 消息来源：text 消息与带 caption 的媒体消息（photo / video / document）都走同一条解析链，播报频道（Birdshot / TokenScan）的转发几乎都是图片加 caption。超链接文字背后的 `text_link` URL 也会被解析。优先级：可见地址或明文链接 > 隐藏链接里的地址 > 可见的名称查询（隐藏链接可能是转发消息里指向别的币的分享链接，所以排在可见地址之后）。
 

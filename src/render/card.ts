@@ -29,6 +29,9 @@ import {
   tree,
 } from './format.js';
 
+/** 链上数据与 CEX 数据之间的分隔线。<code> 等宽，24 个 ─ 在最窄的手机上也是一行。 */
+const CEX_DIVIDER = `<code>${'─'.repeat(24)}</code>`;
+
 const RISK_HEADER: Record<string, string> = {
   danger: '🚨 High risk',
   warn: '⚠️ Caution',
@@ -103,7 +106,7 @@ export function renderScanCard(report: TokenReport): string {
   if (p.buyVolume24hUsd !== undefined || p.sellVolume24hUsd !== undefined) {
     const pressure = sharePct(p.buyVolume24hUsd, p.sellVolume24hUsd);
     // 买压 ≥ 50% 绿、< 50% 红，色块放在结论后面
-    const pressureMark = pressure === undefined ? '' : ` · ${pressure}% buy ${pressure >= 50 ? '🟢' : '🔴'}`;
+    const pressureMark = pressure === undefined ? '' : ` · ${pressure >= 50 ? '🟢' : '🔴'} ${pressure}% buy`;
     market.push(`${label('Flow')} +${formatUsdShort(p.buyVolume24hUsd)} / −${formatUsdShort(p.sellVolume24hUsd)}${pressureMark}`);
   }
   // Liq 放最后一行，紧接下面的 Pools 区块（口径 = 所有池子双边 TVL 合计）
@@ -138,7 +141,9 @@ export function renderScanCard(report: TokenReport): string {
     for (let i = 0; i < tags.length; i += 2) {
       rows.push(`${label(i === 0 ? 'Tags' : '')} ${tags.slice(i, i + 2).join(' · ')}`);
     }
-    out.push(...tree(rows));
+    // 一行都没有（NEAR 上的桥接资产常见）就把标题也撤掉，别留一个空区块
+    if (rows.length === 0 && !total) out.pop(), out.pop();
+    else out.push(...tree(rows));
   }
 
   // ── Risks ──
@@ -158,21 +163,24 @@ export function renderScanCard(report: TokenReport): string {
     out.push(...tree(renderSecurityRows(sec)));
   }
 
-  // ── Perps ──（OI / 合约成交量 / 费率按 16 家白名单客户端聚合；爆仓是 CMC 的 9 家汇总）
+  // ── 链上 / CEX 分隔线 ──（Spot 与 Perps 都是 CEX 侧数据，前面画一条线；等宽字符，24 格在手机上不换行）
+  const cexRows = renderSpotRows(report, report.spot);
   const perpRows = renderPerpRows(report.perp, report.liquidations, report.core?.spotVolume24hUsd ?? p.volume24hUsd);
+  if (cexRows.length || perpRows.length) out.push('', CEX_DIVIDER);
+
+  // ── Spot ──（CEX 上所、全链现货量与 24h 变化、CEX/DEX 拆分、白名单内各所占比、合约对现货溢价）
+  if (cexRows.length) {
+    const n = report.spot?.returnedPairs;
+    const pairs = n ? `  ${report.spot!.complete ? n : `${n}+`} pairs` : '';
+    out.push('', `${section('🏦', 'Spot')}${pairs}`);
+    out.push(...tree(cexRows));
+  }
+
+  // ── Perps ──（OI / 合约成交量 / 费率按 16 家白名单客户端聚合；爆仓是 CMC 的 9 家汇总）
   if (perpRows.length) {
     const pairs = report.perp?.totalPairs;
     out.push('', `${section('⚡', 'Perps')}${pairs ? `  ${pairs} pair${pairs === 1 ? '' : 's'}` : ''}`);
     out.push(...tree(perpRows));
-  }
-
-  // ── Spot ──（CEX 上所、全链现货量与 24h 变化、CEX/DEX 拆分、白名单内各所占比、合约对现货溢价）
-  const spotRows = renderSpotRows(report, report.spot);
-  if (spotRows.length) {
-    const n = report.spot?.returnedPairs;
-    const pairs = n ? `  ${report.spot!.complete ? n : `${n}+`} pairs` : '';
-    out.push('', `${section('🏦', 'Spot')}${pairs}`);
-    out.push(...tree(spotRows));
   }
 
   // ── Call ──（群内首次喊单：谁 @ 当时市值 [倍数] (多久前) 🔼原消息，放在卡片尾部）
@@ -306,23 +314,26 @@ function renderPoolRows(pools: PoolInfo[], dexscanUrl: string): string[] {
  */
 function renderPerpRows(perp: PerpStats | undefined, liq: LiquidationStats | undefined, spotVolumeUsd: number | undefined): string[] {
   const rows: string[] = [];
+  // 顺序：OI → Funding → Vol → Top → Liq
   if (perp && perp.openInterestUsd > 0) {
     const n = perp.venues.length;
     rows.push(`${label('OI')} ${formatUsdShort(perp.openInterestUsd)} · ${n} venue${n === 1 ? '' : 's'}`);
-    const top = perp.venues
-      .slice(0, PERP_TOP_VENUES)
-      .filter((v) => v.openInterestUsd > 0)
-      .map((v) => `${escapeHtml(v.name)} ${Math.round((v.openInterestUsd / perp.openInterestUsd) * 100)}%`);
-    if (top.length > 1) rows.push(`${label('Top')} ${top.join(' · ')}`);
+  }
+  if (perp?.funding) {
+    const f = perp.funding;
+    // 不能写 "/8h"：Telegram 会把 "/8h" 当成 bot 命令渲染成链接。参考所名字不显示，/perp 里有按所明细
+    rows.push(`${label('Funding')} ${fundingEmoji(f.rate8h)} ${formatFunding(f.rate8h)} (8h) · ${formatApr(f.apr)} APR`);
   }
   if (perp && perp.volume24hUsd > 0) {
     const ratio = formatRatio(perp.volume24hUsd, spotVolumeUsd);
     rows.push(`${label('Vol')} ${formatUsdShort(perp.volume24hUsd)}${ratio ? ` (${ratio} spot)` : ''}`);
   }
-  if (perp?.funding) {
-    const f = perp.funding;
-    // 不能写 "/8h"：Telegram 会把 "/8h" 当成 bot 命令渲染成链接。参考所名字不显示，/perp 里有按所明细
-    rows.push(`${label('Funding')} ${formatFunding(f.rate8h)} (8h) · ${formatApr(f.apr)} APR ${fundingEmoji(f.rate8h)}`);
+  if (perp && perp.openInterestUsd > 0) {
+    const top = perp.venues
+      .slice(0, PERP_TOP_VENUES)
+      .filter((v) => v.openInterestUsd > 0)
+      .map((v) => `${escapeHtml(v.name)} ${Math.round((v.openInterestUsd / perp.openInterestUsd) * 100)}%`);
+    if (top.length > 1) rows.push(`${label('Top')} ${top.join(' · ')}`);
   }
   // 爆仓：总额 + 占多数的一方及其占比。多单被爆得多 = 价格在跌 → 🔴；空单被爆得多 = 在涨 → 🟢；持平 50/50
   const liqRow = (name: string, total?: number, long?: number, short?: number): string | undefined => {
@@ -331,7 +342,7 @@ function renderPerpRows(perp: PerpStats | undefined, liq: LiquidationStats | und
     const sum = long + short;
     if (sum <= 0) return `${label(name)} ${formatUsdShort(total)}`;
     const shortPct = Math.round((short / sum) * 100);
-    const side = shortPct > 50 ? `${shortPct}% short 🟢` : shortPct < 50 ? `${100 - shortPct}% long 🔴` : '50/50';
+    const side = shortPct > 50 ? `🟢 ${shortPct}% short` : shortPct < 50 ? `🔴 ${100 - shortPct}% long` : '50/50';
     return `${label(name)} ${formatUsdShort(total)} · ${side}`;
   };
   for (const row of [liqRow('Liq 24h', liq?.total24hUsd, liq?.long24hUsd, liq?.short24hUsd), liqRow('Liq 1h', liq?.total1hUsd, liq?.long1hUsd, liq?.short1hUsd)]) {
@@ -356,7 +367,7 @@ function renderCallLine(c: NonNullable<TokenReport['call']>): string {
  *   Vol     $229.3M 🔴 −53.7% 24h
  *   Split   CEX $227.5M · DEX $1.8M · 99% CEX
  *   Top     Binance 25% · OKX 10% · Bybit 7%
- *   Premium Futures +0.12% vs Spot 🟢
+ *   Premium Spot 🔴 -0.12%   （现货 / 合约 − 1）
  * 任一项缺失整行省略；全缺返回空数组，调用方不渲染区块头。
  */
 function renderSpotRows(report: TokenReport, spot: SpotStats | undefined): string[] {
@@ -386,11 +397,12 @@ function renderSpotRows(report: TokenReport, spot: SpotStats | undefined): strin
       .map((v) => `${escapeHtml(v.name)} ${Math.round((v.volume24hUsd / spot.whitelistVolumeUsd) * 100)}%`);
     if (top.length) rows.push(`${label('Top')} ${top.join(' · ')}`);
   }
-  // 合约对现货的溢价：白名单各所基差按 OI 加权。正 = 合约价高于现货（多头付费）🟢，负 🔴
+  // Spot premium = 现货价 / 合约价 − 1。合约基差 b = mark/index − 1（白名单各所按 OI 加权），所以现货溢价 = 1/(1+b) − 1 ≈ −b。
+  // 负值 = 合约比现货贵（多头付费、偏多）🔴；正值 = 现货比合约贵 🟢。色块按符号。
   const basis = report.perp?.basis;
-  if (basis !== undefined) {
-    const pct = basis * 100;
-    rows.push(`${label('Premium')} Futures ${formatPercent(pct)} vs Spot ${changeEmoji(pct)}`);
+  if (basis !== undefined && basis > -1) {
+    const pct = (1 / (1 + basis) - 1) * 100;
+    rows.push(`${label('Premium')} Spot ${changeEmoji(pct)} ${formatPercent(pct)}`);
   }
   return rows;
 }
@@ -406,5 +418,7 @@ function renderLinks(report: TokenReport): string {
   if (explorer) items.push(link('Explorer', explorer));
   if (p.tradeUrl) items.push(link('Trade', p.tradeUrl));
   items.push(link('DexScan', chainRegistry.dexscanUrl(p.networkSlug, p.address)));
+  // CMC 币种页：只有被 CMC 收录（有 slug）的币才有
+  if (report.core?.slug) items.push(link('CMC', `https://coinmarketcap.com/currencies/${encodeURIComponent(report.core.slug)}/`));
   return `🔗 ${items.join(' · ')}`;
 }

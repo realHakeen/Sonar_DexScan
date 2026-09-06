@@ -24,8 +24,8 @@ export function renderPortfolio(rows: PortfolioRow[]): string {
     const lines: string[] = [];
     if (r.priceUsd !== undefined) lines.push(`${label('Price')} ${formatPrice(r.priceUsd)}`);
     if (r.marketCapUsd !== undefined && r.marketCapUsd > 0) lines.push(`${label('MC')} ${formatUsdShort(r.marketCapUsd)}`);
-    if (r.sinceAddedPct !== undefined) lines.push(`${formatPercent(r.sinceAddedPct)} since add ${changeEmoji(r.sinceAddedPct)}`);
-    if (r.change24hPct !== undefined) lines.push(`${formatPercent(r.change24hPct)} 24h ${changeEmoji(r.change24hPct)}`);
+    if (r.sinceAddedPct !== undefined) lines.push(`${changeEmoji(r.sinceAddedPct)} ${formatPercent(r.sinceAddedPct)} since add`);
+    if (r.change24hPct !== undefined) lines.push(`${changeEmoji(r.change24hPct)} ${formatPercent(r.change24hPct)} 24h`);
     out.push(...tree(lines));
   }
   out.push('', '<i>Tap 🔍 to rescan · 🗑 to remove</i>');
@@ -43,7 +43,7 @@ export function renderWatchlistShare(ownerName: string, rows: PortfolioRow[]): s
     const lines: string[] = [];
     if (r.priceUsd !== undefined) lines.push(`${label('Price')} ${formatPrice(r.priceUsd)}`);
     if (r.marketCapUsd !== undefined && r.marketCapUsd > 0) lines.push(`${label('MC')} ${formatUsdShort(r.marketCapUsd)}`);
-    if (r.change24hPct !== undefined) lines.push(`${formatPercent(r.change24hPct)} 24h ${changeEmoji(r.change24hPct)}`);
+    if (r.change24hPct !== undefined) lines.push(`${changeEmoji(r.change24hPct)} ${formatPercent(r.change24hPct)} 24h`);
     lines.push(code(e.address));
     out.push(...tree(lines));
   }

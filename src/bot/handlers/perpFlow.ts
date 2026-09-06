@@ -72,7 +72,7 @@ export async function runPerpFlow(ctx: BotContext, input: PerpFlowInput, opts: P
       let fallback: { symbol: string; name: string } | undefined;
       if (cmcId === undefined) {
         const query = input.origin?.address ?? input.query ?? '';
-        const res = await ctx.services.perp.resolve(query);
+        const res = await ctx.services.perp.resolve(query, input.origin?.networkSlug);
         if (res.kind === 'none') throw new NotFoundError(query);
         if (res.kind === 'ambiguous') {
           await edit(renderPerpCandidates(res.query, res.candidates), perpCandidateKeyboard(res.candidates));

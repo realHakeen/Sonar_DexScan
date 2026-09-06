@@ -58,7 +58,7 @@ test('renderPortfolio：空列表提示；有行情时显示价格、自加入�
     { entry: { userId: 7, networkSlug: 'bnb', address: '0xd', symbol: 'NOQUOTE', addedAt: 0 } },
   ]);
   assert.match(html, /⭐ <b><u>Watchlist<\/u><\/b>  2 tokens/);
-  assert.match(html, /<b>PEPE<\/b> · Ethereum\n├ <code>Price  <\/code> \$0\.0₄1200\n├ <code>MC     <\/code> \$5\.0B\n├ \+20\.00% since add 🟢\n└ -5\.10% 24h 🔴/);
+  assert.match(html, /<b>PEPE<\/b> · Ethereum\n├ <code>Price  <\/code> \$0\.0₄1200\n├ <code>MC     <\/code> \$5\.0B\n├ 🟢 \+20\.00% since add\n└ 🔴 -5\.10% 24h/);
   assert.match(html, /<b>NOQUOTE<\/b> · BNB Chain\n\n<i>Tap/);
 });
 
@@ -93,7 +93,7 @@ test('renderWatchlistShare：带主人名字，不含 since add，附合约地�
     { entry: { ...PEPE, addedAt: 0 }, priceUsd: 0.000012, sinceAddedPct: 20, change24hPct: -5.1, marketCapUsd: 5e9 },
   ]);
   assert.match(html, /⭐ <b><u>@hakeen's Watchlist<\/u><\/b>  1 token\n/);
-  assert.match(html, /<b>PEPE<\/b> · Ethereum\n├ <code>Price  <\/code> \$0\.0₄1200\n├ <code>MC     <\/code> \$5\.0B\n├ -5\.10% 24h 🔴\n└ <code>0x6982508145454CE325DDBE47A25D4EC3D2311933<\/code>/); // 夹具地址未经 add 归一，保持原样
+  assert.match(html, /<b>PEPE<\/b> · Ethereum\n├ <code>Price  <\/code> \$0\.0₄1200\n├ <code>MC     <\/code> \$5\.0B\n├ 🔴 -5\.10% 24h\n└ <code>0x6982508145454CE325DDBE47A25D4EC3D2311933<\/code>/); // 夹具地址未经 add 归一，保持原样
   assert.doesNotMatch(html, /since add/);
 });
 
