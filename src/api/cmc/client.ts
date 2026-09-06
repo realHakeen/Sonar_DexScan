@@ -78,7 +78,8 @@ export class CmcClient {
 
     const run = () => this.execute<T>(method, path, query, body, opts);
     if (ttl <= 0) return run();
-    return this.cache.wrap(key, run as () => Promise<unknown>, ttl) as Promise<T | null>;
+    // softFail 的 null（上游返回错误码 / 4xx）不缓存：那是瞬时故障的常见形态，缓存住会让 Refresh 在 TTL 内一直拿到空
+    return this.cache.wrap(key, run as () => Promise<unknown>, ttl, (v) => v !== null) as Promise<T | null>;
   }
 
   private async execute<T>(

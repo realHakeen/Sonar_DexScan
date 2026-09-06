@@ -73,6 +73,7 @@ export class ScanService {
       log.warn('search failed, probing chains', { err: String(err) });
       return [] as TokenCandidate[];
     });
+    for (const c of found) chainRegistry.learnNetworkId(c.networkSlug, c.networkId);
     const matched = found.filter((c) => c.address.toLowerCase() === address.toLowerCase());
     const pool = matched.length > 0 ? matched : found;
 
@@ -119,13 +120,19 @@ export class ScanService {
     return this.buildReport(primary, meaningful.slice(0, SECONDARY_CHAIN_HINT_LIMIT));
   }
 
-  /** 池子地址 → 代币地址（pairs/quotes 的 base_asset_contract_address）。不是池子或查不到返回 undefined。 */
+  /**
+   * 池子地址 → 代币地址（v4 pairs/quotes 的 base_asset_contract_address，1 credit）。
+   * 该端点对 Robinhood 等链不认 network_slug，只认 network_id；registry 里有静态 id，也会从 search 结果里学。
+   * 不是池子或查不到返回 undefined。
+   */
   private async resolvePairToken(networkSlug: string, pairAddress: string): Promise<{ address: string; networkSlug: string } | undefined> {
     const spec = chainRegistry.get(networkSlug);
-    const res = await this.cmc.dex.pairQuote({ networkSlug: spec.dexscanSlug ?? networkSlug, pairAddress }).catch(() => null);
+    const res = await this.cmc.dex
+      .pairQuote({ networkSlug: spec.dexscanSlug ?? networkSlug, pairAddress, networkId: chainRegistry.networkIdOf(networkSlug) })
+      .catch(() => null);
     const c = res?.candidate;
     if (!c?.address || c.address.toLowerCase() === pairAddress.toLowerCase()) return undefined;
-    log.info('pair address resolved to token', { pair: pairAddress, token: c.address, chain: networkSlug });
+    log.info('pair address resolved to token', { pair: pairAddress.slice(0, 12), token: c.address, chain: c.networkSlug || networkSlug });
     return { address: c.address, networkSlug: c.networkSlug || networkSlug };
   }
 

@@ -116,7 +116,7 @@ export async function runScanFlow(
           pairFallback: !input.fallbackQuery,
         });
         const tracked = trackCall(ctx, report, opts);
-        await renderReport(ctx, messageId, report);
+        await renderReport(ctx, messageId, report, opts);
         recordScan(ctx, report, opts, startedAt);
         await postMilestone(ctx, report, tracked);
         return;
@@ -136,7 +136,7 @@ export async function runScanFlow(
     if (candidates.length === 1 || isDominant(candidates)) {
       const report = await ctx.services.scan.buildReport(top.candidate, []);
       const tracked = trackCall(ctx, report, opts);
-      await renderReport(ctx, messageId, report);
+      await renderReport(ctx, messageId, report, opts);
       recordScan(ctx, report, opts, startedAt);
       await postMilestone(ctx, report, tracked);
       return;
@@ -179,12 +179,13 @@ async function sendPlaceholder(ctx: BotContext): Promise<number | undefined> {
   return msg.message_id;
 }
 
-async function renderReport(ctx: BotContext, messageId: number, report: TokenReport): Promise<void> {
+async function renderReport(ctx: BotContext, messageId: number, report: TokenReport, opts: ScanFlowOptions = {}): Promise<void> {
   // 群聊与私聊一样直接给完整卡片（紧凑卡 + "Full report" 按钮已按产品决定去掉）
   let text = renderScanCard(report);
 
   // K 线预览：正文开头放一个零宽不可见链接，Telegram 把图渲染在卡片底部（show_above_text: false）
-  const chartUrl = ctx.services.chart.register(report.primary);
+  // Refresh 时强制重画 K 线（否则 5 分钟内 URL 相同，Telegram 复用旧图）
+  const chartUrl = ctx.services.chart.register(report.primary, { fresh: opts.trigger === 'refresh' });
   const preview = chartUrl
     ? { link_preview_options: { is_disabled: false, url: chartUrl, show_above_text: false, prefer_large_media: true } }
     : {};

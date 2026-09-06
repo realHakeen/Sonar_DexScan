@@ -93,7 +93,7 @@ test('Txns 不带色块；Flow 按买压 ≥50% 绿；负费率标绿', () => {
     }),
   );
   assert.match(html, /Txns\s*<\/code> ↑9\.9K · ↓9\.1K/);
-  assert.match(html, /Flow\s*<\/code> 🟢 \+\$100K net · 51% buy/);
+  assert.match(html, /Flow\s*<\/code> \+\$100K net · 🟢 51% buy/);
   assert.match(html, /Funding<\/code> 🟢 -0\.0200% \(8h\) · -21\.9% APR/);
 });
 
@@ -134,7 +134,7 @@ test('买压 < 50% 标红；Liq 的金额与池子数链到 DexScan；链接顺�
       primary: { ...baseReport().primary, buyVolume24hUsd: 171e3, sellVolume24hUsd: 264e3, poolCount: 9, website: 'https://w.example', twitter: 'https://x.com/w', telegram: 'https://t.me/w', tradeUrl: 'https://trade.example' },
     }),
   );
-  assert.match(html, /Flow\s*<\/code> 🔴 −\$93K net · 39% buy/);
+  assert.match(html, /Flow\s*<\/code> −\$93K net · 🔴 39% buy/);
   assert.match(html, /Liq\s*<\/code> <a href="https:\/\/dex\.coinmarketcap\.com\/token\/ethereum\/0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2">\$1\.0B<\/a> total · <a href="https:\/\/dex\.coinmarketcap\.com\/token\/ethereum\/0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2">9<\/a> pools/);
   assert.match(html, /🔗 <a href="https:\/\/w\.example">Website<\/a> · <a href="https:\/\/x\.com\/w">X<\/a> · <a href="https:\/\/t\.me\/w">TG<\/a> · <a href="https:\/\/etherscan\.io\/token\/0x[0-9a-f]{40}">Explorer<\/a> · <a href="https:\/\/trade\.example">Trade<\/a> · <a href="https:\/\/dex\.coinmarketcap\.com\/token\/ethereum\/0x[0-9a-f]{40}">DexScan<\/a>(\n|$)/);
   const withCmc = renderScanCard(baseReport({ core: { cmcId: 1027, categories: [], slug: 'ethereum' } }));

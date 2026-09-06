@@ -104,10 +104,11 @@ export function renderScanCard(report: TokenReport): string {
     market.push(`${label('Txns')} ${formatCount(p.txns24h)}`);
   }
   if (p.buyVolume24hUsd !== undefined && p.sellVolume24hUsd !== undefined) {
-    // 净流入 = 买量 − 卖量，色块按正负；买压 % 保留
+    // 净流入 = 买量 − 卖量；色块放在买压百分比前面（≥ 50% 🟢，< 50% 🔴）
     const net = p.buyVolume24hUsd - p.sellVolume24hUsd;
     const pressure = sharePct(p.buyVolume24hUsd, p.sellVolume24hUsd);
-    market.push(`${label('Flow')} ${changeEmoji(net)} ${net >= 0 ? '+' : '−'}${formatUsdShort(Math.abs(net))} net${pressure !== undefined ? ` · ${pressure}% buy` : ''}`);
+    const pressureMark = pressure === undefined ? '' : ` · ${pressure >= 50 ? '🟢' : '🔴'} ${pressure}% buy`;
+    market.push(`${label('Flow')} ${net >= 0 ? '+' : '−'}${formatUsdShort(Math.abs(net))} net${pressureMark}`);
   } else if (p.buyVolume24hUsd !== undefined || p.sellVolume24hUsd !== undefined) {
     market.push(`${label('Flow')} +${formatUsdShort(p.buyVolume24hUsd)} / −${formatUsdShort(p.sellVolume24hUsd)}`);
   }

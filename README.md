@@ -124,6 +124,7 @@ One scan = 1 search + 5 concurrent detail requests (token / security / trend / t
 - `holders/list.tags` is a JSON string `{"tag_whale":1,...}`; `percent` is already in percent units
 - `/v4/dex/spot-pairs/latest` requires `dex_id`/`dex_slug` and cannot list all pools for a token — dropped in favour of `/v1/dex/token.pls`
 - `/v4/dex/networks/list` and `/v4/dex/listings/info` currently return 500 upstream; startup tolerates it
+- DexScreener links carry **pair** ids, not token addresses; they are resolved with CMC `/v4/dex/pairs/quotes/latest` (`base_asset_contract_address`). That endpoint rejects `network_slug` for some chains (Robinhood: "The network is not supported") and needs `network_id` (Robinhood 300, BSC 14) — see `chains.ts#cmcNetworkId`
 - v5 derivatives endpoints take `crypto_id` / `exchange_slug`, not the `id` / `slug` the docs show; `sort` does not accept `open_interest`; the liquidations-by-exchange endpoint ignores `crypto_id`, so a per-venue split of one coin's liquidations is not available
 
 Re-run the probe whenever you get a new key or the upstream changes:
@@ -150,7 +151,7 @@ The bot is a single long-running process (long polling), which is exactly what R
 |---|---|
 | `TELEGRAM_BOT_TOKEN` | from @BotFather |
 | `CMC_API_KEY` | your CoinMarketCap Pro key |
-| `CMC_TIMEOUT_MS` | `6000` — Railway's US region reaches CMC directly, no proxy latency |
+| `CMC_TIMEOUT_MS` | `10000` — the v5 derivatives / spot-pairs endpoints are heavier than the DEX ones; 6000 produced "Partial data" cards on slow upstream days |
 | `CMC_MAX_RETRIES` | `1` |
 | `LOG_LEVEL` | `info` |
 | `DATA_DIR` | `/data` — the Volume mount from step 3 (portfolio database) |

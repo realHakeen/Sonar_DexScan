@@ -52,9 +52,14 @@ export class ChartService {
     return Boolean(publicBaseUrl);
   }
 
-  /** 扫描完成时调用：登记元数据并返回图片 URL（未配置公网地址时返回 undefined）。 */
-  register(c: TokenCandidate): string | undefined {
+  /**
+   * 扫描完成时调用：登记元数据并返回图片 URL（未配置公网地址时返回 undefined）。
+   * fresh = 用户点了 Refresh：清掉这个币的 PNG / 失败缓存并给一个唯一的 v，让 Telegram 重新抓、服务端重新画（多 1 credit）。
+   * 否则 URL 按 5 分钟分桶，同一桶内 Telegram 复用预览，不重复出图。
+   */
+  register(c: TokenCandidate, opts: { fresh?: boolean } = {}): string | undefined {
     if (!publicBaseUrl) return undefined;
+    if (opts.fresh) this.invalidate(c.networkSlug, c.address);
     this.meta.set(this.metaKey(c.networkSlug, c.address), {
       symbol: c.symbol,
       platform: c.platform ?? chainRegistry.platformName(c.networkSlug),
@@ -64,8 +69,15 @@ export class ChartService {
       logoUrl: c.logo,
       chainLogoUrl: chainRegistry.logoUrl(c.networkSlug, c.platformCryptoId),
     });
-    const bucket = Math.floor(Date.now() / env.CACHE_TTL_CHART_MS);
-    return `${publicBaseUrl}/chart/${encodeURIComponent(c.networkSlug)}/${encodeURIComponent(c.address)}.png?v=${bucket}`;
+    const v = opts.fresh ? Date.now() : Math.floor(Date.now() / env.CACHE_TTL_CHART_MS);
+    return `${publicBaseUrl}/chart/${encodeURIComponent(c.networkSlug)}/${encodeURIComponent(c.address)}.png?v=${v}`;
+  }
+
+  /** 丢掉某个币的已画 PNG 和"画不出来"标记，下次请求重新拉 K 线。 */
+  invalidate(networkSlug: string, address: string, interval: KlineInterval = '1h'): void {
+    const key = `${networkSlug}:${address.toLowerCase()}:${interval}`;
+    this.png.delete(key);
+    this.failed.delete(key);
   }
 
   /** 失败（上游抖动 / 数据不足）只缓存 30 秒，别让一次 5xx 把这个币的图封 5 分钟。 */

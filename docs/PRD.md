@@ -57,7 +57,7 @@
 | 区块 | 内容 |
 |---|---|
 | 头部 | `SYMBOL ✅ · Name`；链 · CMC 排名 · 上线时长 · 已放弃所有权；赛道（≤3）；空一行；合约地址（可复制）。CEX 上所信息移到 Spot 区块 |
-| Market | Price + 24h 涨跌；MC / FDV（多链时拆三行：MC all chains、FDV all chains、FDV 本链）+ 流通比；Liq / Vol + 倍数（≥1× 才显示）；Spot：全链现货 CEX / DEX 拆分 + CEX 占比（CEX 侧有量才显示）；Traders：交易人数；Txns：↑买笔 · ↓卖笔（不带色块）；Flow：`🟢 +$1.8M net · 52% buy`（净流入 = 买量 − 卖量，色块按正负；Telegram 文本无颜色，一律用 emoji 色块）；Liq：金额与池子数都链到该代币的 DexScan 页。（Spot 的 CEX / DEX 拆分已移到 Spot 区块） |
+| Market | Price + 24h 涨跌；MC / FDV（多链时拆三行：MC all chains、FDV all chains、FDV 本链）+ 流通比；Liq / Vol + 倍数（≥1× 才显示）；Spot：全链现货 CEX / DEX 拆分 + CEX 占比（CEX 侧有量才显示）；Traders：交易人数；Txns：↑买笔 · ↓卖笔（不带色块）；Flow：`+$1.8M net · 🟢 52% buy`（净流入 = 买量 − 卖量；色块在买压百分比前，≥ 50% 🟢；Telegram 文本无颜色，一律用 emoji 色块）；Liq：金额与池子数都链到该代币的 DexScan 页。（Spot 的 CEX / DEX 拆分已移到 Spot 区块） |
 | Holders | 总数；Top10 / Top50 进度条；标签 🎯🧑‍💻🐳🤖🧠📣 持有人数（持仓占比 ≥ 0.1% 时显示），每行最多 2 个 |
 | Security | 来源 · 评级；税率 · 蜜罐状态；命中项逐条（🚨/⚠️/ℹ️ 按 r/y/g），未命中项只给数量 |
 | Pools | 紧跟 Market：前 3 个池子，DEX 缩写 / 报价币 · 流动性（数字即链接，指向该代币的 DexScan 页；DexScan 没有单独的池子页，池子地址 404、`/pair/` 重定向首页，2026-09-05 实测；链接内不能嵌 code）· 首池占比（括号）· 🔒 锁仓 / 🔥 销毁 |
@@ -99,7 +99,7 @@
 - 限流：只对确认触发扫描的消息计数，闲聊不占额度。群 6 次/分钟 + 3s 冷却，冷却期内的扫描排队依次执行而不是丢弃，窗口内 6 个槽位用完才静默丢弃；私聊 20 次/分钟无冷却，超限提示等待秒数。按钮回调不限流。
 
 ### F5 链接解析（零 API 消耗）
-识别 `dex.coinmarketcap.com/token/{net}/{addr}`、DexScreener、GeckoTerminal、Birdeye、pump.fun 及 30+ 区块浏览器域名，从 URL 直接得到链与地址；混在句子里的地址和链接也能提取。DexScreener / GeckoTerminal 的 URL 是**池子地址**（EVM 上池子本身也是 LP 代币，直接扫会得到 UNI-V2），标记 `pair: true` 后 scanService 先用 `pairs/quotes` 反查 `base_asset_contract_address` 再扫（1 credit），反查不到再按普通地址处理。不认识的域名（padre / gmgn / photon / axiom …）从路径段取链名；同一条消息里还有 `$TICKER` 时记为 `fallbackQuery`，地址查不到就退到 ticker 搜索（此时不做池子反查，因为池子的 base 资产常是报价币那一边，ZCAT/ZEC 池会解析成 ZEC）。
+识别 `dex.coinmarketcap.com/token/{net}/{addr}`、DexScreener、GeckoTerminal、Birdeye、pump.fun 及 30+ 区块浏览器域名，从 URL 直接得到链与地址；混在句子里的地址和链接也能提取。DexScreener / GeckoTerminal 的 URL 是**池子地址**（EVM 上池子本身也是 LP 代币，直接扫会得到 UNI-V2），标记 `pair: true` 后 scanService 先用 CMC `pairs/quotes` 反查 `base_asset_contract_address` 再扫（1 credit）。注意该端点对 Robinhood 等链**不认 `network_slug`**（报 "The network is not supported"），要传 `network_id`（Robinhood = 300、BSC = 14，见 `chains.ts#cmcNetworkId`，运行时还会从 search 结果的 pltId 学到）；Uniswap v4 的 64 位池子 id 也能这样解析。反查不到再按普通地址处理。不认识的域名（padre / gmgn / photon / axiom …）从路径段取链名；同一条消息里还有 `$TICKER` 时记为 `fallbackQuery`，地址查不到就退到 ticker 搜索（此时不做池子反查，因为池子的 base 资产常是报价币那一边，ZCAT/ZEC 池会解析成 ZEC）。
 
 消息来源：text 消息与带 caption 的媒体消息（photo / video / document）都走同一条解析链，播报频道（Birdshot / TokenScan）的转发几乎都是图片加 caption。超链接文字背后的 `text_link` URL 也会被解析。优先级：可见地址或明文链接 > 隐藏链接里的地址 > 可见的名称查询（隐藏链接可能是转发消息里指向别的币的分享链接，所以排在可见地址之后）。
 
@@ -109,6 +109,7 @@
 - 所有详情端点并发（`Promise.allSettled`），单次扫描固定 5 个并发请求，兜底请求仅在缺失时追加。
 
 ### F6b K 线预览图
+- Refresh 按钮会强制重画：清掉该币的 PNG 缓存并给唯一的 URL 参数，Telegram 重新抓图（多 1 credit）；其余情况 URL 按 5 分钟分桶复用。
 - 数据：`/v1/k-line/candles`，`pm=m` 市值口径，1h × 168（7 天）；新币不足 4 根时退到 15min × 96。坏蜡烛（open/close ≤ 0、low/high 离群 50×）过滤或钳位。
 - 渲染：服务端 SVG → PNG（`@resvg/resvg-js`），1000×500，含蜡烛、成交量、ATH 标注、最新价标签、涨跌幅头部。
 - 托管：进程自带 HTTP 路由 `/chart/{chain}/{address}.png`，PNG 内存缓存 5 分钟；URL 带 5 分钟时间桶让 Telegram 预览缓存失效。
@@ -155,7 +156,7 @@
 | 项 | 要求 | 实现 |
 |---|---|---|
 | 超时与重试 | 单请求 10s（直连可 6s），重试 1 次指数退避 | `client.ts`；4xx 不重试 |
-| 缓存 | search 30s、行情 15s、持仓 2min、安全 10min、元数据 1h、衍生品 60s；并发去重 | 进程内 TTL 缓存 |
+| 缓存 | search 30s、行情 15s、持仓 2min、安全 10min、元数据 1h、衍生品 60s；并发去重；上游软失败的 null 不缓存（否则 Refresh 在 TTL 内一直拿到空） | 进程内 TTL 缓存 |
 | 限流 | 见 F4 | 固定窗口 + 顺序排队的冷却槽位 |
 | 代理 | 遵守 `HTTP(S)_PROXY` / `NO_PROXY` | 启动时接管 Node fetch |
 | 日志 | JSON 行、带 reqId、级别可配 | `LOG_LEVEL` |

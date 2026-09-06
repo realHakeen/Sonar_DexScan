@@ -100,13 +100,15 @@ export class DexApi {
   }
 
   /** 单个池子的行情 + GoPlus 扫描。需要池子地址，不在扫描主链路里。 */
-  async pairQuote(loc: { networkSlug: string; pairAddress: string }): Promise<{
+  async pairQuote(loc: { networkSlug: string; pairAddress: string; networkId?: number }): Promise<{
     candidate: TokenCandidate | null;
     security: SecurityScan | undefined;
   }> {
+    // 部分链（Robinhood）不认 network_slug，只认 network_id；知道 id 就用 id
+    const network = loc.networkId ? { network_id: loc.networkId } : { network_slug: loc.networkSlug };
     const data = await this.client.get<unknown>(
       ENDPOINTS.dex.pairQuotes,
-      { network_slug: loc.networkSlug, contract_address: loc.pairAddress, aux: PAIR_QUOTE_AUX, skip_invalid: true },
+      { ...network, contract_address: loc.pairAddress, aux: PAIR_QUOTE_AUX, skip_invalid: true },
       this.quoteOpts,
     );
     const row = asRecord(data);
