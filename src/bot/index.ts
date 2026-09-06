@@ -9,6 +9,7 @@ import { errorBoundary } from './middlewares/errorBoundary.js';
 import { commandHandlers } from './handlers/commands.js';
 import { callbackHandlers } from './handlers/callbacks.js';
 import { messageHandlers } from './handlers/message.js';
+import { inlineHandlers } from './handlers/inline.js';
 
 const log = createLogger('bot');
 
@@ -39,6 +40,17 @@ export function buildBot(services: Services = createServices()): BuiltBot {
   bot.use(errorBoundary);
 
   bot.use(callbackHandlers);
+  bot.use(inlineHandlers);
+  // bot 被拉进群 / 踢出群：统计群总数用
+  bot.on('my_chat_member', async (ctx) => {
+    const upd = ctx.myChatMember;
+    const chat = upd.chat;
+    if (chat.type !== 'group' && chat.type !== 'supergroup') return;
+    const status = upd.new_chat_member.status;
+    const inGroup = status === 'member' || status === 'administrator' || status === 'restricted';
+    ctx.services.stats?.groupChange(chat.id, inGroup ? 'added' : 'removed', { title: 'title' in chat ? chat.title : undefined, by: upd.from.id });
+    ctx.log.info('group membership', { chatId: chat.id, status });
+  });
   bot.use(commandHandlers);
   bot.use(messageHandlers);
 

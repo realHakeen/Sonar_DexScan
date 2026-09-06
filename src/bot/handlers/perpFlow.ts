@@ -32,6 +32,8 @@ export interface PerpFlowOptions {
   busyMode?: 'keep' | 'replace';
   /** keep 模式下按钮上的文字，默认「⏳ Refreshing…」。 */
   busyButton?: string;
+  /** 统计：command / button / refresh / pick。 */
+  trigger?: string;
   /** 占位文案里的上下文，如 "PEPE"。 */
   busyLabel?: string;
 }
@@ -81,6 +83,7 @@ export async function runPerpFlow(ctx: BotContext, input: PerpFlowInput, opts: P
       }
       const view = await ctx.services.perp.view(cmcId, fallback);
       await edit(renderPerpCard(view), perpKeyboard(cmcId, view.symbol, input.origin));
+      ctx.services.stats?.record({ kind: 'perp', userId: ctx.from?.id, chatId, chatType: ctx.chat?.type, trigger: opts.trigger ?? 'command', token: view.symbol });
     } catch (err) {
       // 出错也要能回到卡片
       await edit(toUserMessage(err), input.origin ? backOnlyKeyboard(input.origin) : undefined).catch(() => undefined);

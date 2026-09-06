@@ -8,6 +8,7 @@ import { ChartService } from './chartService.js';
 import { PerpService } from './perpService.js';
 import { PortfolioService } from './portfolioService.js';
 import { CallService } from './callService.js';
+import { StatsService } from './statsService.js';
 import { ScanService } from './scanService.js';
 import { SearchService } from './searchService.js';
 
@@ -28,6 +29,8 @@ export interface Services {
   portfolio?: PortfolioService;
   /** 群内 call 追踪，同样依赖数据库。 */
   calls?: CallService;
+  /** 使用统计（events / groups / credits），同样依赖数据库。 */
+  stats?: StatsService;
   /** 拉全量 map 建索引。0 credits；失败不影响其它功能，只是名称搜索少一条通路。 */
   refreshIndex(): Promise<void>;
   /** 启动后台定时刷新（unref，不阻塞退出）。 */
@@ -60,6 +63,7 @@ export function createServices(cmc: CmcGateway = createCmcGateway()): Services {
     perp: new PerpService(cmc, index),
     portfolio: db ? new PortfolioService(db, cmc) : undefined,
     calls: db ? new CallService(db) : undefined,
+    stats: db ? new StatsService(db) : undefined,
     refreshIndex,
     startIndexRefresh() {
       if (timer) return;

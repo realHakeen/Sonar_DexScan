@@ -42,6 +42,8 @@ const schema = z.object({
   RISK_MAX_TAX_PCT: z.coerce.number().default(10),
 
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  /** 能用 /stats 的 Telegram 用户 id，逗号分隔。空 = 没人能用。 */
+  ADMIN_USER_IDS: z.string().optional().default(''),
 });
 
 export type Env = z.infer<typeof schema>;
@@ -67,3 +69,8 @@ export const publicBaseUrl: string | undefined = env.PUBLIC_BASE_URL
   : env.RAILWAY_PUBLIC_DOMAIN
     ? `https://${env.RAILWAY_PUBLIC_DOMAIN}`
     : undefined;
+
+/** /stats 管理员白名单。 */
+export const adminUserIds: ReadonlySet<number> = new Set(
+  env.ADMIN_USER_IDS.split(',').map((x) => Number(x.trim())).filter((n) => Number.isInteger(n) && n > 0),
+);

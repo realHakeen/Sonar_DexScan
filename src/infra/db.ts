@@ -37,6 +37,39 @@ const MIGRATIONS = [
      PRIMARY KEY (chat_id, network_slug, address)
    )`,
   `CREATE INDEX IF NOT EXISTS calls_chat ON calls(chat_id, called_at)`,
+  `CREATE TABLE IF NOT EXISTS shares (
+     id TEXT PRIMARY KEY,
+     owner_id INTEGER NOT NULL,
+     owner_name TEXT NOT NULL,
+     created_at INTEGER NOT NULL
+   )`,
+  `CREATE TABLE IF NOT EXISTS events (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     ts INTEGER NOT NULL,
+     day INTEGER NOT NULL,
+     user_id INTEGER,
+     chat_id INTEGER,
+     chat_type TEXT,
+     kind TEXT NOT NULL,
+     trigger TEXT,
+     token TEXT,
+     elapsed_ms INTEGER,
+     degraded INTEGER
+   )`,
+  `CREATE INDEX IF NOT EXISTS events_day ON events(day)`,
+  `CREATE INDEX IF NOT EXISTS events_user ON events(user_id, ts)`,
+  `CREATE INDEX IF NOT EXISTS events_kind ON events(kind, ts)`,
+  `CREATE TABLE IF NOT EXISTS groups (
+     chat_id INTEGER PRIMARY KEY,
+     title TEXT,
+     added_at INTEGER NOT NULL,
+     removed_at INTEGER,
+     added_by INTEGER
+   )`,
+  `CREATE TABLE IF NOT EXISTS credits (
+     day INTEGER PRIMARY KEY,
+     used INTEGER NOT NULL DEFAULT 0
+   )`,
 ];
 
 /**

@@ -77,7 +77,8 @@ Dependency direction: `bot → services → domain / api → infra`. `domain` an
 | — | K-line chart preview above the card (market-cap candles, ATH, volume) | `render/chart.ts`, `services/chartService.ts`, `infra/httpServer.ts` |
 | F3b | Perps block: open interest, perp volume, funding, liquidations (cid-only) | `domain/derivatives.ts`, `api/cmc/coreApi.ts`, `render/card.ts` |
 | F3e | Group call tracking: first caller line on the card (`🚀 user @ $21.5M [10.5x] (37d ago) 🔼`) and a milestone banner (5x…100x, once per group/token) posted when a rescan crosses a threshold; zero extra credits | `services/callService.ts`, `domain/calls.ts`, `render/banner.ts`, `assets/banner-bg.jpg` |
-| F3d | `⭐ Watchlist` button + `/watchlist`: per-user starred tokens with change since added (SQLite via `node:sqlite`, `DATA_DIR`) | `infra/db.ts`, `services/portfolioService.ts`, `bot/handlers/portfolio.ts` |
+| F3f | `/stats` (admins only): 30-day chart + DAU/WAU/MAU, active/new groups, scans by trigger, D1/D7 retention, watchlist share funnel, health, CMC credits | `services/statsService.ts`, `render/stats.ts`, `infra/creditMeter.ts` |
+| F3d | `⭐ Watchlist` button + `/watchlist`: per-user starred tokens with change since added; `📤 Share` posts a read-only copy via the native chat picker (inline mode, enable with BotFather `/setinline`) with `Open in Sonar` (deep link → interactive copy + one-tap import) and `Add Sonar to group` buttons | `infra/db.ts`, `services/portfolioService.ts`, `bot/handlers/portfolio.ts`, `bot/handlers/inline.ts` |
 | F3c | Spot block: CEX listings, spot volume + 24h change, CEX/DEX split, top venues by volume (whitelist), CEX-vs-DEX premium | `domain/spot.ts`, `api/cmc/coreApi.ts`, `render/card.ts` |
 | — | `/perp <ticker or address>`: per-venue OI / volume / funding, basis vs index, 1h / 4h / 24h liquidations; native coins supported | `services/perpService.ts`, `render/perpCard.ts`, `bot/handlers/perpFlow.ts` |
 
@@ -154,6 +155,7 @@ The bot is a single long-running process (long polling), which is exactly what R
 | `LOG_LEVEL` | `info` |
 | `DATA_DIR` | `/data` — the Volume mount from step 3 (portfolio database) |
 | `RAILWAY_RUN_UID` | `0` — needed for the Volume to be writable (see step 3) |
+| `ADMIN_USER_IDS` | your Telegram user id(s), comma-separated — enables `/stats` |
 
 Leave `TELEGRAM_WEBHOOK_DOMAIN` unset. Railway injects `PORT` automatically; the bot uses it to serve `/health` and the K-line chart images.
 

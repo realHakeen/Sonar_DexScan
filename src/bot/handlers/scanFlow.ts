@@ -34,6 +34,8 @@ export interface ScanFlowOptions {
    * Refresh / Back 不传，只更新不创建。
    */
   recordCall?: boolean;
+  /** 统计用的触发方式：address / link / cashtag / name / forward / command / refresh / candidate / chain / back / watchlist。 */
+  trigger?: string;
 }
 
 /** 正在扫描中的消息，key = chatId:messageId。防止用户连点导致重复请求。 */
@@ -90,6 +92,7 @@ export async function runScanFlow(
 ): Promise<void> {
   if (input.kind === 'none') throw new InvalidInputError('unrecognised input');
 
+  const startedAt = Date.now();
   const messageId = opts.editMessageId ?? (await sendPlaceholder(ctx));
   if (messageId === undefined) return;
   const chatId = ctx.chat!.id;
@@ -109,6 +112,7 @@ export async function runScanFlow(
       });
       const tracked = trackCall(ctx, report, opts);
       await renderReport(ctx, messageId, report);
+      recordScan(ctx, report, opts, startedAt);
       await postMilestone(ctx, report, tracked);
       return;
     }
@@ -123,6 +127,7 @@ export async function runScanFlow(
       const report = await ctx.services.scan.buildReport(top.candidate, []);
       const tracked = trackCall(ctx, report, opts);
       await renderReport(ctx, messageId, report);
+      recordScan(ctx, report, opts, startedAt);
       await postMilestone(ctx, report, tracked);
       return;
     }
@@ -228,6 +233,20 @@ function trackCall(ctx: BotContext, report: TokenReport, opts: ScanFlowOptions):
     ctx.log.warn('call tracking failed', { err: String(err) });
     return undefined;
   }
+}
+
+/** 使用统计：一次出卡一行。 */
+function recordScan(ctx: BotContext, report: TokenReport, opts: ScanFlowOptions, startedAt: number): void {
+  ctx.services.stats?.record({
+    kind: 'scan',
+    userId: ctx.from?.id,
+    chatId: ctx.chat?.id,
+    chatType: ctx.chat?.type,
+    trigger: opts.trigger ?? (opts.editMessageId !== undefined ? 'refresh' : 'address'),
+    token: `${report.primary.networkSlug}:${report.primary.symbol}`,
+    elapsedMs: Date.now() - startedAt,
+    degraded: report.degraded.length > 0,
+  });
 }
 
 /** 跨过新里程碑：发横幅图，回复到原 call 消息；失败只记日志。 */

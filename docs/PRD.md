@@ -76,7 +76,7 @@
 
 ### F3d Watchlist（bot 自己的收藏列表，与 CMC Portfolio 无关；代码内部仍叫 portfolio）
 - 卡片按钮 `⭐ Watchlist`：按 **Telegram 用户** 存（群里谁点进谁的列表），记录加入时的价格 / 市值 / cid，只回 toast 不改消息（群里按钮共用，不能反映个人状态）。数据优先取卡片渲染缓存的快照（10 分钟），过期再拉一次 token 详情。上限 20 个，满了提示先删。
-- `/watchlist`：每个代币一个小块：`SYMBOL · 链` 标题，下面 Price / MC / `+x% since add 🟢` / `+y% 24h 🟢`；每行 `🔍` 重新扫描（新消息）、`🗑` 移除（原地重绘），末行 `🔄 Refresh`。群里发到私聊（列表是个人的），私聊未 /start 过则提示。
+- `/watchlist`：每个代币一个小块：`SYMBOL · 链` 标题，下面 Price / MC / `+x% since add 🟢` / `+y% 24h 🟢`；按钮一行放两个代币（`🔍 SYMBOL · 🗑 · 🔍 SYMBOL · 🗑`），`🔍` 重新扫描（新消息）、`🗑` 移除（原地重绘）；末行 `🔄 Refresh` + `📤 Share`。Share 用 `switch_inline_query_chosen_chat` 弹 Telegram 原生选聊天面板，选中后以用户名义发出 `@bot watchlist`，inline 处理器返回只读版（主人名字 + 每币 Price / MC / 24h / 合约地址，不含 since add），底部两个增长入口：`🤖 Open in Sonar`（深链 `start=wl_<随机分享id>`，7 天有效，对方一点即 /start 成为用户，私聊里收到可交互版：每币 🔍 扫描 + `⭐ Add all to my watchlist` 一键复制，加入价取当时行情，已有的跳过、满 20 停止）和 `➕ Add Sonar to group`（`startgroup`）。bot 不能主动往任意聊天发消息，这是 Telegram 的限制，所以分享消息由用户名义发出、标注 via @bot。**需要在 @BotFather 对 bot 执行 `/setinline` 开启 inline 模式**，否则 Share 按钮无效。群里发到私聊（列表是个人的），私聊未 /start 过则提示。
 - 行情：有 cid 的用 quotes 批量（1 credit / 100 个），无 cid 的逐个 token 详情（各 1 credit），链名与上游 plt 不一致时退到 search 反查。刷新走限流。
 - 存储：Node 内置 `node:sqlite`，文件在 `DATA_DIR/sonar.db`（默认 `./data`，已 gitignore）。Railway 上挂 Volume 到 `/data` 并设 `DATA_DIR=/data`；镜像以 `node` 用户运行而 Volume 归 root，需设 `RAILWAY_RUN_UID=0`（设 1000 实测报 `unable to open database file`）。数据库打不开时按钮不显示、命令提示暂不可用，扫描不受影响。
 
@@ -86,6 +86,12 @@
 - **里程碑**：5 / 10 / 20 / 50 / 100x（2x、3x 在 meme 币上太常见，不播），每群每币每档只播一次；只报本次新跨过的最高档（4x → 12x 只报 10x）。跨档时发横幅 PNG（`assets/banner-bg.jpg` 背景 + `$SYMBOL` / 倍数 / Called at 市值 · 时长 / 喊单人名牌，resvg 渲染），`sendPhoto` 回复原 call 消息，原消息已删则不引用重发；caption 三行：币与倍数、喊单人 @ 市值 (时长)、合约地址。发送失败只记日志。
 - **峰值**：每次扫描更新 `peak_mcap`，供以后的 ATH 倍数与排行榜使用。
 - **未做（方案 B）**：后台定时盯盘主动推送。需要按 call 数预算 credit（约 290 / call / 周），待观察真实 call 量后决定。
+
+### F3f 使用统计 `/stats`（仅 `ADMIN_USER_IDS`）
+- 数据：`events` 表记每次交互（时间、UTC 日、用户 id、聊天 id 与类型、事件类型、触发方式、代币、耗时、是否降级），不存正文；`groups` 表由 `my_chat_member` 事件维护 bot 进出群；`credits` 表按日累加 CMC 响应里的 `credit_count`（api 层通过 `infra/creditMeter` 上报，不依赖 services）。
+- 事件类型：scan（触发方式 address / link / cashtag / name / forward / command / refresh / candidate / chain / back / watchlist）、perp（command / button / refresh / pick）、watch_add / watch_del / watch_view、share / share_open / share_copy、ratelimited。
+- 输出：一张 30 天图（每日扫描柱 + 活跃用户折线；分享漏斗；触发方式占比）+ caption：today · 7d · 30d 三列的 Users / Groups (in N) / New u/g / Scans + 触发占比 / Retain D1 D7（首见次日 / 第 7 日回访比例，样本 < 5 不算）/ Watch / Share 漏斗 / Perps / Health（平均耗时、降级率、限流数）/ Credits（当日、30 天与 200 万额度占比）/ Top 7d 代币。
+- 留存与转化只能从上线之日起累计，无法回溯。
 
 ### F4 群组模式
 - 群内对地址、链接、`@bot …` 响应；裸名称不响应（避免"这个 pepe 不错"触发查询）。
@@ -165,7 +171,8 @@
 | `TELEGRAM_WEBHOOK_DOMAIN` / `_PATH` / `PORT` | 空 / `/tg/webhook` / 3000 | 填域名切 webhook |
 | `CMC_TIMEOUT_MS` / `CMC_MAX_RETRIES` | 10000 / 1 | |
 | `CACHE_TTL_*_MS` | 见 §6 | `CACHE_TTL_DERIVATIVES_MS` 默认 60000，上游 60s 更新 |
-| `DATA_DIR` | `./data` | SQLite 目录（portfolio）。Railway 挂 Volume 到 `/data` 并设为 `/data` |
+| `DATA_DIR` | `./data` | SQLite 目录（watchlist / calls / stats）。Railway 挂 Volume 到 `/data` 并设为 `/data` |
+| `ADMIN_USER_IDS` | 空 | 能用 `/stats` 的 Telegram 用户 id，逗号分隔 |
 | `RATE_LIMIT_PRIVATE_PER_MIN` / `GROUP_PER_MIN` / `GROUP_COOLDOWN_MS` | 20 / 6 / 3000 | 冷却是排队间隔，不是丢弃 |
 | `RISK_TOP10_PCT` / `TOP50_PCT` / `SINGLE_LP_PCT` / `MIN_LIQUIDITY_USD` / `MAX_TAX_PCT` | 60 / 85 / 70 / 5000 / 10 | |
 | `LOG_LEVEL` | info | |
@@ -177,6 +184,7 @@
 | `/start` `/help` | 说明 |
 | `/s <地址｜名称｜链接>`、`/scan` | 扫描 |
 | `/watchlist` | 个人收藏列表，见 F3d |
+| `/stats` | 管理员：使用统计图 + 文字，见 F3f |
 | `/perp <ticker｜地址>` | 合约视图：OI（占市值比）、合约成交量（对现货倍数）、CEX/DEX OI 拆分、费率；按所 OI · 成交量 · 费率（统一折算 8h，最多 8 家）；基差最高溢价 / 最大折价（\|基差\| > 1% 视为脏数据丢弃）；爆仓 1h / 4h / 24h 多空。ticker 走本地索引（0 credit，原生币 BTC / ETH 也能查），地址先查索引官方合约再退到 DEX search；同名不占优时给候选按钮（第二名无排名、落后 5 倍或 500 名以上算占优）。共 3 credits |
 | 私聊直接发送 | 同 `/s` |
 | 群内地址 / 链接 / `@bot …` | 完整卡片 |

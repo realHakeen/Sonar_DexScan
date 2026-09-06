@@ -22,6 +22,7 @@ export type CallbackAction =
   | 'port_del'
   | 'port_scan'
   | 'port_refresh'
+  | 'port_copy'
   | 'noop';
 
 export interface CallbackPayload {
@@ -46,6 +47,7 @@ const ACTION_CODE: Record<CallbackAction, string> = {
   port_del: 'wd',
   port_scan: 'ws',
   port_refresh: 'wr',
+  port_copy: 'wc',
   noop: 'n',
 };
 const CODE_ACTION = Object.fromEntries(

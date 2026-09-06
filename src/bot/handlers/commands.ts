@@ -1,10 +1,12 @@
 import { Composer } from 'telegraf';
 import { InvalidInputError } from '../../infra/errors.js';
+import { adminUserIds } from '../../config/env.js';
+import { renderStatsPng, renderStatsText } from '../../render/stats.js';
 import { parseInput } from '../../domain/inputParser.js';
 import type { BotContext } from '../context.js';
 import { runScanFlow } from './scanFlow.js';
 import { runPerpFlow } from './perpFlow.js';
-import { sendPortfolio } from './portfolio.js';
+import { openSharedWatchlist, sendPortfolio } from './portfolio.js';
 import { admitScan } from '../middlewares/throttle.js';
 
 const START_TEXT = [
@@ -33,7 +35,7 @@ const HELP_TEXT = [
   '<b>Commands</b>',
   '/s &lt;address | name | link&gt; — full report',
   '/perp &lt;ticker | address&gt; — perpetuals view, e.g. <code>/perp BTC</code> or <code>/perp PEPE</code>',
-  '/watchlist — your starred tokens: price, market cap, change since you added, 24h change. Tap ⭐ Watchlist under any report to star one (up to 20)',
+  '/watchlist — your starred tokens: price, market cap, change since you added, 24h change. Tap ⭐ Watchlist under any report to star one (up to 20). 📤 Share posts a read-only copy to any chat you pick',
   '/help — this message',
   '',
   '<b>What the report shows</b>',
@@ -63,6 +65,10 @@ const HTML = { parse_mode: 'HTML' as const, link_preview_options: { is_disabled:
 export const commandHandlers = new Composer<BotContext>();
 
 commandHandlers.start(async (ctx) => {
+  // 深链 t.me/bot?start=wl_<id>：分享出去的 watchlist，对方点 "Open in Sonar" 进来
+  const payload = commandArgument(ctx.message?.text ?? '');
+  const shared = /^wl_([A-Za-z0-9_-]{4,32})$/.exec(payload);
+  if (shared && (await openSharedWatchlist(ctx, shared[1]!))) return;
   await ctx.reply(START_TEXT, HTML);
 });
 
@@ -77,7 +83,7 @@ commandHandlers.command(['s', 'scan'], async (ctx) => {
   const parsed = parseInput(arg);
   if (parsed.kind === 'none') throw new InvalidInputError('/s needs a contract address or token name');
   if (!(await admitScan(ctx))) return;
-  await runScanFlow(ctx, parsed);
+  await runScanFlow(ctx, parsed, { trigger: 'command' });
 });
 
 /** /perp <symbol 或地址> — 合约视角：按所 OI / 成交量 / 费率、基差、爆仓。 */
@@ -85,13 +91,31 @@ commandHandlers.command('perp', async (ctx) => {
   const arg = commandArgument(ctx.message?.text ?? '');
   if (!arg) throw new InvalidInputError('/perp needs a ticker or contract address, e.g. /perp PEPE');
   if (!(await admitScan(ctx))) return;
-  await runPerpFlow(ctx, { query: arg });
+  await runPerpFlow(ctx, { query: arg }, { trigger: 'command' });
 });
 
 /** /watchlist — 个人收藏列表（群里发到私聊）。刷新行情也算一次请求，走限流。 */
 commandHandlers.command('watchlist', async (ctx) => {
   if (!(await admitScan(ctx))) return;
   await sendPortfolio(ctx);
+});
+
+/** /stats — 仅 ADMIN_USER_IDS：一张 30 天图 + 文字 caption。 */
+commandHandlers.command('stats', async (ctx) => {
+  if (!ctx.from || !adminUserIds.has(ctx.from.id)) return;
+  const stats = ctx.services.stats;
+  if (!stats) {
+    await ctx.reply('📊 Stats unavailable (storage not configured).');
+    return;
+  }
+  const snap = stats.snapshot();
+  const text = renderStatsText(snap, 2_000_000);
+  try {
+    await ctx.replyWithPhoto({ source: renderStatsPng(snap) }, { caption: text, parse_mode: 'HTML' });
+  } catch (err) {
+    ctx.log.warn('stats chart failed, sending text', { err: String(err) });
+    await ctx.reply(text, HTML);
+  }
 });
 
 commandHandlers.command('ping', async (ctx) => {

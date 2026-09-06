@@ -5,7 +5,7 @@ import { chainRegistry } from '../../domain/chains.js';
 import { shortenAddress } from '../../render/format.js';
 import { isScanInflight, restoreCard, runScanFlow } from './scanFlow.js';
 import { isPerpInflight, runPerpFlow } from './perpFlow.js';
-import { handlePortfolioAdd, handlePortfolioCallback } from './portfolio.js';
+import { handlePortfolioAdd, handlePortfolioCallback, handlePortfolioCopy } from './portfolio.js';
 
 export const callbackHandlers = new Composer<BotContext>();
 
@@ -33,6 +33,14 @@ callbackHandlers.on('callback_query', async (ctx) => {
       return;
     }
     await handlePortfolioAdd(ctx, { networkSlug, address, symbol }, ctx.callbackQuery.message?.message_id);
+    return;
+  }
+  if (action === 'port_copy') {
+    if (!address) {
+      await ctx.answerCbQuery('Incomplete button data.');
+      return;
+    }
+    await handlePortfolioCopy(ctx, address);
     return;
   }
   if (action === 'port_del' || action === 'port_scan' || action === 'port_refresh') {
@@ -69,6 +77,7 @@ callbackHandlers.on('callback_query', async (ctx) => {
       busyMode: action === 'perp_pick' ? 'replace' : 'keep',
       busyButton: action === 'perp' ? '⏳ Loading perps…' : '⏳ Refreshing…',
       busyLabel: symbol,
+      trigger: action === 'perp' ? 'button' : action === 'perp_refresh' ? 'refresh' : 'pick',
     });
     return;
   }
@@ -92,7 +101,7 @@ callbackHandlers.on('callback_query', async (ctx) => {
     await runScanFlow(
       ctx,
       { kind: 'address', address, chainSlug: networkSlug, source: 'raw' },
-      { editMessageId: messageId, busyMode: 'replace', busyLabel: symbol ?? shortenAddress(address) },
+      { editMessageId: messageId, busyMode: 'replace', busyLabel: symbol ?? shortenAddress(address), trigger: 'back' },
     );
     return;
   }
@@ -118,6 +127,7 @@ callbackHandlers.on('callback_query', async (ctx) => {
       busyLabel: chainName ? `${subject} · ${chainName}` : subject,
       // 候选选择 / 切链是"把这个币带进群"的动作，允许创建首次 call；刷新只更新
       recordCall: action === 'scan' || action === 'chain',
+      trigger: action === 'scan' ? 'candidate' : action,
     },
   );
 });

@@ -2,6 +2,7 @@ import { env } from '../../config/env.js';
 import { NetworkError, TimeoutError, UpstreamError } from '../../infra/errors.js';
 import { createLogger } from '../../infra/logger.js';
 import { TtlCache } from '../../infra/cache.js';
+import { creditMeter } from '../../infra/creditMeter.js';
 import type { CmcEnvelope } from './types.js';
 
 const log = createLogger('cmc');
@@ -133,6 +134,7 @@ export class CmcClient {
         const json = (await res.json()) as CmcEnvelope<T> | T;
         const envelope = json as CmcEnvelope<T>;
         log.debug('request done', { path, elapsed, credits: envelope.status?.credit_count });
+        creditMeter.add(Number(envelope.status?.credit_count));
 
         // 实测 error_code 是字符串（成功 "0"，失败 "400"），必须转数值再比较
         const errorCode = Number(envelope.status?.error_code ?? 0);

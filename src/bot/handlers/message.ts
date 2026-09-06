@@ -45,8 +45,10 @@ const handleMessage = async (ctx: BotContext, next: () => Promise<void>): Promis
   }
 
   if (!(await admitScan(ctx))) return;
-  ctx.log.info('scan triggered', { kind: parsed.kind, chat: ctx.chat?.type, mentioned, viaCaption: !('text' in ctx.message!) });
-  await runScanFlow(ctx, parsed);
+  const viaCaption = !('text' in ctx.message!);
+  const trigger = viaCaption ? 'forward' : parsed.kind === 'address' ? (parsed.source === 'link' ? 'link' : 'address') : parsed.explicit ? 'cashtag' : 'name';
+  ctx.log.info('scan triggered', { kind: parsed.kind, chat: ctx.chat?.type, mentioned, viaCaption });
+  await runScanFlow(ctx, parsed, { trigger });
 };
 
 messageHandlers.on(message('text'), handleMessage);

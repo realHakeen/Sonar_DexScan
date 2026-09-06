@@ -1,5 +1,6 @@
+import { randomBytes } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
-import { PORTFOLIO_MAX_TOKENS } from '../config/constants.js';
+import { PORTFOLIO_MAX_TOKENS, WATCHLIST_SHARE_TTL_MS } from '../config/constants.js';
 import type { CmcGateway } from '../api/cmc/index.js';
 import { chainRegistry } from '../domain/chains.js';
 import type { PortfolioEntry, TokenCandidate } from '../domain/types.js';
@@ -112,6 +113,37 @@ export class PortfolioService {
     if (detail?.candidate.priceUsd !== undefined) return detail.candidate;
     const found = await this.cmc.dex.search(entry.address);
     return found.find((c) => c.address.toLowerCase() === entry.address.toLowerCase() && c.networkSlug === entry.networkSlug) ?? found[0];
+  }
+
+  /** 生成分享 id（随机 10 位，不暴露用户 id），供深链 `t.me/bot?start=wl_<id>`。 */
+  createShare(ownerId: number, ownerName: string, now = Date.now()): string {
+    const id = randomBytes(8).toString('base64url').replace(/[^A-Za-z0-9]/g, '').slice(0, 10) || randomBytes(6).toString('hex');
+    this.db.prepare('INSERT INTO shares (id, owner_id, owner_name, created_at) VALUES (?, ?, ?, ?)').run(id, ownerId, ownerName, now);
+    // 顺手清理过期的
+    this.db.prepare('DELETE FROM shares WHERE created_at < ?').run(now - WATCHLIST_SHARE_TTL_MS);
+    return id;
+  }
+
+  /** 解析分享 id；过期或不存在返回 undefined。 */
+  resolveShare(id: string, now = Date.now()): { ownerId: number; ownerName: string } | undefined {
+    const r = this.db.prepare('SELECT owner_id, owner_name, created_at FROM shares WHERE id = ?').get(id) as
+      | { owner_id: number; owner_name: string; created_at: number }
+      | undefined;
+    if (!r || r.created_at < now - WATCHLIST_SHARE_TTL_MS) return undefined;
+    return { ownerId: r.owner_id, ownerName: r.owner_name };
+  }
+
+  /** 把别人的 watchlist 复制进自己的：已有的跳过，满了停止。加入价取当前行情由调用方传入。 */
+  copyFrom(ownerId: number, toUserId: number, prices: Map<string, { priceUsd?: number; marketCapUsd?: number }> = new Map()): { added: number; skipped: number; full: number } {
+    let added = 0, skipped = 0, full = 0;
+    for (const e of this.list(ownerId).reverse()) {
+      const q = prices.get(`${e.networkSlug}:${e.address.toLowerCase()}`);
+      const r = this.add({ userId: toUserId, networkSlug: e.networkSlug, address: e.address, symbol: e.symbol, name: e.name, cmcId: e.cmcId, addedPriceUsd: q?.priceUsd, addedMcapUsd: q?.marketCapUsd });
+      if (r === 'added') added += 1;
+      else if (r === 'exists') skipped += 1;
+      else full += 1;
+    }
+    return { added, skipped, full };
   }
 
   /**
