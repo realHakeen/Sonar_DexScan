@@ -16,6 +16,10 @@ const log = createLogger('scanService');
 export interface ScanOptions {
   /** 用户从 inline button 切链，或链接里已带链名（registry slug）。 */
   chainSlug?: string;
+  /** 地址来自 DexScreener / GeckoTerminal 链接，是池子地址：先按池子反查代币（EVM 上 LP 也是代币，否则会扫出 UNI-V2）。 */
+  preferPair?: boolean;
+  /** 找不到代币时是否尝试按池子反查（默认是）。消息里还有 $TICKER 可退时先关掉，池子的 base 资产常是报价币那一边（ZCAT/ZEC 池会解析成 ZEC）。 */
+  pairFallback?: boolean;
 }
 
 /** search 漏索引或挂掉时，对无链提示的 EVM 地址并行探测这些链（按 DEX 活跃度排序）。 */
@@ -54,6 +58,13 @@ export class ScanService {
   async scanByAddress(address: string, opts: ScanOptions = {}): Promise<TokenReport> {
     const detection = detectChain(address);
 
+    if (opts.preferPair) {
+      const chain = opts.chainSlug ?? detection.slug;
+      const token = chain ? await this.resolvePairToken(chain, address) : undefined;
+      if (token) return this.scanByAddress(token.address, { chainSlug: token.networkSlug });
+      // 反查不到就当普通地址继续（DexScreener 偶尔也给代币地址）
+    }
+
     // 定链：search 反查（EVM 一个地址可能多链部署），命中多条按流动性取主链。
     // search 挂掉不立刻放弃 —— 后面还有按链探测的兜底，最后再决定报什么错。
     let searchError: unknown;
@@ -62,6 +73,7 @@ export class ScanService {
       log.warn('search failed, probing chains', { err: String(err) });
       return [] as TokenCandidate[];
     });
+    for (const c of found) chainRegistry.learnNetworkId(c.networkSlug, c.networkId);
     const matched = found.filter((c) => c.address.toLowerCase() === address.toLowerCase());
     const pool = matched.length > 0 ? matched : found;
 
@@ -91,6 +103,11 @@ export class ScanService {
         // 探测也全失败且 search 是网络问题 → 报网络错误而不是"未找到"
         const allNetwork = probed.every((r) => r.status === 'rejected');
         if (searchError instanceof AppError && allNetwork) throw searchError;
+        // DexScreener / GeckoTerminal 链接里是池子地址不是代币地址：按池子反查出代币再扫（链已知时才试，1 credit）
+        if (known && opts.pairFallback !== false) {
+          const token = await this.resolvePairToken(known, address);
+          if (token) return this.scanByAddress(token.address, { chainSlug: token.networkSlug });
+        }
         throw new NotFoundError(address);
       }
       ({ primary, secondary } = splitByChain(hits));
@@ -101,6 +118,22 @@ export class ScanService {
     // 流动性恰好为 0 的同地址部署是索引噪音；$2 这种残留池恰恰是 PRD 要提示的
     const meaningful = secondary.filter((c) => (c.liquidityUsd ?? 0) > 0);
     return this.buildReport(primary, meaningful.slice(0, SECONDARY_CHAIN_HINT_LIMIT));
+  }
+
+  /**
+   * 池子地址 → 代币地址（v4 pairs/quotes 的 base_asset_contract_address，1 credit）。
+   * 该端点对 Robinhood 等链不认 network_slug，只认 network_id；registry 里有静态 id，也会从 search 结果里学。
+   * 不是池子或查不到返回 undefined。
+   */
+  private async resolvePairToken(networkSlug: string, pairAddress: string): Promise<{ address: string; networkSlug: string } | undefined> {
+    const spec = chainRegistry.get(networkSlug);
+    const res = await this.cmc.dex
+      .pairQuote({ networkSlug: spec.dexscanSlug ?? networkSlug, pairAddress, networkId: chainRegistry.networkIdOf(networkSlug) })
+      .catch(() => null);
+    const c = res?.candidate;
+    if (!c?.address || c.address.toLowerCase() === pairAddress.toLowerCase()) return undefined;
+    log.info('pair address resolved to token', { pair: pairAddress.slice(0, 12), token: c.address, chain: c.networkSlug || networkSlug });
+    return { address: c.address, networkSlug: c.networkSlug || networkSlug };
   }
 
   async scanByLocator(loc: { networkSlug: string; address: string }): Promise<TokenReport> {

@@ -1,6 +1,6 @@
 import { CANDIDATE_LIMIT, CARD_CACHE_TTL_MS, PLACEHOLDER_TEXT } from '../../config/constants.js';
 import { TtlCache } from '../../infra/cache.js';
-import { InvalidInputError, toUserMessage } from '../../infra/errors.js';
+import { InvalidInputError, NotFoundError, toUserMessage } from '../../infra/errors.js';
 import type { ParsedInput } from '../../domain/inputParser.js';
 import type { ScoredCandidate } from '../../domain/ranking.js';
 import type { TokenReport } from '../../domain/types.js';
@@ -34,6 +34,8 @@ export interface ScanFlowOptions {
    * Refresh / Back 不传，只更新不创建。
    */
   recordCall?: boolean;
+  /** 统计用的触发方式：address / link / cashtag / name / forward / command / refresh / candidate / chain / back / watchlist。 */
+  trigger?: string;
 }
 
 /** 正在扫描中的消息，key = chatId:messageId。防止用户连点导致重复请求。 */
@@ -90,6 +92,7 @@ export async function runScanFlow(
 ): Promise<void> {
   if (input.kind === 'none') throw new InvalidInputError('unrecognised input');
 
+  const startedAt = Date.now();
   const messageId = opts.editMessageId ?? (await sendPlaceholder(ctx));
   if (messageId === undefined) return;
   const chatId = ctx.chat!.id;
@@ -103,18 +106,29 @@ export async function runScanFlow(
   inflight.add(key);
 
   try {
+    let query: string | undefined = input.kind === 'query' ? input.query : undefined;
     if (input.kind === 'address') {
-      const report = await ctx.services.scan.scanByAddress(input.address, {
-        chainSlug: input.chainSlug,
-      });
-      const tracked = trackCall(ctx, report, opts);
-      await renderReport(ctx, messageId, report);
-      await postMilestone(ctx, report, tracked);
-      return;
+      try {
+        const report = await ctx.services.scan.scanByAddress(input.address, {
+          chainSlug: input.chainSlug,
+          preferPair: input.pair,
+          // 消息里还有 $TICKER：地址查不到先退到 ticker，池子反查放最后
+          pairFallback: !input.fallbackQuery,
+        });
+        const tracked = trackCall(ctx, report, opts);
+        await renderReport(ctx, messageId, report, opts);
+        recordScan(ctx, report, opts, startedAt);
+        await postMilestone(ctx, report, tracked);
+        return;
+      } catch (err) {
+        if (!(err instanceof NotFoundError) || !input.fallbackQuery) throw err;
+        ctx.log.info('address not found, falling back to cashtag', { address: input.address, query: input.fallbackQuery });
+        query = input.fallbackQuery;
+      }
     }
 
     // 名称 / symbol：先消歧
-    const candidates = await ctx.services.search.searchByName(input.query, CANDIDATE_LIMIT);
+    const candidates = await ctx.services.search.searchByName(query!, CANDIDATE_LIMIT);
     const top = candidates[0];
     if (!top) throw new InvalidInputError('no search results');
 
@@ -122,7 +136,8 @@ export async function runScanFlow(
     if (candidates.length === 1 || isDominant(candidates)) {
       const report = await ctx.services.scan.buildReport(top.candidate, []);
       const tracked = trackCall(ctx, report, opts);
-      await renderReport(ctx, messageId, report);
+      await renderReport(ctx, messageId, report, opts);
+      recordScan(ctx, report, opts, startedAt);
       await postMilestone(ctx, report, tracked);
       return;
     }
@@ -131,7 +146,7 @@ export async function runScanFlow(
       ctx.chat!.id,
       messageId,
       undefined,
-      renderCandidateList(input.query, candidates),
+      renderCandidateList(query!, candidates),
       { ...HTML, ...candidateKeyboard(candidates) },
     );
   } catch (err) {
@@ -164,12 +179,13 @@ async function sendPlaceholder(ctx: BotContext): Promise<number | undefined> {
   return msg.message_id;
 }
 
-async function renderReport(ctx: BotContext, messageId: number, report: TokenReport): Promise<void> {
+async function renderReport(ctx: BotContext, messageId: number, report: TokenReport, opts: ScanFlowOptions = {}): Promise<void> {
   // 群聊与私聊一样直接给完整卡片（紧凑卡 + "Full report" 按钮已按产品决定去掉）
   let text = renderScanCard(report);
 
   // K 线预览：正文开头放一个零宽不可见链接，Telegram 把图渲染在卡片底部（show_above_text: false）
-  const chartUrl = ctx.services.chart.register(report.primary);
+  // Refresh 时强制重画 K 线（否则 5 分钟内 URL 相同，Telegram 复用旧图）
+  const chartUrl = ctx.services.chart.register(report.primary, { fresh: opts.trigger === 'refresh' });
   const preview = chartUrl
     ? { link_preview_options: { is_disabled: false, url: chartUrl, show_above_text: false, prefer_large_media: true } }
     : {};
@@ -228,6 +244,20 @@ function trackCall(ctx: BotContext, report: TokenReport, opts: ScanFlowOptions):
     ctx.log.warn('call tracking failed', { err: String(err) });
     return undefined;
   }
+}
+
+/** 使用统计：一次出卡一行。 */
+function recordScan(ctx: BotContext, report: TokenReport, opts: ScanFlowOptions, startedAt: number): void {
+  ctx.services.stats?.record({
+    kind: 'scan',
+    userId: ctx.from?.id,
+    chatId: ctx.chat?.id,
+    chatType: ctx.chat?.type,
+    trigger: opts.trigger ?? (opts.editMessageId !== undefined ? 'refresh' : 'address'),
+    token: `${report.primary.networkSlug}:${report.primary.symbol}`,
+    elapsedMs: Date.now() - startedAt,
+    degraded: report.degraded.length > 0,
+  });
 }
 
 /** 跨过新里程碑：发横幅图，回复到原 call 消息；失败只记日志。 */

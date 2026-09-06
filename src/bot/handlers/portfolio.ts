@@ -1,6 +1,7 @@
 import { toUserMessage } from '../../infra/errors.js';
 import { renderPortfolio } from '../../render/portfolio.js';
-import { portfolioKeyboard } from '../../render/keyboards.js';
+import { portfolioKeyboard, sharedWatchlistKeyboard } from '../../render/keyboards.js';
+import { renderWatchlistShare } from '../../render/portfolio.js';
 import { chainRegistry } from '../../domain/chains.js';
 import { isGroup, type BotContext } from '../context.js';
 import { cachedSnapshot, runScanFlow } from './scanFlow.js';
@@ -62,6 +63,7 @@ export async function handlePortfolioAdd(ctx: BotContext, loc: { networkSlug?: s
     addedMcapUsd: snap.marketCapUsd,
   });
   ctx.log.info('portfolio add', { userId, symbol: snap.symbol, result });
+  if (result === 'added') ctx.services.stats?.record({ kind: 'watch_add', userId, chatId: ctx.chat?.id, chatType: ctx.chat?.type, token: `${snap.networkSlug}:${snap.symbol}` });
   const toast =
     result === 'added'
       ? `⭐ Added ${snap.symbol} to your watchlist · /watchlist`
@@ -80,6 +82,7 @@ export async function sendPortfolio(ctx: BotContext): Promise<void> {
     return;
   }
   const rows = await svc.listWithQuotes(userId);
+  ctx.services.stats?.record({ kind: 'watch_view', userId, chatId: ctx.chat?.id, chatType: ctx.chat?.type });
   const text = renderPortfolio(rows);
   const keyboard = rows.length ? portfolioKeyboard(rows.map((r) => r.entry)) : undefined;
   if (isGroup(ctx)) {
@@ -113,7 +116,7 @@ export async function handlePortfolioCallback(
       return;
     }
     await ctx.answerCbQuery('Scanning…');
-    await runScanFlow(ctx, { kind: 'address', address: loc.address, chainSlug: loc.networkSlug, source: 'raw' });
+    await runScanFlow(ctx, { kind: 'address', address: loc.address, chainSlug: loc.networkSlug, source: 'raw' }, { trigger: 'watchlist' });
     return;
   }
   if (action === 'port_del') {
@@ -122,6 +125,7 @@ export async function handlePortfolioCallback(
       return;
     }
     const removed = svc.remove(userId, loc.networkSlug, loc.address);
+    if (removed) ctx.services.stats?.record({ kind: 'watch_del', userId, chatId: ctx.chat?.id, chatType: ctx.chat?.type });
     await ctx.answerCbQuery(removed ? `Removed ${loc.symbol ?? ''}`.trim() : 'Not on your watchlist');
   } else {
     await ctx.answerCbQuery('Refreshing…');
@@ -140,4 +144,52 @@ export async function handlePortfolioCallback(
       throw err;
     }
   }
+}
+
+/** 深链 /start wl_<id>：把分享者的 watchlist 以可交互版发给新来的用户。 */
+export async function openSharedWatchlist(ctx: BotContext, shareId: string): Promise<boolean> {
+  const svc = ctx.services.portfolio;
+  if (!svc) return false;
+  const share = svc.resolveShare(shareId);
+  if (!share) {
+    await ctx.reply('⭐ This watchlist link has expired (links last 7 days). Ask the owner to share it again.');
+    return true;
+  }
+  const rows = await svc.listWithQuotes(share.ownerId);
+  if (rows.length === 0) {
+    await ctx.reply(`⭐ ${share.ownerName}'s watchlist is empty now.`);
+    return true;
+  }
+  ctx.log.info('shared watchlist opened', { shareId, ownerId: share.ownerId, viewer: ctx.from?.id });
+  ctx.services.stats?.record({ kind: 'share_open', userId: ctx.from?.id, chatId: ctx.chat?.id, chatType: ctx.chat?.type });
+  await ctx.reply(renderWatchlistShare(share.ownerName, rows), { ...HTML, ...sharedWatchlistKeyboard(rows.map((r) => r.entry), shareId) });
+  return true;
+}
+
+/** ⭐ Add all to my watchlist：复制分享者的列表，加入价用当前行情。 */
+export async function handlePortfolioCopy(ctx: BotContext, shareId: string): Promise<void> {
+  const svc = ctx.services.portfolio;
+  const userId = userIdOf(ctx);
+  if (!svc || userId === undefined) {
+    await ctx.answerCbQuery(UNAVAILABLE, { show_alert: true });
+    return;
+  }
+  const share = svc.resolveShare(shareId);
+  if (!share) {
+    await ctx.answerCbQuery('This share link has expired.', { show_alert: true });
+    return;
+  }
+  if (share.ownerId === userId) {
+    await ctx.answerCbQuery('This is already your watchlist.');
+    return;
+  }
+  const rows = await svc.listWithQuotes(share.ownerId);
+  const prices = new Map(rows.map((r) => [`${r.entry.networkSlug}:${r.entry.address.toLowerCase()}`, { priceUsd: r.priceUsd, marketCapUsd: r.marketCapUsd }]));
+  const res = svc.copyFrom(share.ownerId, userId, prices);
+  ctx.log.info('watchlist copied', { shareId, viewer: userId, ...res });
+  ctx.services.stats?.record({ kind: 'share_copy', userId, chatId: ctx.chat?.id, chatType: ctx.chat?.type });
+  const parts = [`⭐ Added ${res.added}`];
+  if (res.skipped) parts.push(`${res.skipped} already there`);
+  if (res.full) parts.push(`${res.full} skipped (limit ${svc.size(userId)})`);
+  await ctx.answerCbQuery(`${parts.join(' · ')} · /watchlist`, { show_alert: res.full > 0 });
 }

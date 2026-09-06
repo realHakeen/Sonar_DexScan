@@ -12,9 +12,12 @@ test('DexScan 链接直接解析出链和地址，零 API 消耗', () => {
   assert.equal(r.kind === 'address' && r.source, 'link');
 });
 
-test('DexScreener 的 chain id 映射到 CMC network_slug', () => {
+test('DexScreener 的 chain id 映射到 CMC network_slug，并标记为池子地址', () => {
   const r = parseInput(`https://dexscreener.com/bsc/${USDT}`);
   assert.equal(r.kind === 'address' && r.chainSlug, 'bnb');
+  assert.equal(r.kind === 'address' && r.pair, true);
+  const raw = parseInput(USDT);
+  assert.equal(raw.kind === 'address' && raw.pair, undefined);
 });
 
 test('区块浏览器链接按域名定链', () => {
@@ -100,4 +103,18 @@ test('单字符 / 数字 / 中文 cashtag：整条消息形态一律触发；句
     const r = parseInput(text);
     assert.notEqual(r.kind === 'query' && r.explicit, true, text);
   }
+});
+
+test('不认识的域名（padre / gmgn）：从路径段取链名；消息里同时有 $TICKER 时记为 fallbackQuery', () => {
+  const r = parseInput('$ZCAT\n\nhttps://trade.padre.gg/trade/solana/BTccxxTFi7a9xJTE1exKn38Jgie35s6gNeRxd8DM61Rc');
+  assert.equal(r.kind, 'address');
+  assert.equal(r.kind === 'address' && r.chainSlug, 'solana');
+  assert.equal(r.kind === 'address' && r.address, 'BTccxxTFi7a9xJTE1exKn38Jgie35s6gNeRxd8DM61Rc');
+  assert.equal(r.kind === 'address' && r.fallbackQuery, 'ZCAT');
+  assert.equal(r.kind === 'address' && r.pair, undefined);
+  const g = parseInput(`https://gmgn.ai/bsc/token/${USDT}`);
+  assert.equal(g.kind === 'address' && g.chainSlug, 'bnb');
+  assert.equal(g.kind === 'address' && g.fallbackQuery, undefined);
+  const raw = parseInput(`ca ${USDT} $USDT`);
+  assert.equal(raw.kind === 'address' && raw.fallbackQuery, 'USDT');
 });

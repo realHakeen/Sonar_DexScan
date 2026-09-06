@@ -3,9 +3,9 @@ import { decodeCallback } from '../callbackData.js';
 import type { BotContext } from '../context.js';
 import { chainRegistry } from '../../domain/chains.js';
 import { shortenAddress } from '../../render/format.js';
-import { isScanInflight, restoreCard, runScanFlow } from './scanFlow.js';
+import { cachedSnapshot, isScanInflight, restoreCard, runScanFlow } from './scanFlow.js';
 import { isPerpInflight, runPerpFlow } from './perpFlow.js';
-import { handlePortfolioAdd, handlePortfolioCallback } from './portfolio.js';
+import { handlePortfolioAdd, handlePortfolioCallback, handlePortfolioCopy } from './portfolio.js';
 
 export const callbackHandlers = new Composer<BotContext>();
 
@@ -35,6 +35,14 @@ callbackHandlers.on('callback_query', async (ctx) => {
     await handlePortfolioAdd(ctx, { networkSlug, address, symbol }, ctx.callbackQuery.message?.message_id);
     return;
   }
+  if (action === 'port_copy') {
+    if (!address) {
+      await ctx.answerCbQuery('Incomplete button data.');
+      return;
+    }
+    await handlePortfolioCopy(ctx, address);
+    return;
+  }
   if (action === 'port_del' || action === 'port_scan' || action === 'port_refresh') {
     await handlePortfolioCallback(ctx, action, { networkSlug, address, symbol }, ctx.callbackQuery.message?.message_id);
     return;
@@ -61,7 +69,10 @@ callbackHandlers.on('callback_query', async (ctx) => {
     await ctx.answerCbQuery(action === 'perp_refresh' ? 'Refreshing…' : 'Loading perps…');
     // address 两用：纯数字且无链 = cid（/perp BTC）；否则是代币定位（从扫描卡进来，可 Back）
     const isCid = !networkSlug && /^\d+$/.test(address);
-    const input = isCid ? { cmcId: Number(address) } : { origin: { networkSlug, address, symbol } };
+    // 从卡片进来的：优先用卡片缓存里的 cid（桥接资产按地址反查不到 cid，例如 zec.omft.near）
+    const snap = chatId !== undefined ? cachedSnapshot(chatId, messageId) : undefined;
+    const snapCid = snap && snap.address.toLowerCase() === address.toLowerCase() ? snap.cmcId : undefined;
+    const input = isCid ? { cmcId: Number(address) } : { cmcId: snapCid, origin: { networkSlug, address, symbol } };
     ctx.log.info('callback', { action, messageId, ...(isCid ? { cmcId: Number(address) } : { address }) });
     // 从卡片打开与视图内刷新都只换按钮、正文不动；候选选择才整条替换
     await runPerpFlow(ctx, input, {
@@ -69,6 +80,7 @@ callbackHandlers.on('callback_query', async (ctx) => {
       busyMode: action === 'perp_pick' ? 'replace' : 'keep',
       busyButton: action === 'perp' ? '⏳ Loading perps…' : '⏳ Refreshing…',
       busyLabel: symbol,
+      trigger: action === 'perp' ? 'button' : action === 'perp_refresh' ? 'refresh' : 'pick',
     });
     return;
   }
@@ -92,7 +104,7 @@ callbackHandlers.on('callback_query', async (ctx) => {
     await runScanFlow(
       ctx,
       { kind: 'address', address, chainSlug: networkSlug, source: 'raw' },
-      { editMessageId: messageId, busyMode: 'replace', busyLabel: symbol ?? shortenAddress(address) },
+      { editMessageId: messageId, busyMode: 'replace', busyLabel: symbol ?? shortenAddress(address), trigger: 'back' },
     );
     return;
   }
@@ -118,6 +130,7 @@ callbackHandlers.on('callback_query', async (ctx) => {
       busyLabel: chainName ? `${subject} · ${chainName}` : subject,
       // 候选选择 / 切链是"把这个币带进群"的动作，允许创建首次 call；刷新只更新
       recordCall: action === 'scan' || action === 'chain',
+      trigger: action === 'scan' ? 'candidate' : action,
     },
   );
 });

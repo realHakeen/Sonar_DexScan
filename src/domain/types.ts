@@ -198,6 +198,8 @@ export interface PoolInfo {
 /** 来自主 API（非 DEX）的数据。 */
 export interface CoreMarketData {
   cmcId: number;
+  /** CMC 币种页 slug（coinmarketcap.com/currencies/{slug}/）。 */
+  slug?: string;
   cmcRank?: number;
   /** 真实流通市值。 */
   marketCapUsd?: number;

@@ -27,6 +27,7 @@ export async function admitScan(ctx: BotContext): Promise<boolean> {
 
   if (r.delayMs === undefined) {
     ctx.log.debug('rate limited', { key, retryAfterMs: r.retryAfterMs });
+    ctx.services.stats?.record({ kind: 'ratelimited', userId: ctx.from?.id, chatId: ctx.chat?.id, chatType: ctx.chat?.type });
     // 群里静默丢弃，否则限流提示本身就是刷屏
     if (!group) {
       await ctx.reply(`🚦 Too many requests. Please wait ${Math.ceil(r.retryAfterMs / 1000)}s and try again.`);

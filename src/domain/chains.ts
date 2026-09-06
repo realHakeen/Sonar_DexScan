@@ -18,6 +18,11 @@ export interface ChainSpec {
   explorer?: string;
   /** DexScreener 链接里使用的 chain id，用于 F5 反解析。 */
   dexscreenerId?: string;
+  /**
+   * CMC DEX 的 network_id（search 的 pltId / token 的 pid）。v4 pairs/quotes 对部分链不认 network_slug
+   * （Robinhood 报 "The network is not supported"），要用 network_id。运行时也会从 search 结果里学到。
+   */
+  cmcNetworkId?: number;
 }
 
 /**
@@ -26,7 +31,7 @@ export interface ChainSpec {
  */
 const CHAINS: ChainSpec[] = [
   { slug: 'ethereum', name: 'Ethereum', family: 'evm', emoji: '🔷', platformCryptoId: 1027, explorer: 'https://etherscan.io/token/{address}', dexscreenerId: 'ethereum' },
-  { slug: 'bnb', name: 'BNB Chain', family: 'evm', emoji: '🟡', platformCryptoId: 1839, platform: 'BSC', dexscanSlug: 'bsc', explorer: 'https://bscscan.com/token/{address}', dexscreenerId: 'bsc' },
+  { slug: 'bnb', name: 'BNB Chain', family: 'evm', emoji: '🟡', platformCryptoId: 1839, platform: 'BSC', dexscanSlug: 'bsc', explorer: 'https://bscscan.com/token/{address}', dexscreenerId: 'bsc', cmcNetworkId: 14 },
   { slug: 'base', name: 'Base', family: 'evm', emoji: '🔵', platformCryptoId: 27716, explorer: 'https://basescan.org/token/{address}', dexscreenerId: 'base' },
   { slug: 'arbitrum', name: 'Arbitrum', family: 'evm', emoji: '🔵', platformCryptoId: 11841, explorer: 'https://arbiscan.io/token/{address}', dexscreenerId: 'arbitrum' },
   { slug: 'polygon', name: 'Polygon', family: 'evm', emoji: '🟪', platformCryptoId: 28321, explorer: 'https://polygonscan.com/token/{address}', dexscreenerId: 'polygon' },
@@ -53,7 +58,7 @@ const CHAINS: ChainSpec[] = [
   { slug: 'osmosis', name: 'Osmosis', family: 'cosmos', explorer: 'https://www.mintscan.io/osmosis/assets', dexscreenerId: 'osmosis' },
   { slug: 'sei', name: 'Sei', family: 'cosmos', platform: 'Sei v2', explorer: 'https://seitrace.com/token/{address}', dexscreenerId: 'seiv2' },
   // —— 以下来自 2026-09-02 search 返回的 plt 清单，只登记名称与链系，浏览器地址不确定的留空 ——
-  { slug: 'robinhood', name: 'Robinhood Chain', family: 'evm', emoji: '🟢', platformCryptoId: 40670, platform: 'Robinhood', dexscreenerId: 'robinhood' },
+  { slug: 'robinhood', name: 'Robinhood Chain', family: 'evm', emoji: '🟢', platformCryptoId: 40670, platform: 'Robinhood', dexscreenerId: 'robinhood', cmcNetworkId: 300 },
   { slug: 'monad', name: 'Monad', family: 'evm', emoji: '🟣', platformCryptoId: 30495, dexscreenerId: 'monad' },
   { slug: 'abstract', name: 'Abstract', family: 'evm', emoji: '🟢', platformCryptoId: 35634, platform: 'Abstract Chain', explorer: 'https://abscan.org/token/{address}', dexscreenerId: 'abstract' },
   { slug: 'soneium', name: 'Soneium', family: 'evm', explorer: 'https://soneium.blockscout.com/token/{address}', dexscreenerId: 'soneium' },
@@ -185,6 +190,18 @@ class ChainRegistry {
     const id = platformCryptoId ?? this.get(slug).platformCryptoId;
     return id ? `https://s2.coinmarketcap.com/static/img/coins/64x64/${id}.png` : undefined;
   }
+
+  /** 已知的 CMC DEX network_id（静态表 + 运行时从 search 结果学到的）。 */
+  networkIdOf(slug: string): number | undefined {
+    return this.learnedIds.get(slug) ?? this.get(slug).cmcNetworkId;
+  }
+
+  /** search / token 响应里带着 pltId，顺手记下来，pairs/quotes 就能用 network_id 查那些不认 slug 的链。 */
+  learnNetworkId(slug: string, id: number | undefined): void {
+    if (id && Number.isInteger(id) && id > 0 && !this.learnedIds.has(slug)) this.learnedIds.set(slug, id);
+  }
+
+  private readonly learnedIds = new Map<string, number>();
 
   explorerUrl(slug: string, address: string): string | undefined {
     const tpl = this.get(slug).explorer;

@@ -99,9 +99,9 @@ test('renderPerpCard：头部比值、按所行、基差、爆仓、脚注', () 
   assert.match(html, /OI\s*<\/code> \$122\.0M  \(8% of MC\)/);
   assert.match(html, /Vol 24h<\/code> \$505\.0M  \(1\.1× spot\)/);
   assert.match(html, /CEX\/DEX<\/code> \$105\.0M \/ \$17\.0M OI/);
-  assert.match(html, /Funding<\/code> \+0\.0100% \(8h\) · \+10\.9% APR 🔴/);
-  assert.match(html, /<code>Binance      \$71\.0M \$334\.0M \+0\.0100%<\/code> 🔴/);
-  assert.match(html, /<code>Hyperliquid  \$17\.0M  \$81\.0M \+0\.0100%<\/code> 🔴/); // 1h 制 ×8
+  assert.match(html, /Funding<\/code> 🔴 \+0\.0100% \(8h\) · \+10\.9% APR/);
+  assert.match(html, /🔴 <code>Binance      \$71\.0M \$334\.0M \+0\.0100%<\/code>/);
+  assert.match(html, /🔴 <code>Hyperliquid  \$17\.0M  \$81\.0M \+0\.0100%<\/code>/); // 1h 制 ×8
   assert.match(html, /Premium<\/code> \+0\.11% Hyperliquid/);
   assert.match(html, /Discount<\/code> -0\.02% MEXC/);
   assert.match(html, /1h\s*<\/code> \$4K  \$0 \/ \$4K/);

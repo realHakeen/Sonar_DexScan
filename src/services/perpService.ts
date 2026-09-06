@@ -1,6 +1,7 @@
 import type { CmcGateway } from '../api/cmc/index.js';
 import type { CoinIndex, CoinIndexHit } from '../domain/coinIndex.js';
 import { isDominantCoin } from '../domain/derivatives.js';
+import { chainRegistry } from '../domain/chains.js';
 import { parseInput } from '../domain/inputParser.js';
 import type { CoreMarketData, LiquidationStats, PerpStats } from '../domain/types.js';
 import { createLogger } from '../infra/logger.js';
@@ -36,8 +37,9 @@ export class PerpService {
     private readonly index: CoinIndex,
   ) {}
 
-  async resolve(input: string): Promise<PerpResolution> {
-    const parsed = parseInput(input);
+  async resolve(input: string, networkSlug?: string): Promise<PerpResolution> {
+    // 链已知（从卡片按钮进来）时输入一定是合约地址，不经过解析器（NEAR 命名账户等格式解析器未必认识）
+    const parsed: ReturnType<typeof parseInput> = networkSlug ? { kind: 'address', address: input, source: 'raw' } : parseInput(input);
     if (parsed.kind === 'none') return { kind: 'none' };
 
     if (parsed.kind === 'address') {
@@ -45,8 +47,14 @@ export class PerpService {
       if (hit) return { kind: 'coin', cmcId: hit.cmcId, symbol: hit.symbol, name: hit.name };
       const found = await this.cmc.dex.search(parsed.address);
       const match = found.find((c) => c.address.toLowerCase() === parsed.address.toLowerCase() && c.cmcId);
-      if (!match?.cmcId) return { kind: 'none' };
-      return { kind: 'coin', cmcId: match.cmcId, symbol: match.symbol, name: match.name };
+      if (match?.cmcId) return { kind: 'coin', cmcId: match.cmcId, symbol: match.symbol, name: match.name };
+      // search 漏索引（zec.omft.near 这类桥接资产常见）：链已知时直打 token 详情拿 cid
+      if (networkSlug) {
+        const detail = await this.cmc.dex.tokenDetail({ platform: chainRegistry.platformName(networkSlug), address: parsed.address, networkSlug }).catch(() => null);
+        const c = detail?.candidate;
+        if (c?.cmcId) return { kind: 'coin', cmcId: c.cmcId, symbol: c.symbol, name: c.name };
+      }
+      return { kind: 'none' };
     }
 
     const hits = this.index.lookup(parsed.query, PERP_CANDIDATE_LIMIT, { includeNative: true });

@@ -35,7 +35,7 @@ export function renderPerpCard(v: PerpView): string {
     const cexOi = p.venues.filter((x) => x.kind === 'cex').reduce((s, x) => s + x.openInterestUsd, 0);
     const dexOi = p.openInterestUsd - cexOi;
     if (cexOi > 0 && dexOi > 0) rows.push(`${label('CEX/DEX')} ${formatUsdShort(cexOi)} / ${formatUsdShort(dexOi)} OI`);
-    if (p.funding) rows.push(`${label('Funding')} ${formatFunding(p.funding.rate8h)} (8h) · ${formatApr(p.funding.apr)} APR ${fundingEmoji(p.funding.rate8h)}`);
+    if (p.funding) rows.push(`${label('Funding')} ${fundingEmoji(p.funding.rate8h)} ${formatFunding(p.funding.rate8h)} (8h) · ${formatApr(p.funding.apr)} APR`);
     out.push(...tree(rows));
 
     // ── 按所 ──
@@ -46,7 +46,7 @@ export function renderPerpCard(v: PerpView): string {
       const r8 = x.fundingRate !== undefined ? normalizeFunding(x.name, x.fundingRate, x.fundingIntervalH).rate8h : undefined;
       const f = r8 !== undefined ? formatFunding(r8) : '—';
       const row = `${x.name.slice(0, VENUE_COL).padEnd(VENUE_COL)} ${formatUsdShort(x.openInterestUsd).padStart(7)} ${formatUsdShort(x.volume24hUsd).padStart(7)} ${f.padStart(8)}`;
-      return `<code>${escapeHtml(row)}</code> ${r8 !== undefined ? fundingEmoji(r8) : '⚪️'}`;
+      return `${r8 !== undefined ? fundingEmoji(r8) : '⚪️'} <code>${escapeHtml(row)}</code>`;
     });
     if (p.venues.length > VENUE_ROWS) venueRows.push(`+${p.venues.length - VENUE_ROWS} more`);
     out.push(...tree(venueRows));

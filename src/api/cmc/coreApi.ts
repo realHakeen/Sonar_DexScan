@@ -64,6 +64,7 @@ export class CoreApi {
     const usd = entry.quote?.['USD'];
     return {
       cmcId,
+      slug: entry.slug ?? undefined,
       cmcRank: entry.cmc_rank ?? undefined,
       marketCapUsd: usd?.market_cap ?? undefined,
       fdvUsd: usd?.fully_diluted_market_cap ?? undefined,

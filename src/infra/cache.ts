@@ -41,8 +41,11 @@ export class TtlCache<V> {
     this.inflight.clear();
   }
 
-  /** 命中缓存直接返回；否则合并并发请求，只放行一个 loader。 */
-  async wrap(key: string, loader: () => Promise<V>, ttlMs = this.defaultTtlMs): Promise<V> {
+  /**
+   * 命中缓存直接返回；否则合并并发请求，只放行一个 loader。
+   * shouldCache 返回 false 的结果（如上游软失败的 null）不落缓存，下一次请求会重新拉，刷新才有意义。
+   */
+  async wrap(key: string, loader: () => Promise<V>, ttlMs = this.defaultTtlMs, shouldCache: (value: V) => boolean = () => true): Promise<V> {
     const cached = this.get(key);
     if (cached !== undefined) return cached;
 
@@ -51,7 +54,7 @@ export class TtlCache<V> {
 
     const task = loader()
       .then((value) => {
-        this.set(key, value, ttlMs);
+        if (shouldCache(value)) this.set(key, value, ttlMs);
         return value;
       })
       .finally(() => {

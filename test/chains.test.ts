@@ -48,3 +48,13 @@ test('explorerAddressUrl：池子地址导航到浏览器的合约 / 账户页',
   assert.equal(chainRegistry.explorerAddressUrl('tron', 'TX1'), 'https://tronscan.org/#/contract/TX1');
   assert.equal(chainRegistry.explorerAddressUrl('ton', 'EQ1'), 'https://tonviewer.com/EQ1');
 });
+
+test('networkIdOf：静态 id 与运行时学到的 id', async () => {
+  const { chainRegistry } = await import('../src/domain/chains.js');
+  assert.equal(chainRegistry.networkIdOf('robinhood'), 300);
+  assert.equal(chainRegistry.networkIdOf('bnb'), 14);
+  assert.equal(chainRegistry.networkIdOf('ethereum'), undefined);
+  chainRegistry.learnNetworkId('ethereum', 1);
+  chainRegistry.learnNetworkId('ethereum', 999); // 已学到的不覆盖
+  assert.equal(chainRegistry.networkIdOf('ethereum'), 1);
+});

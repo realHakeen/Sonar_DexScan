@@ -1,5 +1,5 @@
 import { Telegraf } from 'telegraf';
-import { env } from '../config/env.js';
+import { adminUserIds, env } from '../config/env.js';
 import { createLogger } from '../infra/logger.js';
 import { chainRegistry } from '../domain/chains.js';
 import { createServices, type Services } from '../services/index.js';
@@ -9,6 +9,7 @@ import { errorBoundary } from './middlewares/errorBoundary.js';
 import { commandHandlers } from './handlers/commands.js';
 import { callbackHandlers } from './handlers/callbacks.js';
 import { messageHandlers } from './handlers/message.js';
+import { inlineHandlers } from './handlers/inline.js';
 
 const log = createLogger('bot');
 
@@ -39,6 +40,17 @@ export function buildBot(services: Services = createServices()): BuiltBot {
   bot.use(errorBoundary);
 
   bot.use(callbackHandlers);
+  bot.use(inlineHandlers);
+  // bot 被拉进群 / 踢出群：统计群总数用
+  bot.on('my_chat_member', async (ctx) => {
+    const upd = ctx.myChatMember;
+    const chat = upd.chat;
+    if (chat.type !== 'group' && chat.type !== 'supergroup') return;
+    const status = upd.new_chat_member.status;
+    const inGroup = status === 'member' || status === 'administrator' || status === 'restricted';
+    ctx.services.stats?.groupChange(chat.id, inGroup ? 'added' : 'removed', { title: 'title' in chat ? chat.title : undefined, by: upd.from.id });
+    ctx.log.info('group membership', { chatId: chat.id, status });
+  });
   bot.use(commandHandlers);
   bot.use(messageHandlers);
 
@@ -55,6 +67,12 @@ export async function warmup(built: BuiltBot): Promise<void> {
     built.bot.telegram.setMyCommands(COMMANDS).catch((err) => {
       log.warn('setMyCommands failed', { err: String(err) });
     }),
+    // /stats 只在管理员自己的私聊菜单里出现（按聊天范围注册），其他人看不到
+    ...[...adminUserIds].map((chatId) =>
+      built.bot.telegram
+        .setMyCommands([...COMMANDS, { command: 'stats', description: 'Usage stats (admin)' }], { scope: { type: 'chat', chat_id: chatId } })
+        .catch((err) => log.warn('setMyCommands(admin) failed', { chatId, err: String(err) })),
+    ),
   ]);
 
   if (networks.status === 'fulfilled' && networks.value.length > 0) {

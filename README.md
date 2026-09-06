@@ -76,8 +76,9 @@ Dependency direction: `bot → services → domain / api → infra`. `domain` an
 | F6 | Placeholder → `editMessageText`, concurrent fetches, refresh button | `bot/handlers/scanFlow.ts`, `services/scanService.ts` |
 | — | K-line chart preview above the card (market-cap candles, ATH, volume) | `render/chart.ts`, `services/chartService.ts`, `infra/httpServer.ts` |
 | F3b | Perps block: open interest, perp volume, funding, liquidations (cid-only) | `domain/derivatives.ts`, `api/cmc/coreApi.ts`, `render/card.ts` |
-| F3e | Group call tracking: first caller line on the card (`🚀 user @ $21.5M [10.5x] (37d ago) 🔼`) and a milestone banner (5x…100x, once per group/token) posted when a rescan crosses a threshold; zero extra credits | `services/callService.ts`, `domain/calls.ts`, `render/banner.ts`, `assets/banner-bg.jpg` |
-| F3d | `⭐ Watchlist` button + `/watchlist`: per-user starred tokens with change since added (SQLite via `node:sqlite`, `DATA_DIR`) | `infra/db.ts`, `services/portfolioService.ts`, `bot/handlers/portfolio.ts` |
+| F3e | Group call tracking: first caller line on the card (`🚀 user @ $21.5M [10.5x] (37d ago) 🔼`) and a milestone banner (3x…100x, once per group/token) posted when a rescan crosses a threshold; zero extra credits | `services/callService.ts`, `domain/calls.ts`, `render/banner.ts`, `assets/banner-bg.jpg` |
+| F3f | `/stats` (admins only): 30-day chart + DAU/WAU/MAU, active/new groups, scans by trigger, D1/D7 retention, watchlist share funnel, health, CMC credits | `services/statsService.ts`, `render/stats.ts`, `infra/creditMeter.ts` |
+| F3d | `⭐ Watchlist` button + `/watchlist`: per-user starred tokens with change since added; `📤 Share` posts a read-only copy via the native chat picker (inline mode, enable with BotFather `/setinline`) with `Open in Sonar` (deep link → interactive copy + one-tap import) and `Add Sonar to group` buttons | `infra/db.ts`, `services/portfolioService.ts`, `bot/handlers/portfolio.ts`, `bot/handlers/inline.ts` |
 | F3c | Spot block: CEX listings, spot volume + 24h change, CEX/DEX split, top venues by volume (whitelist), CEX-vs-DEX premium | `domain/spot.ts`, `api/cmc/coreApi.ts`, `render/card.ts` |
 | — | `/perp <ticker or address>`: per-venue OI / volume / funding, basis vs index, 1h / 4h / 24h liquidations; native coins supported | `services/perpService.ts`, `render/perpCard.ts`, `bot/handlers/perpFlow.ts` |
 
@@ -123,6 +124,7 @@ One scan = 1 search + 5 concurrent detail requests (token / security / trend / t
 - `holders/list.tags` is a JSON string `{"tag_whale":1,...}`; `percent` is already in percent units
 - `/v4/dex/spot-pairs/latest` requires `dex_id`/`dex_slug` and cannot list all pools for a token — dropped in favour of `/v1/dex/token.pls`
 - `/v4/dex/networks/list` and `/v4/dex/listings/info` currently return 500 upstream; startup tolerates it
+- DexScreener links carry **pair** ids, not token addresses; they are resolved with CMC `/v4/dex/pairs/quotes/latest` (`base_asset_contract_address`). That endpoint rejects `network_slug` for some chains (Robinhood: "The network is not supported") and needs `network_id` (Robinhood 300, BSC 14) — see `chains.ts#cmcNetworkId`
 - v5 derivatives endpoints take `crypto_id` / `exchange_slug`, not the `id` / `slug` the docs show; `sort` does not accept `open_interest`; the liquidations-by-exchange endpoint ignores `crypto_id`, so a per-venue split of one coin's liquidations is not available
 
 Re-run the probe whenever you get a new key or the upstream changes:
@@ -149,11 +151,12 @@ The bot is a single long-running process (long polling), which is exactly what R
 |---|---|
 | `TELEGRAM_BOT_TOKEN` | from @BotFather |
 | `CMC_API_KEY` | your CoinMarketCap Pro key |
-| `CMC_TIMEOUT_MS` | `6000` — Railway's US region reaches CMC directly, no proxy latency |
+| `CMC_TIMEOUT_MS` | `10000` — the v5 derivatives / spot-pairs endpoints are heavier than the DEX ones; 6000 produced "Partial data" cards on slow upstream days |
 | `CMC_MAX_RETRIES` | `1` |
 | `LOG_LEVEL` | `info` |
 | `DATA_DIR` | `/data` — the Volume mount from step 3 (portfolio database) |
 | `RAILWAY_RUN_UID` | `0` — needed for the Volume to be writable (see step 3) |
+| `ADMIN_USER_IDS` | your Telegram user id(s), comma-separated — enables `/stats` |
 
 Leave `TELEGRAM_WEBHOOK_DOMAIN` unset. Railway injects `PORT` automatically; the bot uses it to serve `/health` and the K-line chart images.
 

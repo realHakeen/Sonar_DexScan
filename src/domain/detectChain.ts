@@ -16,6 +16,8 @@ const BASE58 = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const TRON = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
 const TON = /^[EU]Q[A-Za-z0-9_-]{46}$/;
 const BECH32 = /^([a-z]{2,10})1[02-9ac-hj-np-z]{8,80}$/;
+/** NEAR 命名账户：zec.omft.near / usdt.tether-token.near（每段 2–64 位小写字母数字 _-，以 .near 结尾）。 */
+const NEAR_ACCOUNT = /^(?:[a-z0-9_-]{2,64}\.)+near$/;
 const SUI_TYPE = /^0x[a-fA-F0-9]{1,64}::[A-Za-z0-9_]+::[A-Za-z0-9_]+$/;
 const APTOS_TYPE = /^0x[a-fA-F0-9]{1,64}::[A-Za-z0-9_]+::[A-Za-z0-9_]+$/;
 
@@ -39,6 +41,9 @@ export function detectChain(input: string): ChainDetection {
 
   if (TRON.test(addr)) {
     return { family: 'tron', slug: 'tron', candidates: ['tron'], needsLookup: false };
+  }
+  if (NEAR_ACCOUNT.test(addr)) {
+    return { family: 'unknown', slug: 'near', candidates: ['near'], needsLookup: false };
   }
   if (TON.test(addr)) {
     return { family: 'ton', slug: 'ton', candidates: ['ton'], needsLookup: false };
@@ -83,6 +88,7 @@ export function looksLikeAddress(input: string): boolean {
     TON.test(s) ||
     SUI_TYPE.test(s) ||
     BECH32.test(s) ||
+    NEAR_ACCOUNT.test(s) ||
     (BASE58.test(s) && s.length >= 32)
   );
 }

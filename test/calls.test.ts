@@ -9,7 +9,8 @@ import type { TokenReport } from '../src/domain/types.js';
 
 test('crossedMilestone：只报本次新跨过的最高档，已播过的不重复', () => {
   assert.equal(crossedMilestone(1.8, 0), undefined);
-  assert.equal(crossedMilestone(2.1, 0), undefined); // 5x 以下不播
+  assert.equal(crossedMilestone(2.1, 0), undefined); // 3x 以下不播
+  assert.equal(crossedMilestone(3.4, 0), 3);
   assert.equal(crossedMilestone(5.2, 0), 5);
   assert.equal(crossedMilestone(12, 5), 10); // 跳过中间档只报最高的新档
   assert.equal(crossedMilestone(7, 5), undefined);
@@ -34,7 +35,7 @@ test('formatCallAge / formatMultiple / messageLink', () => {
 const token = { networkSlug: 'bnb', address: '0xFE189E97832DA1573E4E4FF034F4FFC3A15C7777', symbol: 'MARSCOIN' };
 const caller = { userId: 9, username: 'aaronseaemcee', displayName: 'Aaron' };
 
-test('CallService：首次创建、后续算倍数与峰值、里程碑 5x 起每档只播一次、按钮回调不创建', () => {
+test('CallService：首次创建、后续算倍数与峰值、里程碑 3x 起每档只播一次、按钮回调不创建', () => {
   const svc = new CallService(openMemoryDatabase());
   const t0 = 1_700_000_000_000;
   // 按钮回调（无 caller）不创建
@@ -48,7 +49,7 @@ test('CallService：首次创建、后续算倍数与峰值、里程碑 5x 起�
   const second = svc.track({ chatId: -1001, token: { ...token, address: token.address.toLowerCase() }, mcapUsd: 48e6, mcapKind: 'mc', now: t0 + 3_600_000 })!;
   assert.equal(second.summary.isNew, false);
   assert.ok(Math.abs(second.summary.multiple - 48 / 21.5) < 1e-9);
-  assert.equal(second.milestone, undefined); // 2.2x，5x 以下不播
+  assert.equal(second.milestone, undefined); // 2.2x，3x 以下不播
   assert.equal(second.callMessageId, 77);
 
   const third = svc.track({ chatId: -1001, token, mcapUsd: 120e6, mcapKind: 'mc', now: t0 + 7_200_000 })!;

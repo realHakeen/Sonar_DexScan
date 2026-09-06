@@ -46,3 +46,12 @@ test('普通单词不是地址', () => {
   assert.equal(looksLikeAddress('pepe'), false);
   assert.equal(looksLikeAddress('0x123'), false);
 });
+
+test('NEAR 命名账户被识别为地址并定链 near', async () => {
+  const { detectChain, looksLikeAddress } = await import('../src/domain/detectChain.js');
+  assert.equal(looksLikeAddress('zec.omft.near'), true);
+  assert.equal(looksLikeAddress('usdt.tether-token.near'), true);
+  assert.equal(looksLikeAddress('near'), false);
+  assert.equal(looksLikeAddress('hello.world'), false);
+  assert.equal(detectChain('zec.omft.near').slug, 'near');
+});
