@@ -93,7 +93,7 @@ test('Txns 不带色块；Flow 按买压 ≥50% 绿；负费率标绿', () => {
     }),
   );
   assert.match(html, /Txns\s*<\/code> ↑9\.9K · ↓9\.1K/);
-  assert.match(html, /Flow\s*<\/code> \+\$1\.8M \/ −\$1\.7M · 🟢 51% buy/);
+  assert.match(html, /Flow\s*<\/code> 🟢 \+\$100K net · 51% buy/);
   assert.match(html, /Funding<\/code> 🟢 -0\.0200% \(8h\) · -21\.9% APR/);
 });
 
@@ -134,7 +134,7 @@ test('买压 < 50% 标红；Liq 的金额与池子数链到 DexScan；链接顺�
       primary: { ...baseReport().primary, buyVolume24hUsd: 171e3, sellVolume24hUsd: 264e3, poolCount: 9, website: 'https://w.example', twitter: 'https://x.com/w', telegram: 'https://t.me/w', tradeUrl: 'https://trade.example' },
     }),
   );
-  assert.match(html, /Flow\s*<\/code> \+\$171K \/ −\$264K · 🔴 39% buy/);
+  assert.match(html, /Flow\s*<\/code> 🔴 −\$93K net · 39% buy/);
   assert.match(html, /Liq\s*<\/code> <a href="https:\/\/dex\.coinmarketcap\.com\/token\/ethereum\/0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2">\$1\.0B<\/a> total · <a href="https:\/\/dex\.coinmarketcap\.com\/token\/ethereum\/0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2">9<\/a> pools/);
   assert.match(html, /🔗 <a href="https:\/\/w\.example">Website<\/a> · <a href="https:\/\/x\.com\/w">X<\/a> · <a href="https:\/\/t\.me\/w">TG<\/a> · <a href="https:\/\/etherscan\.io\/token\/0x[0-9a-f]{40}">Explorer<\/a> · <a href="https:\/\/trade\.example">Trade<\/a> · <a href="https:\/\/dex\.coinmarketcap\.com\/token\/ethereum\/0x[0-9a-f]{40}">DexScan<\/a>(\n|$)/);
   const withCmc = renderScanCard(baseReport({ core: { cmcId: 1027, categories: [], slug: 'ethereum' } }));
@@ -157,7 +157,7 @@ test('区块顺序：Market → Pools → Holders → Security → Perps；标�
   assert.deepEqual([...order].sort((a, b) => a - b), order);
 });
 
-test('Spot 区块：CEXs / Vol 变化 / Split / Top / Premium，位于 Perps 之前并有分隔线；头部不再有 CEX 行', () => {
+test('Spot 区块：标题带 CEX 数，Vol 变化 / Split / Top / Premium，位于 Perps 之前并有分隔线；头部不再有 CEX 行', () => {
   const html = renderScanCard(
     baseReport({
       primary: { ...baseReport().primary, priceUsd: 1.0, cexListings: [
@@ -172,7 +172,7 @@ test('Spot 区块：CEXs / Vol 变化 / Split / Top / Premium，位于 Perps 之
       perp: { openInterestUsd: 1e6, volume24hUsd: 0, totalPairs: 1, countedPairs: 1, basis: 0.0012, venues: [{ slug: 'binance', name: 'Binance', kind: 'cex', openInterestUsd: 1e6, volume24hUsd: 0, fundingIntervalH: 8, basis: 0.0012 }] },
     }),
   );
-  assert.match(html, /🏦 <b><u>Spot<\/u><\/b>  100\+ pairs\n├ <code>CEXs   <\/code> 4 \(3 spot\) · Binance, Coinbase Exchange, Upbit…\n├ <code>Vol    <\/code> \$229\.3M 🔴 -53\.68% 24h\n├ <code>Split  <\/code> CEX \$227\.5M · DEX \$1\.8M · 99% CEX\n├ <code>Top    <\/code> Binance 50% · OKX 20% · Gate 16%\n└ <code>Premium<\/code> Spot 🔴 -0\.12%/); // 合约基差 +0.12% → 现货折价 0.12%
+  assert.match(html, /🏦 <b><u>Spot<\/u><\/b>  3 CEXs · 100\+ pairs\n├ <code>Vol    <\/code> \$229\.3M 🔴 -53\.68% 24h\n├ <code>Split  <\/code> CEX \$227\.5M · DEX \$1\.8M · 99% CEX\n├ <code>Top    <\/code> Binance 50% · OKX 20% · Gate 16%\n└ <code>Premium<\/code> Spot 🔴 -0\.12%/); // 合约基差 +0.12% → 现货折价 0.12%
   assert.match(html, /\n\n<code>─{24}<\/code>\n\n🏦 <b><u>Spot/, 'CEX 分隔线在 Spot 之前');
   assert.doesNotMatch(html, /^🏦 \d+ CEXs/m); // 旧头部的 CEX 行已并入 Spot 区块
   const order = ['<u>Holders</u>', '<u>Spot</u>', '<u>Perps</u>'].map((h) => html.indexOf(h));

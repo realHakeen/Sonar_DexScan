@@ -103,11 +103,13 @@ export function renderScanCard(report: TokenReport): string {
   } else if (p.txns24h !== undefined) {
     market.push(`${label('Txns')} ${formatCount(p.txns24h)}`);
   }
-  if (p.buyVolume24hUsd !== undefined || p.sellVolume24hUsd !== undefined) {
+  if (p.buyVolume24hUsd !== undefined && p.sellVolume24hUsd !== undefined) {
+    // 净流入 = 买量 − 卖量，色块按正负；买压 % 保留
+    const net = p.buyVolume24hUsd - p.sellVolume24hUsd;
     const pressure = sharePct(p.buyVolume24hUsd, p.sellVolume24hUsd);
-    // 买压 ≥ 50% 绿、< 50% 红，色块放在结论后面
-    const pressureMark = pressure === undefined ? '' : ` · ${pressure >= 50 ? '🟢' : '🔴'} ${pressure}% buy`;
-    market.push(`${label('Flow')} +${formatUsdShort(p.buyVolume24hUsd)} / −${formatUsdShort(p.sellVolume24hUsd)}${pressureMark}`);
+    market.push(`${label('Flow')} ${changeEmoji(net)} ${net >= 0 ? '+' : '−'}${formatUsdShort(Math.abs(net))} net${pressure !== undefined ? ` · ${pressure}% buy` : ''}`);
+  } else if (p.buyVolume24hUsd !== undefined || p.sellVolume24hUsd !== undefined) {
+    market.push(`${label('Flow')} +${formatUsdShort(p.buyVolume24hUsd)} / −${formatUsdShort(p.sellVolume24hUsd)}`);
   }
   // Liq 放最后一行，紧接下面的 Pools 区块（口径 = 所有池子双边 TVL 合计）
   const poolTotal = Math.max(p.poolCount ?? 0, report.pools.length);
@@ -170,9 +172,16 @@ export function renderScanCard(report: TokenReport): string {
 
   // ── Spot ──（CEX 上所、全链现货量与 24h 变化、CEX/DEX 拆分、白名单内各所占比、合约对现货溢价）
   if (cexRows.length) {
+    // 标题里带上所家数（现货所）和交易对数；CEXs 明细行已去掉，Top 行足够参考
+    const meta: string[] = [];
+    const cex = p.cexListings;
+    if (cex && cex.length > 0) {
+      const spotOnly = cex.filter((c) => c.categories.includes('SPOT')).length;
+      meta.push(`${spotOnly || cex.length} CEXs`);
+    }
     const n = report.spot?.returnedPairs;
-    const pairs = n ? `  ${report.spot!.complete ? n : `${n}+`} pairs` : '';
-    out.push('', `${section('🏦', 'Spot')}${pairs}`);
+    if (n) meta.push(`${report.spot!.complete ? n : `${n}+`} pairs`);
+    out.push('', `${section('🏦', 'Spot')}${meta.length ? `  ${meta.join(' · ')}` : ''}`);
     out.push(...tree(cexRows));
   }
 
@@ -362,8 +371,7 @@ function renderCallLine(c: NonNullable<TokenReport['call']>): string {
 }
 
 /**
- * Spot 区块。一行一个指标：
- *   CEXs    127 (105 spot) · Binance, Coinbase, Upbit…
+ * Spot 区块（标题带 "113 CEXs · 100+ pairs"）。一行一个指标：
  *   Vol     $229.3M 🔴 −53.7% 24h
  *   Split   CEX $227.5M · DEX $1.8M · 99% CEX
  *   Top     Binance 25% · OKX 10% · Bybit 7%
@@ -375,12 +383,6 @@ function renderSpotRows(report: TokenReport, spot: SpotStats | undefined): strin
   const core = report.core;
   const rows: string[] = [];
 
-  const cex = p.cexListings;
-  if (cex && cex.length > 0) {
-    const spotOnly = cex.filter((c) => c.categories.includes('SPOT'));
-    const names = (spotOnly.length ? spotOnly : cex).slice(0, 3).map((c) => c.name);
-    rows.push(`${label('CEXs')} ${cex.length}${spotOnly.length ? ` (${spotOnly.length} spot)` : ''} · ${escapeHtml(names.join(', '))}${cex.length > 3 ? '…' : ''}`);
-  }
   if (core?.spotVolume24hUsd !== undefined && core.spotVolume24hUsd > 0) {
     const chg = core.volumeChange24hPct;
     rows.push(`${label('Vol')} ${formatUsdShort(core.spotVolume24hUsd)}${chg !== undefined ? ` ${changeEmoji(chg)} ${formatPercent(chg)} 24h` : ''}`);
