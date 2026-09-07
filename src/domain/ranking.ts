@@ -6,6 +6,11 @@ export interface ScoredCandidate {
   score: number;
   /** 评分明细，便于调参和排障。 */
   breakdown: Record<string, number>;
+  /**
+   * 同一个 CMC 币（同 cid）在其它链上的部署，按流动性降序。Delysium 的 map 合约在 Ethereum（已无交易），
+   * BSC 版才有池子：出卡用流动性最高的那条，其余链给「Switch to …」按钮。
+   */
+  deployments?: TokenCandidate[];
 }
 
 /** 用对数压缩量级差，否则单个巨额流动性会吃掉其他所有维度。 */
@@ -19,12 +24,7 @@ function logScale(v: number | undefined): number {
  * 搜 "PEPE" 时所有仿盘相关性几乎相同，真正有流动性的可能排在第 30 位。
  * 权重顺序：流动性 > 成交量 > 是否有 cid > 交易人数。
  */
-export interface ScoreContext {
-  /** 候选集里是否存在 symbol 与查询词完全一致的候选（rankCandidates 算好传进来）。 */
-  exactSymbolExists?: boolean;
-}
-
-export function scoreCandidate(c: TokenCandidate, query: string, ctx: ScoreContext = {}): ScoredCandidate {
+export function scoreCandidate(c: TokenCandidate, query: string): ScoredCandidate {
   const w = RANKING_WEIGHTS;
   const breakdown: Record<string, number> = {};
 
@@ -37,12 +37,7 @@ export function scoreCandidate(c: TokenCandidate, query: string, ctx: ScoreConte
     c.cmcRank === undefined ? 0 : c.cmcRank <= 100 ? w.cmcRankTop100 : c.cmcRank <= 1000 ? w.cmcRankTop1000 : w.cmcRankListed;
 
   const q = query.trim().toUpperCase();
-  const exact = c.symbol.toUpperCase() === q;
-  breakdown['exactSymbol'] = exact ? w.exactSymbolMatch : 0;
-  // $AGI：Delysium（CMC #816）DEX 池只有 $10K，光靠流动性打分会被 AGIX（$250K）挤掉，甚至进不了前 5。
-  // 用户打的就是这个 ticker、CMC 认定这个 ticker 的正版就是它 → 强加成；反过来 symbol 不一致的前缀匹配扣分。
-  if (exact && c.officialVerified && c.cmcRank !== undefined && c.cmcRank <= 1000) breakdown['listedTicker'] = w.listedTicker;
-  if (!exact && ctx.exactSymbolExists) breakdown['symbolMismatch'] = -w.symbolMismatch;
+  breakdown['exactSymbol'] = c.symbol.toUpperCase() === q ? w.exactSymbolMatch : 0;
 
   // 刷量惩罚：成交量高但交易人数极少
   const vol = c.volume24hUsd ?? 0;
@@ -75,18 +70,42 @@ export function rankCandidates(
     }
   }
 
+  // 分层排序：原生币代理（$HYPE → Hyperliquid）> ticker 精确匹配 > 其余。
+  // $AGI 里所有 symbol=AGI 的候选永远排在 AGIX / AGIALPHA 前面，不管后者流动性多大（其他 bot 出 AGIX 就是只按流动性排）；
+  // 层内按流动性等打分，CMC 收录只是普通加分 —— DEX 上已经没交易的 Delysium（$10K 池）压不过 $900K 池的 AGI Frog。
   const q = query.trim().toUpperCase();
-  const ctx: ScoreContext = { exactSymbolExists: [...deduped.values()].some((c) => c.symbol.toUpperCase() === q) };
-  // ticker 精确匹配是硬性第一档：$AGI 里所有 symbol=AGI 的候选永远排在 AGIX / AGIALPHA 前面，
-  // 不管后者流动性多大（其他 bot 出 AGIX 就是只按流动性排）。层内再按分数。
   const scored = [...deduped.values()]
-    .map((c) => scoreCandidate(c, query, ctx))
+    .map((c) => scoreCandidate(c, query))
     .sort((a, b) => tier(b, q) - tier(a, q) || b.score - a.score);
 
-  return limit === undefined ? scored : scored.slice(0, limit);
+  const grouped = groupByCoin(scored);
+  return limit === undefined ? grouped : grouped.slice(0, limit);
+}
+
+/** 同 cid 的多链部署折成一条：分数最高的当代表，其余按流动性挂在 deployments。cid 0 是上游的"无"，不合并。 */
+function groupByCoin(scored: ScoredCandidate[]): ScoredCandidate[] {
+  const byCid = new Map<number, ScoredCandidate>();
+  const out: ScoredCandidate[] = [];
+  for (const s of scored) {
+    const cid = s.candidate.cmcId;
+    if (!cid) {
+      out.push(s);
+      continue;
+    }
+    const head = byCid.get(cid);
+    if (!head) {
+      byCid.set(cid, s);
+      out.push(s);
+    } else {
+      (head.deployments ??= []).push(s.candidate);
+    }
+  }
+  for (const s of out) s.deployments?.sort((a, b) => (b.liquidityUsd ?? 0) - (a.liquidityUsd ?? 0));
+  return out;
 }
 
 function tier(s: ScoredCandidate, q: string): number {
+  if (s.candidate.nativeProxy) return 2;
   return s.candidate.symbol.toUpperCase() === q ? 1 : 0;
 }
 

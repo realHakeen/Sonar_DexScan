@@ -29,13 +29,6 @@ export const RANKING_WEIGHTS = {
   traders24h: 0.35,
   officialContract: 3.0,
   exactSymbolMatch: 0.6,
-  /**
-   * 用户打的 ticker 与候选 symbol 完全一致、且 CMC 认定该 ticker 的正版就是它（收录 + 排名前 1000）：
-   * 不管 DEX 流动性多小都要压过前缀 / 包含匹配（$AGI 是 Delysium，不是 AGIX）。
-   */
-  listedTicker: 3.0,
-  /** 存在精确 symbol 候选时，symbol 不一致的候选（AGI → AGIX / AGIALPHA）扣分。 */
-  symbolMismatch: 2.0,
   /** CMC 排名加成：前 100 / 前 1000 / 其余。 */
   cmcRankTop100: 1.2,
   cmcRankTop1000: 0.6,

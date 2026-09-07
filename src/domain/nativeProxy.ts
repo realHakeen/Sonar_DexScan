@@ -1,12 +1,14 @@
 import type { CoinIndex, CoinIndexHit } from './coinIndex.js';
+import { looksLikeAddress } from './detectChain.js';
 import type { TokenCandidate } from './types.js';
 
 /**
- * 原生币（NEAR / TAO / AVAX / ETH…）在 CMC map 里没有合约地址（platform 为空，或 Bittensor 那样 token_address = "0"），
- * 本地索引默认跳过它们，DEX search 又只认识封装 / 桥接代币，于是 $NEAR 出来的是 "Wrapped NEAR"、$AVAX 是 "Wrapped AVAX #8023"。
+ * 原生币（NEAR / TAO / AVAX / HYPE / ETH…）在 CMC map 里没有可扫的合约地址：platform 为空，
+ * 或 token_address 不是地址（Bittensor 的 "0"、Hyperliquid 的 32 位资产 id "0x0d01dc…"）。
+ * 本地索引默认跳过它们，DEX search 又只认识封装 / 桥接代币，于是 $NEAR 出来的是 "Wrapped NEAR"、$HYPE 是 WHYPE。
  */
 export function isNativeCoin(hit: CoinIndexHit): boolean {
-  return !hit.address || /^0+$/.test(hit.address);
+  return !hit.address || !looksLikeAddress(hit.address);
 }
 
 /** 封装代币自己在 CMC 的排名超过这个数（或没排名）才当作原生币的影子；WBTC 排在前 20，是独立资产，不代理。 */

@@ -157,14 +157,15 @@ export function evaluateRisks(input: RiskInput): RiskFlag[] {
     }
   }
 
-  // —— 多链同地址（残留或仿冒）——
+  // —— 多链部署：同 cid = CMC 认定的同一个币（Delysium 的 Ethereum / BSC 版）；同地址不同链 = 残留或仿冒 ——
   for (const dep of input.secondaryDeployments) {
+    const sameCoin = dep.cmcId !== undefined && dep.cmcId === input.primary.cmcId;
     flags.push({
       level: 'info',
       code: 'multi_chain',
       message:
         `ℹ️ Also on ${chainRegistry.displayName(dep.networkSlug)} ` +
-        `($${Math.round(dep.liquidityUsd ?? 0).toLocaleString('en-US')}) — leftover or copycat`,
+        `($${Math.round(dep.liquidityUsd ?? 0).toLocaleString('en-US')})${sameCoin ? '' : ' — leftover or copycat'}`,
     });
   }
 

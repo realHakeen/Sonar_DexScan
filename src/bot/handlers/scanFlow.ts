@@ -135,7 +135,8 @@ export async function runScanFlow(
 
     // 头部结果明显占优（官方收录，或流动性甩开第二名一个量级）时直接出卡片
     if (candidates.length === 1 || isDominant(candidates)) {
-      const report = await ctx.services.scan.buildReport(top.candidate, []);
+      // 同一个币的其它链部署（同 cid）作为次链：卡片给「Switch to …」按钮
+      const report = await ctx.services.scan.buildReport(top.candidate, top.deployments ?? []);
       const tracked = trackCall(ctx, report, opts);
       await renderReport(ctx, messageId, report, opts);
       recordScan(ctx, report, opts, startedAt);

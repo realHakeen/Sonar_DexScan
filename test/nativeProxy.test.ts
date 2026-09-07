@@ -20,10 +20,11 @@ function index(): CoinIndex {
   return idx;
 }
 
-test('原生币判定：platform 为空或 token_address 全 0；有合约的不算', () => {
+test('原生币判定：platform 为空、token_address 是 "0" 或 Hyperliquid 的 32 位资产 id；有真合约的不算', () => {
   const idx = index();
   assert.equal(isNativeCoin(idx.byCmcId(6535)!), true);
   assert.equal(isNativeCoin(idx.byCmcId(22974)!), true);
+  assert.equal(isNativeCoin({ cmcId: 32196, name: 'Hyperliquid', symbol: 'HYPE', slug: 'hyperliquid', rank: 9, networkSlug: 'hyperliquid', address: '0x0d01dc56dcaaca66ad901c959b4011ec' }), true);
   assert.equal(isNativeCoin(idx.byCmcId(24007)!), false);
 });
 

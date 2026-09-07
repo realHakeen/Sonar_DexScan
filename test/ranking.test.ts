@@ -60,26 +60,18 @@ test('CMC 排名进入打分：同等流动性下排名靠前者胜', () => {
   assert.equal(ranked[0]?.candidate.cmcRank, 50);
 });
 
-test('$AGI：ticker 精确命中且 CMC 收录（#816）的 Delysium 压过流动性更高的前缀匹配 AGIX', () => {
+test('$AGI：精确 ticker 档内按流动性，DEX 上没交易的 CMC 收录币（Delysium $10K）排在 $900K 池的 AGI Frog 后面，AGIX 垫底', () => {
   const delysium = make({ symbol: 'AGI', name: 'Delysium', liquidityUsd: 10_000, volume24hUsd: 0, cmcId: 24007, cmcRank: 816, officialVerified: true });
+  const frog = make({ symbol: 'AGI', name: 'AGI Frog', networkSlug: 'robinhood', liquidityUsd: 924_000, volume24hUsd: 889_000, traders24h: 400 });
   const agix = make({ symbol: 'AGIX', name: 'SingularityNET', liquidityUsd: 250_000, volume24hUsd: 7_000, traders24h: 55, cmcId: 2424, cmcRank: 4668, officialVerified: true });
-  const agialpha = make({ symbol: 'AGIALPHA', liquidityUsd: 60_000, cmcId: 35482, cmcRank: 2534, officialVerified: true });
-  const ranked = rankCandidates([agix, agialpha, delysium], 'AGI');
-  assert.equal(ranked[0]?.candidate.symbol, 'AGI');
-  assert.ok((ranked[0]?.breakdown['listedTicker'] ?? 0) > 0);
-  assert.ok((ranked[1]?.breakdown['symbolMismatch'] ?? 0) < 0);
+  const ranked = rankCandidates([agix, delysium, frog], 'AGI');
+  assert.deepEqual(ranked.map((r) => r.candidate.name), ['AGI Frog', 'Delysium', 'SingularityNET']);
 });
 
-test('没有精确 symbol 候选时（按名称搜 Teller → DEBIT）不扣 symbol 不一致分', () => {
-  const debit = make({ symbol: 'DEBIT', name: 'Teller', liquidityUsd: 100_000 });
-  const ranked = rankCandidates([debit], 'Teller');
-  assert.equal(ranked[0]?.breakdown['symbolMismatch'], undefined);
-});
-
-test('未收录 / 排名靠后的精确 symbol 候选没有 listedTicker 加成', () => {
-  const frog = make({ symbol: 'AGI', name: 'AGI Frog', liquidityUsd: 800_000 });
-  const deep = make({ symbol: 'AGI', name: 'AGI deep', liquidityUsd: 800_000, officialVerified: true, cmcRank: 5000 });
-  for (const s of rankCandidates([frog, deep], 'AGI')) assert.equal(s.breakdown['listedTicker'], undefined);
+test('原生币代理排在精确 ticker 之上（$HYPE：Hyperliquid via WHYPE 压过 Solana 上无 cid 的 HYPE）', () => {
+  const sol = make({ symbol: 'HYPE', name: 'HYPE', networkSlug: 'solana', liquidityUsd: 16e6, volume24hUsd: 20e6, traders24h: 5000 });
+  const proxy = make({ symbol: 'HYPE', name: 'Hyperliquid', networkSlug: 'hyperevm', liquidityUsd: 52e6, cmcId: 32196, cmcRank: 9, officialVerified: true, nativeProxy: 'WHYPE' });
+  assert.equal(rankCandidates([sol, proxy], 'HYPE')[0]?.candidate.nativeProxy, 'WHYPE');
 });
 
 test('ticker 精确匹配是硬性第一档：流动性再大的前缀匹配也排在精确匹配后面', () => {
@@ -88,4 +80,17 @@ test('ticker 精确匹配是硬性第一档：流动性再大的前缀匹配也�
   const ranked = rankCandidates([huge, tiny], 'AGI');
   assert.equal(ranked[0]?.candidate.symbol, 'AGI');
   assert.equal(ranked[1]?.candidate.symbol, 'AGIX');
+});
+
+test('同 cid 的多链部署合并成一条：分数高的当代表，其余按流动性挂在 deployments（Delysium：BSC 出卡，Ethereum 做切链）', () => {
+  const eth = make({ symbol: 'AGI', name: 'AGI Token', networkSlug: 'ethereum', liquidityUsd: 10_000, volume24hUsd: 0, cmcId: 24007, cmcRank: 816, officialVerified: true });
+  const bnb = make({ symbol: 'AGI', name: 'AGI Token', networkSlug: 'bnb', liquidityUsd: 131_000, volume24hUsd: 7_000, traders24h: 30, cmcId: 24007 });
+  const frog = make({ symbol: 'AGI', name: 'AGI Frog', networkSlug: 'robinhood', liquidityUsd: 924_000, volume24hUsd: 889_000, traders24h: 400 });
+  const ranked = rankCandidates([eth, bnb, frog], 'AGI');
+  assert.deepEqual(ranked.map((r) => `${r.candidate.name}@${r.candidate.networkSlug}`), ['AGI Frog@robinhood', 'AGI Token@bnb']);
+  assert.deepEqual(ranked[1]?.deployments?.map((d) => d.networkSlug), ['ethereum']);
+  // cid 0 / 无 cid 的不合并
+  const a = make({ symbol: 'X', cmcId: 0, liquidityUsd: 100 });
+  const b = make({ symbol: 'X', cmcId: 0, liquidityUsd: 200 });
+  assert.equal(rankCandidates([a, b], 'X').length, 2);
 });
