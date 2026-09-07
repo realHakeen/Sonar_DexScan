@@ -238,3 +238,19 @@ test('币层 + 部署层：头部是币，第二行排名 / 赛道，第三行�
   const plain = renderScanCard(baseReport({ core: { cmcId: 1027, categories: ['Layer 1'], cmcRank: 2 } }));
   assert.match(plain, /^<b>ETH<\/b> · Ethereum\n🔷 Ethereum · 🏅 #2\n🏷 Layer 1\n/);
 });
+
+test('Flow 色块跟净流入正负走：买压四舍五入到 50% 但净流出时是红点', () => {
+  const html = renderScanCard(baseReport({ primary: { ...baseReport().primary, buyVolume24hUsd: 3_869_000, sellVolume24hUsd: 3_931_000 } }));
+  assert.match(html, /Flow\s*<\/code> −\$62K net · 🔴 50% buy/);
+  const flat = renderScanCard(baseReport({ primary: { ...baseReport().primary, buyVolume24hUsd: 1000, sellVolume24hUsd: 1000 } }));
+  assert.match(flat, /Flow\s*<\/code> \+\$0 net · ⚪️ 50% buy/);
+});
+
+test('未收录提示不显示；风险区没有可见条目时整块（含 Caution 标题）不出', () => {
+  const only = renderScanCard(baseReport({ risks: [{ level: 'info', code: 'not_listed', message: 'ℹ️ Not listed on CMC — verify contract' }] }));
+  assert.doesNotMatch(only, /Not listed|Caution|No obvious risks/);
+  // 还有其它条目时标题级别按可见条目算
+  const withWarn = renderScanCard(baseReport({ risks: [{ level: 'info', code: 'not_listed', message: 'ℹ️ Not listed on CMC' }, { level: 'warn', code: 'top10_concentration', message: '⚠️ Top 10 own 62.8%' }] }));
+  assert.match(withWarn, /⚠️ <b><u>Caution<\/u><\/b>\n└ ⚠️ Top 10 own 62\.8%/);
+  assert.doesNotMatch(withWarn, /Not listed/);
+});

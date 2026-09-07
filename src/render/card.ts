@@ -115,10 +115,10 @@ export function renderScanCard(report: TokenReport): string {
     market.push(`${label('Txns')} ${formatCount(p.txns24h)}`);
   }
   if (p.buyVolume24hUsd !== undefined && p.sellVolume24hUsd !== undefined) {
-    // 净流入 = 买量 − 卖量；色块放在买压百分比前面（≥ 50% 🟢，< 50% 🔴）
+    // 净流入 = 买量 − 卖量；色块跟净流入的正负走（买压 49.6% 四舍五入成 50%，按百分比判色会给净流出配绿点）
     const net = p.buyVolume24hUsd - p.sellVolume24hUsd;
     const pressure = sharePct(p.buyVolume24hUsd, p.sellVolume24hUsd);
-    const pressureMark = pressure === undefined ? '' : ` · ${pressure >= 50 ? '🟢' : '🔴'} ${pressure}% buy`;
+    const pressureMark = pressure === undefined ? '' : ` · ${changeEmoji(net)} ${pressure}% buy`;
     market.push(`${label('Flow')} ${net >= 0 ? '+' : '−'}${formatUsdShort(Math.abs(net))} net${pressureMark}`);
   } else if (p.buyVolume24hUsd !== undefined || p.sellVolume24hUsd !== undefined) {
     market.push(`${label('Flow')} +${formatUsdShort(p.buyVolume24hUsd)} / −${formatUsdShort(p.sellVolume24hUsd)}`);
@@ -164,9 +164,10 @@ export function renderScanCard(report: TokenReport): string {
   }
 
   // ── Risks ──
+  // 标题级别按可见条目算：隐藏的条目不该把标题撑成 Caution；一条可见的都没有就整块不出
   const risks = visibleRisks(report);
   if (risks.length) {
-    const [riskEmoji, ...riskTitle] = (RISK_HEADER[overallRisk(report.risks)] ?? '⚠️ Risks').split(' ');
+    const [riskEmoji, ...riskTitle] = (RISK_HEADER[overallRisk(risks)] ?? '⚠️ Risks').split(' ');
     out.push('', section(riskEmoji!, riskTitle.join(' ')));
     out.push(...tree(risks.slice(0, 8).map((r) => escapeHtml(r.message))));
   }
@@ -246,6 +247,8 @@ function visibleRisks(report: TokenReport): TokenReport['risks'] {
   const securityItemised = (report.security?.items.length ?? 0) > 0;
   const poolsShown = report.pools.length >= 2;
   return [...report.risks]
+    // 未收录不算风险：头部没有 ✅ 已经说明了，不再单列一行
+    .filter((r) => r.code !== 'not_listed')
     .filter((r) => !(r.code === 'single_lp' && poolsShown))
     .filter((r) => !(securityItemised && r.level === 'warn' && SECURITY_WARN_CODES.has(r.code)))
     .sort((a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level]);
