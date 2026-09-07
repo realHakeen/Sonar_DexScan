@@ -21,39 +21,58 @@ const TRIGGER_LABEL: Array<[string, string]> = [
   ['watchlist', 'watchlist'],
 ];
 
-function triggerMix(w: StatsWindow): string {
+/** 触发方式占比，按占比降序，每行最多 4 项（手机宽度）。 */
+function triggerRows(w: StatsWindow): string[] {
   const total = Object.values(w.triggers).reduce((s, x) => s + x, 0);
-  if (total === 0) return '';
-  return TRIGGER_LABEL.filter(([k]) => w.triggers[k]).map(([k, name]) => `${name} ${Math.round((w.triggers[k]! / total) * 100)}%`).join(' · ');
+  if (total === 0) return [];
+  const items = TRIGGER_LABEL.filter(([k]) => w.triggers[k])
+    .map(([k, name]) => ({ name, pct: Math.round((w.triggers[k]! / total) * 100) }))
+    .sort((a, b) => b.pct - a.pct)
+    .map((x) => `${x.name} ${x.pct}%`);
+  const rows: string[] = [];
+  for (let i = 0; i < items.length; i += 4) rows.push(items.slice(i, i + 4).join(' · '));
+  return rows;
 }
 
 /**
- * /stats 文字版（作为图片 caption，≤ 1024 字符）。三列：today · 7d · 30d，UTC 日。
+ * /stats 文字版（作为图片 caption，≤ 1024 字符）。
+ * 三列计数用 <code> 等宽表格对齐（today / 7d / 30d，UTC 日），其余指标按主题分组成树。
  */
 export function renderStatsText(s: StatsSnapshot, monthlyCreditLimit?: number): string {
   const t = s.today, w = s.d7, m = s.d30;
-  const col = (f: (x: StatsWindow) => string) => `${f(t)} · ${f(w)} · ${f(m)}`;
-  const rows: string[] = [
-    `${label('Users')} ${col((x) => n(x.users))}`,
-    `${label('Groups')} ${col((x) => n(x.groups))}  (in ${n(s.groupsTotal)})`,
-    `${label('New')} ${col((x) => `${n(x.newUsers)}u/${n(x.newGroups)}g`)}`,
-    `${label('Scans')} ${col((x) => n(x.scans))}`,
+  const cell = (v: string) => v.padStart(7);
+  const line = (name: string, f: (x: StatsWindow) => number) => `${name.padEnd(10)}${cell(n(f(t)))}${cell(n(f(w)))}${cell(n(f(m)))}`;
+  const table = [
+    `${''.padEnd(10)}${cell('today')}${cell('7d')}${cell('30d')}`,
+    line('Users', (x) => x.users),
+    line('Groups', (x) => x.groups),
+    line('New users', (x) => x.newUsers),
+    line('New groups', (x) => x.newGroups),
+    line('Scans', (x) => x.scans),
+    line('Watch adds', (x) => x.watchAdds),
+    line('Credits', (x) => x.credits),
   ];
-  const mix = triggerMix(m);
-  if (mix) rows.push(`${label('')} ${mix}`);
-  rows.push(`${label('Retain')} D1 ${pct(s.retentionD1)} · D7 ${pct(s.retentionD7)}`);
-  rows.push(`${label('Watch')} +${col((x) => n(x.watchAdds))}`);
-  rows.push(`${label('Share')} ${n(m.shares)} → opened ${n(m.shareOpens)} → copied ${n(m.shareCopies)} (30d)`);
-  rows.push(`${label('Perps')} /perp ${n(m.perpCommands)} · button ${n(m.perpButtons)} (30d)`);
+
+  const usage: string[] = [];
+  usage.push(`${label('Retain')} D1 ${pct(s.retentionD1)} · D7 ${pct(s.retentionD7)}`);
+  usage.push(`${label('Share')} ${n(m.shares)} → opened ${n(m.shareOpens)} → copied ${n(m.shareCopies)}`);
+  usage.push(`${label('Perps')} /perp ${n(m.perpCommands)} · button ${n(m.perpButtons)}`);
   const health: string[] = [];
   if (w.avgElapsedMs !== undefined) health.push(`${(w.avgElapsedMs / 1000).toFixed(1)}s avg`);
   if (w.degradedRate !== undefined) health.push(`${Math.round(w.degradedRate * 100)}% degraded`);
   if (w.rateLimited) health.push(`${n(w.rateLimited)} throttled`);
-  if (health.length) rows.push(`${label('Health')} ${health.join(' · ')} (7d)`);
-  const limitNote = monthlyCreditLimit ? ` (${Math.round((m.credits / monthlyCreditLimit) * 100)}% of ${n(monthlyCreditLimit)})` : '';
-  rows.push(`${label('Credits')} ${n(t.credits)} today · ${n(m.credits)} 30d${limitNote}`);
-  const out = [`${section('📊', 'Stats')}  today · 7d · 30d (UTC)`, ...tree(rows)];
-  if (s.topTokens.length) out.push('', `<i>Top 7d: ${escapeHtml(s.topTokens.slice(0, 5).map((x) => `${x.token.split(':').pop()} ${x.scans}`).join(' · '))}</i>`);
+  if (health.length) usage.push(`${label('Health')} ${health.join(' · ')} (7d)`);
+  const limitNote = monthlyCreditLimit ? ` · ${Math.round((m.credits / monthlyCreditLimit) * 100)}% of ${n(monthlyCreditLimit)} credits` : '';
+  usage.push(`${label('Now')} in ${n(s.groupsTotal)} groups${limitNote}`);
+
+  const out = [
+    `${section('📊', 'Stats')}  (UTC)`,
+    `<code>${escapeHtml(table.join('\n'))}</code>`,
+  ];
+  const triggers = triggerRows(m);
+  if (triggers.length) out.push('', section('🔎', 'Triggers 30d'), ...tree(triggers));
+  out.push('', section('📈', 'Usage 30d'), ...tree(usage));
+  if (s.topTokens.length) out.push('', `${section('🏆', 'Top 7d')}  ${escapeHtml(s.topTokens.slice(0, 5).map((x) => `${x.token.split(':').pop()} ${x.scans}`).join(' · '))}`);
   return out.join('\n');
 }
 

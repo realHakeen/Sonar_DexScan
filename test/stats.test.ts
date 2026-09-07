@@ -77,12 +77,13 @@ test('renderStatsText / Svg / Png', () => {
   seed(svc);
   const s = svc.snapshot(NOW);
   const text = renderStatsText(s, 2_000_000);
-  assert.match(text, /📊 <b><u>Stats<\/u><\/b>  today · 7d · 30d \(UTC\)/);
-  assert.match(text, /Users\s*<\/code> 6 · 8 · 12/);
-  assert.match(text, /Groups\s*<\/code> 2 · 2 · 2  \(in 2\)/);
+  assert.match(text, /📊 <b><u>Stats<\/u><\/b>  \(UTC\)/);
+  // 等宽表格：表头 + 三列右对齐
+  assert.match(text, /<code> +today +7d +30d\nUsers +6 +8 +12\nGroups +2 +2 +2\n/);
   assert.match(text, /Retain\s*<\/code> D1 60% · D7 20%/);
-  assert.match(text, /Share\s*<\/code> 1 → opened 1 → copied 0 \(30d\)/);
-  assert.match(text, /Top 7d: A 7/);
+  assert.match(text, /Share\s*<\/code> 1 → opened 1 → copied 0\n/);
+  assert.match(text, /Now\s*<\/code> in 2 groups · 0% of 2\.00M credits/);
+  assert.match(text, /🏆 <b><u>Top 7d<\/u><\/b>  A 7/);
   assert.ok(text.length < 1024, 'caption 上限 1024');
   const svg = renderStatsSvg(s);
   assert.match(svg, /Watchlist share funnel/);
