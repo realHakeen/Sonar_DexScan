@@ -19,7 +19,12 @@ function logScale(v: number | undefined): number {
  * 搜 "PEPE" 时所有仿盘相关性几乎相同，真正有流动性的可能排在第 30 位。
  * 权重顺序：流动性 > 成交量 > 是否有 cid > 交易人数。
  */
-export function scoreCandidate(c: TokenCandidate, query: string): ScoredCandidate {
+export interface ScoreContext {
+  /** 候选集里是否存在 symbol 与查询词完全一致的候选（rankCandidates 算好传进来）。 */
+  exactSymbolExists?: boolean;
+}
+
+export function scoreCandidate(c: TokenCandidate, query: string, ctx: ScoreContext = {}): ScoredCandidate {
   const w = RANKING_WEIGHTS;
   const breakdown: Record<string, number> = {};
 
@@ -32,7 +37,12 @@ export function scoreCandidate(c: TokenCandidate, query: string): ScoredCandidat
     c.cmcRank === undefined ? 0 : c.cmcRank <= 100 ? w.cmcRankTop100 : c.cmcRank <= 1000 ? w.cmcRankTop1000 : w.cmcRankListed;
 
   const q = query.trim().toUpperCase();
-  breakdown['exactSymbol'] = c.symbol.toUpperCase() === q ? w.exactSymbolMatch : 0;
+  const exact = c.symbol.toUpperCase() === q;
+  breakdown['exactSymbol'] = exact ? w.exactSymbolMatch : 0;
+  // $AGI：Delysium（CMC #816）DEX 池只有 $10K，光靠流动性打分会被 AGIX（$250K）挤掉，甚至进不了前 5。
+  // 用户打的就是这个 ticker、CMC 认定这个 ticker 的正版就是它 → 强加成；反过来 symbol 不一致的前缀匹配扣分。
+  if (exact && c.officialVerified && c.cmcRank !== undefined && c.cmcRank <= 1000) breakdown['listedTicker'] = w.listedTicker;
+  if (!exact && ctx.exactSymbolExists) breakdown['symbolMismatch'] = -w.symbolMismatch;
 
   // 刷量惩罚：成交量高但交易人数极少
   const vol = c.volume24hUsd ?? 0;
@@ -65,11 +75,19 @@ export function rankCandidates(
     }
   }
 
+  const q = query.trim().toUpperCase();
+  const ctx: ScoreContext = { exactSymbolExists: [...deduped.values()].some((c) => c.symbol.toUpperCase() === q) };
+  // ticker 精确匹配是硬性第一档：$AGI 里所有 symbol=AGI 的候选永远排在 AGIX / AGIALPHA 前面，
+  // 不管后者流动性多大（其他 bot 出 AGIX 就是只按流动性排）。层内再按分数。
   const scored = [...deduped.values()]
-    .map((c) => scoreCandidate(c, query))
-    .sort((a, b) => b.score - a.score);
+    .map((c) => scoreCandidate(c, query, ctx))
+    .sort((a, b) => tier(b, q) - tier(a, q) || b.score - a.score);
 
   return limit === undefined ? scored : scored.slice(0, limit);
+}
+
+function tier(s: ScoredCandidate, q: string): number {
+  return s.candidate.symbol.toUpperCase() === q ? 1 : 0;
 }
 
 /**

@@ -52,7 +52,9 @@ export function renderScanCard(report: TokenReport): string {
 
   // ── 头部 ──
   // ✅ 链接到 CMC 收录（CMCP）说明；bold 里可以嵌链接，反过来不行
-  out.push(`${bold(p.symbol)}${p.officialVerified ? ` ${link('✅', CMC_LISTING_URL)}` : ''} · ${escapeHtml(p.name)}`);
+  // 原生币代理：链上数据来自封装代币，头部标明（NEAR ✅ · NEAR Protocol · via WNEAR）
+  const via = p.nativeProxy && p.nativeProxy.toUpperCase() !== p.symbol.toUpperCase() ? ` · <i>via ${escapeHtml(p.nativeProxy)}</i>` : '';
+  out.push(`${bold(p.symbol)}${p.officialVerified ? ` ${link('✅', CMC_LISTING_URL)}` : ''} · ${escapeHtml(p.name)}${via}`);
   const meta: string[] = [`${chainRegistry.emoji(p.networkSlug)} ${escapeHtml(chain.name)}`];
   const rank = report.core?.cmcRank ?? p.cmcRank;
   if (rank) meta.push(`🏅 #${rank}`);
@@ -74,7 +76,8 @@ export function renderScanCard(report: TokenReport): string {
 
   // 口径：MC 来自主 API（全链流通市值）；FDV 来自 DEX token 接口（本链 price × 总供应）。
   // 多链代币两者明显不一致时，各自标明口径。
-  const chainFdv = p.fdvUsd;
+  // 原生币代理时本链 FDV 是封装代币的（WNEAR 供应量 × 价格），没有意义，只用主 API 的全链 FDV
+  const chainFdv = p.nativeProxy ? undefined : p.fdvUsd;
   const coreFdv = report.core?.fdvUsd;
   // 刚收录的币主 API 常给 market_cap = 0，那是"未知"不是"零"
   const mcapRaw = report.core?.marketCapUsd ?? p.listingMarketCapUsd;
@@ -116,7 +119,10 @@ export function renderScanCard(report: TokenReport): string {
   const poolTotal = Math.max(p.poolCount ?? 0, report.pools.length);
   // 流动性与池子数都链到该代币的 DexScan 页（池子列表在那里）
   const dexscan = chainRegistry.dexscanUrl(p.networkSlug, p.address);
-  market.push(`${label('Liq')} ${link(formatUsdShort(p.liquidityUsd), dexscan)}${poolTotal > 0 ? ` total · ${link(String(poolTotal), dexscan)} pool${poolTotal === 1 ? '' : 's'}` : ''}`);
+  // 流动性 / 市值：有真实流通市值就按 MC，否则按 FDV（标签跟着口径走）；两者都没有就不显示
+  const liqBase = mcap !== undefined ? { v: mcap, k: 'MC' } : (chainFdv ?? coreFdv) ? { v: (chainFdv ?? coreFdv)!, k: 'FDV' } : undefined;
+  const liqRatio = p.liquidityUsd !== undefined && liqBase && liqBase.v > 0 ? ` (${pctShort((p.liquidityUsd / liqBase.v) * 100)} ${liqBase.k})` : '';
+  market.push(`${label('Liq')} ${link(formatUsdShort(p.liquidityUsd), dexscan)}${poolTotal > 0 ? ' total' : ''}${liqRatio}${poolTotal > 0 ? ` · ${link(String(poolTotal), dexscan)} pool${poolTotal === 1 ? '' : 's'}` : ''}`);
   out.push(...tree(market));
 
   // ── Pools ──（紧跟 Market 的 Liq）
@@ -160,8 +166,8 @@ export function renderScanCard(report: TokenReport): string {
   // ── Security ──
   const sec = report.security;
   if (sec) {
+    // securityLevel 不显示：'safe' 是常态没有信息量，非 safe 的情况下面逐项已经列出
     const head = [section('🛡', 'Security'), escapeHtml(sec.provider)];
-    if (sec.level) head.push(escapeHtml(sec.level));
     out.push('', head.join(' · '));
     out.push(...tree(renderSecurityRows(sec)));
   }
@@ -318,7 +324,7 @@ function renderPoolRows(pools: PoolInfo[], dexscanUrl: string): string[] {
  *   OI      $9.8B · 12 venues
  *   Top     Binance 60% · OKX 16% · Bybit 12%
  *   Vol     $38.2B (3.2× spot)
- *   Funding +0.0064%/8h · +7.0% APR · Binance
+ *   Funding +0.0064% (8h) · +7.0% APR · Binance
  *   Liq 24h $108M · L $22M / S $86M
  * 任何一项缺失整行省略；perp 与 liquidations 都缺时返回空数组，调用方不渲染区块头。
  */
@@ -331,8 +337,9 @@ function renderPerpRows(perp: PerpStats | undefined, liq: LiquidationStats | und
   }
   if (perp?.funding) {
     const f = perp.funding;
-    // 不能写 "/8h"：Telegram 会把 "/8h" 当成 bot 命令渲染成链接。参考所名字不显示，/perp 里有按所明细
-    rows.push(`${label('Funding')} ${fundingEmoji(f.rate8h)} ${formatFunding(f.rate8h)} (8h) · ${formatApr(f.apr)} APR`);
+    // 不能写 "/8h"：Telegram 会把 "/8h" 当成 bot 命令渲染成链接。
+    // 费率不是多所混合，是 OI 最大且报了费率的那一家，所以必须标明是哪家（/perp 里有按所明细）
+    rows.push(`${label('Funding')} ${fundingEmoji(f.rate8h)} ${formatFunding(f.rate8h)} (8h) · ${formatApr(f.apr)} APR · ${escapeHtml(f.venue)}`);
   }
   if (perp && perp.volume24hUsd > 0) {
     const ratio = formatRatio(perp.volume24hUsd, spotVolumeUsd);
@@ -373,7 +380,7 @@ function renderCallLine(c: NonNullable<TokenReport['call']>): string {
 
 /**
  * Spot 区块（标题带 "113 CEXs · 100+ pairs"）。一行一个指标：
- *   Vol     $229.3M 🔴 −53.7% 24h
+ *   Vol     $229.3M 🔴 (−53.7% 24h)
  *   Split   CEX $227.5M · DEX $1.8M · 99% CEX
  *   Top     Binance 25% · OKX 10% · Bybit 7%
  *   Premium Spot 🔴 -0.12%   （现货 / 合约 − 1）
@@ -386,7 +393,7 @@ function renderSpotRows(report: TokenReport, spot: SpotStats | undefined): strin
 
   if (core?.spotVolume24hUsd !== undefined && core.spotVolume24hUsd > 0) {
     const chg = core.volumeChange24hPct;
-    rows.push(`${label('Vol')} ${formatUsdShort(core.spotVolume24hUsd)}${chg !== undefined ? ` ${changeEmoji(chg)} ${formatPercent(chg)} 24h` : ''}`);
+    rows.push(`${label('Vol')} ${formatUsdShort(core.spotVolume24hUsd)}${chg !== undefined ? ` ${changeEmoji(chg)} (${formatPercent(chg)} 24h)` : ''}`);
   }
   const cexVol = core?.cexVolume24hUsd;
   const dexVol = core?.dexVolume24hUsd;

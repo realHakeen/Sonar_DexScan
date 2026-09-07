@@ -114,6 +114,7 @@ export async function runScanFlow(
           preferPair: input.pair,
           // 消息里还有 $TICKER：地址查不到先退到 ticker，池子反查放最后
           pairFallback: !input.fallbackQuery,
+          nativeCmcId: input.nativeCmcId,
         });
         const tracked = trackCall(ctx, report, opts);
         await renderReport(ctx, messageId, report, opts);
@@ -293,11 +294,16 @@ async function postMilestone(ctx: BotContext, report: TokenReport, tracked: Trac
   }
 }
 
-/** 第一名流动性 ≥ 第二名 10 倍，或第一名是官方收录而第二名不是。 */
+/**
+ * 第一名明显占优：原生币代理（$NEAR → NEAR Protocol），或官方收录且第二名不是，
+ * 或官方收录且 symbol 精确命中而第二名 symbol 不同（$AGI：Delysium 压过 AGIX），或流动性 ≥ 第二名 10 倍。
+ */
 function isDominant(candidates: ScoredCandidate[]): boolean {
   const [first, second] = candidates;
   if (!first || !second) return true;
+  if (first.candidate.nativeProxy) return true;
   if (first.candidate.officialVerified && !second.candidate.officialVerified) return true;
+  if (first.candidate.officialVerified && (first.breakdown['exactSymbol'] ?? 0) > 0 && !((second.breakdown['exactSymbol'] ?? 0) > 0)) return true;
   const a = first.candidate.liquidityUsd ?? 0;
   const b = second.candidate.liquidityUsd ?? 0;
   return b > 0 && a / b >= 10;

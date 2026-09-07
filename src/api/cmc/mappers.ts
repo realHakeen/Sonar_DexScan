@@ -84,10 +84,22 @@ function pickPercentChange24h(raw: RawRecord): number | undefined {
   return pickNumber(raw, 'quote.0.percent_change_price_24h', 'quote.USD.percent_change_24h', 'percent_change_price_24h', 'percent_change_24h');
 }
 
-function normalizeTwitter(v: string | undefined): string | undefined {
+/**
+ * 上游的 web / tw / tg 字段偶尔把多个链接用逗号（或空白）拼在一个字符串里
+ * （cate.meme 的 web = "https://cate.meme/,https://academy.cate.meme"），Telegram 会把整串当一个 URL。
+ * 只取第一个非空片段。
+ */
+export function firstUrl(v: string | undefined): string | undefined {
   if (!v) return undefined;
-  if (v.startsWith('http')) return v;
-  return `https://x.com/${v.replace(/^@/, '')}`;
+  const first = v.split(/[,\s]+/).find((x) => x !== '');
+  return first || undefined;
+}
+
+function normalizeTwitter(v: string | undefined): string | undefined {
+  const first = firstUrl(v);
+  if (!first) return undefined;
+  if (first.startsWith('http')) return first;
+  return `https://x.com/${first.replace(/^@/, '')}`;
 }
 
 /** 税率可能是 0.05（小数）也可能是 5（百分比），统一成百分比。 */
@@ -120,7 +132,7 @@ export function toTokenCandidate(raw: RawRecord): TokenCandidate | null {
     platformCryptoId: pickNumber(raw, 'plti', 'pcid'),
     address,
     logo: pickString(raw, 'l', 'lg', 'logo'),
-    website: pickString(raw, 'w', 'web', 'website'),
+    website: firstUrl(pickString(raw, 'w', 'web', 'website')),
     twitter: normalizeTwitter(pickString(raw, 'x', 'tw', 'twitter')),
     priceUsd: pickNumber(raw, 'pu', 'p', 'quote.0.price', 'quote.USD.price', 'price'),
     priceChange24hPct: pickPercentChange24h(raw),
@@ -159,7 +171,7 @@ export function toTokenDetail(raw: RawRecord): { candidate: TokenCandidate; pool
 
   const candidate: TokenCandidate = {
     ...base,
-    telegram: pickString(raw, 'tg'),
+    telegram: firstUrl(pickString(raw, 'tg')),
     listingMarketCapUsd: pickNumber(raw, 'lmc'),
     circulatingSupply: pickNumber(raw, 'cs', 'ltcs'),
     holdersCount: holders && holders > 0 ? holders : undefined,

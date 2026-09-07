@@ -31,6 +31,8 @@ export interface CallbackPayload {
   address?: string;
   /** 仅用于占位文案（"Scanning TRIA · BNB Chain…"），可选；放不下 64 字节时会被丢弃。 */
   symbol?: string;
+  /** 原生币代理卡片（$NEAR → wrap.near）：重扫时身份仍按这个原生币 cid。 */
+  native?: number;
 }
 
 const store = new TtlCache<CallbackPayload>(CALLBACK_TOKEN_TTL_MS, 20_000);
@@ -60,10 +62,13 @@ const CODE_ACTION = Object.fromEntries(
  */
 export function encodeCallback(payload: CallbackPayload): string {
   const base = `${ACTION_CODE[payload.action]}|${payload.networkSlug ?? ''}|${payload.address ?? ''}`;
-  // symbol 是锦上添花：能塞下就带上，塞不下就退回不带 symbol 的内联形式
-  const withSymbol = payload.symbol ? `${base}|${payload.symbol}` : base;
+  // 第 5 段是原生币 cid，它决定卡片身份，不能丢；symbol 只是占位文案，塞不下就先丢 symbol
+  const native = payload.native !== undefined ? `|${payload.native}` : '';
+  const withSymbol = payload.symbol || native ? `${base}|${payload.symbol ?? ''}${native}` : base;
   if (Buffer.byteLength(withSymbol, 'utf8') <= MAX_BYTES) return withSymbol;
-  if (Buffer.byteLength(base, 'utf8') <= MAX_BYTES) return base;
+  const withoutSymbol = `${base}|${native}`;
+  if (native && Buffer.byteLength(withoutSymbol, 'utf8') <= MAX_BYTES) return withoutSymbol;
+  if (!native && Buffer.byteLength(base, 'utf8') <= MAX_BYTES) return base;
 
   const token = `t|${randomBytes(8).toString('base64url')}`;
   store.set(token, payload);
@@ -73,7 +78,7 @@ export function encodeCallback(payload: CallbackPayload): string {
 export function decodeCallback(data: string): CallbackPayload | null {
   if (data.startsWith('t|')) return store.get(data) ?? null;
 
-  const [code, slug, address, symbol] = data.split('|');
+  const [code, slug, address, symbol, native] = data.split('|');
   const action = code ? CODE_ACTION[code] : undefined;
   if (!action) return null;
 
@@ -82,5 +87,6 @@ export function decodeCallback(data: string): CallbackPayload | null {
     networkSlug: slug || undefined,
     address: address || undefined,
     symbol: symbol || undefined,
+    ...(native && /^\d+$/.test(native) ? { native: Number(native) } : {}),
   };
 }

@@ -72,6 +72,12 @@ export interface TokenCandidate {
   officialVerified?: boolean;
   /** CMC 排名（本地索引或主 API）。 */
   cmcRank?: number;
+  /**
+   * 原生币代理：symbol / name / cmcId / cmcRank 是原生币（NEAR / TAO / AVAX）的，
+   * 链上数据（地址、池子、成交）来自它的封装 / 桥接代币，这里记该代币的 symbol（WNEAR / WTAO / WAVAX）。
+   * 设了这个字段，scanService 合并 tokenDetail 时不覆盖身份字段。
+   */
+  nativeProxy?: string;
   raw: RawRecord;
 }
 

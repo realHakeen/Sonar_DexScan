@@ -5,6 +5,7 @@ import { renderWatchlistShare } from '../../render/portfolio.js';
 import { chainRegistry } from '../../domain/chains.js';
 import { isGroup, type BotContext } from '../context.js';
 import { cachedSnapshot, runScanFlow } from './scanFlow.js';
+import { isNativeCoin } from '../../domain/nativeProxy.js';
 
 const HTML = { parse_mode: 'HTML' as const, link_preview_options: { is_disabled: true } };
 const UNAVAILABLE = '⭐ Watchlist is unavailable right now (storage not configured).';
@@ -116,7 +117,11 @@ export async function handlePortfolioCallback(
       return;
     }
     await ctx.answerCbQuery('Scanning…');
-    await runScanFlow(ctx, { kind: 'address', address: loc.address, chainSlug: loc.networkSlug, source: 'raw' }, { trigger: 'watchlist' });
+    // 收藏的是原生币代理（NEAR @ wrap.near，cid 6535）：重扫时身份仍按原生币
+    const entry = svc.list(userId).find((e) => e.address.toLowerCase() === loc.address!.toLowerCase() && (!loc.networkSlug || e.networkSlug === loc.networkSlug));
+    const hit = entry?.cmcId !== undefined ? ctx.services.index.byCmcId(entry.cmcId) : undefined;
+    const nativeCmcId = hit && isNativeCoin(hit) ? hit.cmcId : undefined;
+    await runScanFlow(ctx, { kind: 'address', address: loc.address, chainSlug: loc.networkSlug, source: 'raw', nativeCmcId }, { trigger: 'watchlist' });
     return;
   }
   if (action === 'port_del') {

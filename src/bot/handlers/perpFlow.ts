@@ -14,6 +14,8 @@ export interface PerpOrigin {
   networkSlug?: string;
   address: string;
   symbol?: string;
+  /** 原生币代理卡片：Back / Refresh 回到扫描卡时身份仍按这个 cid。 */
+  native?: number;
 }
 
 export interface PerpFlowInput {
@@ -114,7 +116,7 @@ function perpKeyboard(cmcId: number, symbol: string, origin?: PerpOrigin): Marku
   const refresh = Markup.button.callback(
     '🔄 Refresh',
     origin
-      ? encodeCallback({ action: 'perp_refresh', networkSlug: origin.networkSlug, address: origin.address, symbol })
+      ? encodeCallback({ action: 'perp_refresh', networkSlug: origin.networkSlug, address: origin.address, symbol, native: origin.native })
       : encodeCallback({ action: 'perp_refresh', address: String(cmcId), symbol }),
   );
   return Markup.inlineKeyboard([origin ? [refresh, backButton(origin)] : [refresh]]);
@@ -125,7 +127,7 @@ function backOnlyKeyboard(origin: PerpOrigin): Markup.Markup<InlineKeyboardMarku
 }
 
 function backButton(origin: PerpOrigin) {
-  return Markup.button.callback('◀ Back to report', encodeCallback({ action: 'back', networkSlug: origin.networkSlug, address: origin.address, symbol: origin.symbol }));
+  return Markup.button.callback('◀ Back to report', encodeCallback({ action: 'back', networkSlug: origin.networkSlug, address: origin.address, symbol: origin.symbol, native: origin.native }));
 }
 
 function perpCandidateKeyboard(hits: Array<{ cmcId: number; symbol: string; name: string; rank?: number }>): Markup.Markup<InlineKeyboardMarkup> {

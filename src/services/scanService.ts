@@ -9,6 +9,7 @@ import { concentrationFromHolders, tagDistributionFromHolders } from '../domain/
 import { splitByChain } from '../domain/ranking.js';
 import { evaluateRisks } from '../domain/risk.js';
 import { markOfficialContracts } from '../domain/verification.js';
+import { isNativeCoin, proxyCandidate } from '../domain/nativeProxy.js';
 import type { CoreMarketData, LiquidationStats, PerpStats, PoolInfo, SpotStats, TokenCandidate, TokenReport } from '../domain/types.js';
 
 const log = createLogger('scanService');
@@ -20,6 +21,11 @@ export interface ScanOptions {
   preferPair?: boolean;
   /** 找不到代币时是否尝试按池子反查（默认是）。消息里还有 $TICKER 可退时先关掉，池子的 base 资产常是报价币那一边（ZCAT/ZEC 池会解析成 ZEC）。 */
   pairFallback?: boolean;
+  /**
+   * 原生币代理（$NEAR → wrap.near）的卡片按钮 Refresh / 切链 / Watchlist 重扫时带回来的原生币 cid，
+   * 身份仍按 NEAR Protocol 而不是 WNEAR。直接贴地址不带这个：WBTC 就是 WBTC。
+   */
+  nativeCmcId?: number;
 }
 
 /** search 漏索引或挂掉时，对无链提示的 EVM 地址并行探测这些链（按 DEX 活跃度排序）。 */
@@ -61,7 +67,7 @@ export class ScanService {
     if (opts.preferPair) {
       const chain = opts.chainSlug ?? detection.slug;
       const token = chain ? await this.resolvePairToken(chain, address) : undefined;
-      if (token) return this.scanByAddress(token.address, { chainSlug: token.networkSlug });
+      if (token) return this.scanByAddress(token.address, { chainSlug: token.networkSlug, nativeCmcId: opts.nativeCmcId });
       // 反查不到就当普通地址继续（DexScreener 偶尔也给代币地址）
     }
 
@@ -117,7 +123,7 @@ export class ScanService {
 
     // 流动性恰好为 0 的同地址部署是索引噪音；$2 这种残留池恰恰是 PRD 要提示的
     const meaningful = secondary.filter((c) => (c.liquidityUsd ?? 0) > 0);
-    return this.buildReport(primary, meaningful.slice(0, SECONDARY_CHAIN_HINT_LIMIT));
+    return this.buildReport(primary, meaningful.slice(0, SECONDARY_CHAIN_HINT_LIMIT), { nativeCmcId: opts.nativeCmcId });
   }
 
   /**
@@ -136,8 +142,8 @@ export class ScanService {
     return { address: c.address, networkSlug: c.networkSlug || networkSlug };
   }
 
-  async scanByLocator(loc: { networkSlug: string; address: string }): Promise<TokenReport> {
-    return this.scanByAddress(loc.address, { chainSlug: loc.networkSlug });
+  async scanByLocator(loc: { networkSlug: string; address: string; nativeCmcId?: number }): Promise<TokenReport> {
+    return this.scanByAddress(loc.address, { chainSlug: loc.networkSlug, nativeCmcId: loc.nativeCmcId });
   }
 
   /**
@@ -165,7 +171,15 @@ export class ScanService {
    * 每次扫描 5 个并发请求（token / security / trend / tag_count / core），有 cid 再加 3 个（spot pairs / perp / liquidations），
    * 失败项降级不影响整卡。
    */
-  async buildReport(primary: TokenCandidate, secondary: TokenCandidate[]): Promise<TokenReport> {
+  async buildReport(primary: TokenCandidate, secondary: TokenCandidate[], opts: { nativeCmcId?: number } = {}): Promise<TokenReport> {
+    // 原生币卡片的按钮按地址重扫（Refresh / 切链 / Watchlist）：按钮带回原生币 cid，身份继续按 NEAR Protocol 而不是 WNEAR
+    if (!primary.nativeProxy && opts.nativeCmcId !== undefined) {
+      const native = this.index?.byCmcId(opts.nativeCmcId);
+      if (native && isNativeCoin(native)) {
+        primary = proxyCandidate(primary, native);
+        log.info('native coin proxied via wrapped token', { native: native.symbol, via: primary.nativeProxy, chain: primary.networkSlug });
+      }
+    }
     const loc = locatorOf(primary);
     const degraded: string[] = [];
     const startedAt = Date.now();
@@ -188,6 +202,21 @@ export class ScanService {
 
     // tokenDetail 字段比 search 全，用它覆盖 —— 但链身份除外：
     // tokenDetail.plt 是长名（"Robinhood Chain" / "BNB Smart Chain (BEP20)"），search.plt 才是短名，且所有 v1 请求都是用它发的
+    // 原生币代理（$NEAR → wrap.near）：身份字段按原生币，不让 tokenDetail 的 WNEAR / cid 11808 覆盖回去
+    const identity: Partial<TokenCandidate> = primary.nativeProxy
+      ? {
+          symbol: primary.symbol,
+          name: primary.name,
+          cmcId: primary.cmcId,
+          cmcRank: primary.cmcRank,
+          officialVerified: primary.officialVerified,
+          nativeProxy: primary.nativeProxy,
+          listingMarketCapUsd: undefined,
+          circulatingSupply: undefined,
+          cexListings: undefined,
+          listedAt: undefined,
+        }
+      : {};
     let merged: TokenCandidate = detail
       ? {
           ...primary,
@@ -196,6 +225,7 @@ export class ScanService {
           platform: primary.platform ?? detail.candidate.platform,
           networkId: primary.networkId ?? detail.candidate.networkId,
           raw: detail.candidate.raw,
+          ...identity,
         }
       : primary;
     const pools: PoolInfo[] = detail?.pools ?? [];

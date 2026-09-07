@@ -191,3 +191,12 @@ test('asArray：{data:{tks}} / {holders} / 裸数组', () => {
 test('缺少地址或链的记录被丢弃', () => {
   assert.equal(toTokenCandidate({ n: 'X', s: 'X' }), null);
 });
+
+test('web / tg 字段多个链接用逗号拼在一起时只取第一个（cate.meme）', () => {
+  const c = toTokenCandidate({ plt: 'Solana', n: 'CATE', s: 'CATE', addr: 'Ai66', web: 'https://cate.meme/,https://academy.cate.meme', x: '@cate' });
+  assert.equal(c?.website, 'https://cate.meme/');
+  assert.equal(c?.twitter, 'https://x.com/cate');
+  const d = toTokenDetail({ plt: 'Solana', n: 'CATE', sym: 'CATE', addr: 'Ai66', tg: 'https://t.me/a, https://t.me/b', tw: 'https://x.com/a,https://x.com/b' });
+  assert.equal(d?.candidate.telegram, 'https://t.me/a');
+  assert.equal(d?.candidate.twitter, 'https://x.com/a');
+});

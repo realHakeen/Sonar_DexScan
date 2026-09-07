@@ -35,7 +35,8 @@ export function renderPerpCard(v: PerpView): string {
     const cexOi = p.venues.filter((x) => x.kind === 'cex').reduce((s, x) => s + x.openInterestUsd, 0);
     const dexOi = p.openInterestUsd - cexOi;
     if (cexOi > 0 && dexOi > 0) rows.push(`${label('CEX/DEX')} ${formatUsdShort(cexOi)} / ${formatUsdShort(dexOi)} OI`);
-    if (p.funding) rows.push(`${label('Funding')} ${fundingEmoji(p.funding.rate8h)} ${formatFunding(p.funding.rate8h)} (8h) · ${formatApr(p.funding.apr)} APR`);
+    // 单所费率（OI 最大且报了费率的那家），不是混合值，标明来源
+    if (p.funding) rows.push(`${label('Funding')} ${fundingEmoji(p.funding.rate8h)} ${formatFunding(p.funding.rate8h)} (8h) · ${formatApr(p.funding.apr)} APR · ${escapeHtml(p.funding.venue)}`);
     out.push(...tree(rows));
 
     // ── 按所 ──

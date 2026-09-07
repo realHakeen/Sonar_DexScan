@@ -64,7 +64,7 @@ test('无 perp 也无 liquidations 时不出 Perps 区块；只有爆仓也能�
   assert.match(html, /⚡ <b><u>Perps<\/u><\/b>\n└ <code>Liq 24h<\/code> \$2K · 🔴 63% long/);
 });
 
-test('1h 制费率已折算 8h，不再显示交易所与 native 周期', () => {
+test('1h 制费率已折算 8h，标明来源所，不显示 native 周期', () => {
   const html = renderScanCard(
     baseReport({
       perp: {
@@ -76,8 +76,9 @@ test('1h 制费率已折算 8h，不再显示交易所与 native 周期', () => 
       },
     }),
   );
-  assert.match(html, /Funding<\/code> 🔴 \+0\.0100% \(8h\) · \+10\.9% APR/);
-  assert.doesNotMatch(html, /Hyperliquid|native/);
+  // 费率是单所值（OI 最大且报费率的那家），不是混合值，所以必须标明是哪家
+  assert.match(html, /Funding<\/code> 🔴 \+0\.0100% \(8h\) · \+10\.9% APR · Hyperliquid/);
+  assert.doesNotMatch(html, /native/);
   assert.doesNotMatch(html, /Top\s*<\/code>/);
 });
 
@@ -172,7 +173,7 @@ test('Spot 区块：标题带 CEX 数，Vol 变化 / Split / Top / Premium，位
       perp: { openInterestUsd: 1e6, volume24hUsd: 0, totalPairs: 1, countedPairs: 1, basis: 0.0012, venues: [{ slug: 'binance', name: 'Binance', kind: 'cex', openInterestUsd: 1e6, volume24hUsd: 0, fundingIntervalH: 8, basis: 0.0012 }] },
     }),
   );
-  assert.match(html, /🏦 <b><u>Spot<\/u><\/b>  3 CEXs · 100\+ pairs\n├ <code>Vol    <\/code> \$229\.3M 🔴 -53\.68% 24h\n├ <code>Split  <\/code> CEX \$227\.5M · DEX \$1\.8M · 99% CEX\n├ <code>Top    <\/code> Binance 50% · OKX 20% · Gate 16%\n└ <code>Premium<\/code> Spot 🔴 -0\.12%/); // 合约基差 +0.12% → 现货折价 0.12%
+  assert.match(html, /🏦 <b><u>Spot<\/u><\/b>  3 CEXs · 100\+ pairs\n├ <code>Vol    <\/code> \$229\.3M 🔴 \(-53\.68% 24h\)\n├ <code>Split  <\/code> CEX \$227\.5M · DEX \$1\.8M · 99% CEX\n├ <code>Top    <\/code> Binance 50% · OKX 20% · Gate 16%\n└ <code>Premium<\/code> Spot 🔴 -0\.12%/); // 合约基差 +0.12% → 现货折价 0.12%
   assert.match(html, /\n\n<code>─{24}<\/code>\n\n🏦 <b><u>Spot/, 'CEX 分隔线在 Spot 之前');
   assert.doesNotMatch(html, /^🏦 \d+ CEXs/m); // 旧头部的 CEX 行已并入 Spot 区块
   const order = ['<u>Holders</u>', '<u>Spot</u>', '<u>Perps</u>'].map((h) => html.indexOf(h));
@@ -206,4 +207,36 @@ test('Holders 一行数据都没有时整段省略', () => {
   assert.doesNotMatch(html, /Holders/);
   const withTotal = renderScanCard(baseReport({ holders: { totalHolders: 3 } }));
   assert.match(withTotal, /👥 <b><u>Holders<\/u><\/b>  3/);
+});
+
+test('Liq 行带流动性 / 市值占比：有 MC 按 MC，只有 FDV 按 FDV，都没有不显示', () => {
+  const withMc = renderScanCard(baseReport({ primary: { ...baseReport().primary, liquidityUsd: 2.2e6, poolCount: 7 }, core: { cmcId: 1027, categories: [], marketCapUsd: 26e6 } }));
+  assert.match(withMc, /Liq\s*<\/code> <a [^>]+>\$2\.2M<\/a> total \(8\.5% MC\) · <a [^>]+>7<\/a> pools/);
+  const fdvOnly = renderScanCard(baseReport({ primary: { ...baseReport().primary, liquidityUsd: 2.2e6, fdvUsd: 10e6 } }));
+  assert.match(fdvOnly, /Liq\s*<\/code> <a [^>]+>\$2\.2M<\/a> \(22% FDV\)/);
+  const none = renderScanCard(baseReport({ primary: { ...baseReport().primary, liquidityUsd: 2.2e6 } }));
+  assert.match(none, /Liq\s*<\/code> <a [^>]+>\$2\.2M<\/a>$/);
+});
+
+test('原生币代理：头部标 via WNEAR，本链 FDV（封装供应量）不显示，只用主 API 的 FDV', () => {
+  const html = renderScanCard(
+    baseReport({
+      primary: { ...baseReport().primary, cmcId: 6535, symbol: 'NEAR', name: 'NEAR Protocol', networkSlug: 'near', address: 'wrap.near', officialVerified: true, nativeProxy: 'WNEAR', fdvUsd: 58e6, liquidityUsd: 134e6 },
+      core: { cmcId: 6535, categories: [], marketCapUsd: 3.1e9, fdvUsd: 3.1e9, cmcRank: 30 },
+    }),
+  );
+  assert.match(html, /<b>NEAR<\/b> <a [^>]+>✅<\/a> · NEAR Protocol · <i>via WNEAR<\/i>/);
+  assert.match(html, /🏅 #30/);
+  assert.match(html, /FDV\s*<\/code> \$3\.1B\n/);
+  assert.doesNotMatch(html, /\$58\.0M|all chains/);
+  assert.match(html, /Liq\s*<\/code> <a [^>]+>\$134\.0M<\/a> \(4\.3% MC\)/);
+  // 代表与原生币 symbol 相同（Solana 上的桥接 TAO）时不写 via
+  const same = renderScanCard(baseReport({ primary: { ...baseReport().primary, symbol: 'TAO', name: 'Bittensor', nativeProxy: 'TAO' } }));
+  assert.doesNotMatch(same, /via/);
+});
+
+test('Security 标题只带来源，不带 securityLevel（safe 没信息量）', () => {
+  const html = renderScanCard(baseReport({ security: { provider: 'W3W', level: 'safe', buyTaxPct: 0, sellTaxPct: 0, items: [] } as never }));
+  assert.match(html, /🛡 <b><u>Security<\/u><\/b> · W3W\n/);
+  assert.doesNotMatch(html, /safe/);
 });

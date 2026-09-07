@@ -43,3 +43,17 @@ test('perp 系列动作往返：address 字段承载 cid，多字符动作码可
     assert.deepEqual(decodeCallback(data), { action, networkSlug: undefined, address: '24478', symbol: 'PEPE' });
   }
 });
+
+test('原生币 cid 作为第 5 段往返；塞不下时先丢 symbol 保 cid', () => {
+  const data = encodeCallback({ action: 'refresh', networkSlug: 'near', address: 'wrap.near', native: 6535 });
+  assert.equal(data, 'r|near|wrap.near||6535');
+  assert.deepEqual(decodeCallback(data), { action: 'refresh', networkSlug: 'near', address: 'wrap.near', symbol: undefined, native: 6535 });
+  const withSym = encodeCallback({ action: 'perp', networkSlug: 'avalanche', address: '0x' + 'b'.repeat(40), symbol: 'AVAX', native: 5805 });
+  assert.deepEqual(decodeCallback(withSym), { action: 'perp', networkSlug: 'avalanche', address: '0x' + 'b'.repeat(40), symbol: 'AVAX', native: 5805 });
+  const tight = encodeCallback({ action: 'scan', networkSlug: 'solana', address: 'So11111111111111111111111111111111111111112', symbol: 'WRAPPEDSOL', native: 5426 });
+  assert.ok(Buffer.byteLength(tight) <= 64);
+  assert.equal(decodeCallback(tight)?.native, 5426);
+  assert.equal(decodeCallback(tight)?.symbol, undefined);
+  // 没有 native 的老格式不变
+  assert.equal(encodeCallback({ action: 'refresh', networkSlug: 'bnb', address: '0xabc' }), 'r|bnb|0xabc');
+});

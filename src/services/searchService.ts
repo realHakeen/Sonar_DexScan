@@ -7,6 +7,7 @@ import type { CoinIndex } from '../domain/coinIndex.js';
 import { rankCandidates, type ScoredCandidate } from '../domain/ranking.js';
 import type { TokenCandidate } from '../domain/types.js';
 import { markOfficialContracts } from '../domain/verification.js';
+import { isNativeCoin, proxyNativeCoin } from '../domain/nativeProxy.js';
 
 const log = createLogger('searchService');
 
@@ -31,11 +32,22 @@ export class SearchService {
       this.resolveFromIndex(query),
     ]);
 
-    const pool = [...indexed, ...relevance, ...byLiquidity];
+    let pool = [...indexed, ...relevance, ...byLiquidity];
     if (pool.length === 0) throw new NotFoundError(query);
 
-    const verified = await markOfficialContracts(this.cmc.core, pool, this.index);
-    const ranked = rankCandidates(verified, query, limit);
+    pool = await markOfficialContracts(this.cmc.core, pool, this.index);
+
+    // $NEAR / $TAO / $AVAX：查询词精确命中原生币 → 用流动性最高的封装 / 桥接代币当链上数据源，身份按原生币
+    const native = this.index.isLoaded ? this.index.lookup(query, 1, { includeNative: true })[0] : undefined;
+    if (native && isNativeCoin(native)) {
+      const proxied = proxyNativeCoin(pool, native, this.index);
+      if (proxied) {
+        pool = proxied.pool;
+        log.info('native coin proxied via wrapped token', { query, native: native.symbol, via: proxied.proxy.nativeProxy, chain: proxied.proxy.networkSlug });
+      }
+    }
+
+    const ranked = rankCandidates(pool, query, limit);
 
     log.debug('search re-ranked', {
       query,

@@ -10,18 +10,20 @@ import { formatUsd } from './format.js';
 export function scanCardKeyboard(report: TokenReport, portfolioEnabled = true): Markup.Markup<InlineKeyboardMarkup> {
   const p = report.primary;
   const rows: InlineKeyboardButton[][] = [];
+  // 原生币代理卡片：按钮带上原生币 cid，重扫后身份仍是 NEAR Protocol 而不是 WNEAR
+  const native = p.nativeProxy ? p.cmcId : undefined;
 
   const first: InlineKeyboardButton[] = [
-    Markup.button.callback('🔄 Refresh', encodeCallback({ action: 'refresh', networkSlug: p.networkSlug, address: p.address })),
+    Markup.button.callback('🔄 Refresh', encodeCallback({ action: 'refresh', networkSlug: p.networkSlug, address: p.address, native })),
     Markup.button.url('📈 Trade', chainRegistry.dexscanUrl(p.networkSlug, p.address)),
   ];
   // 有合约数据的币给一个展开按钮，原地切到 /perp 视图；带代币定位，视图里的 Back 用它回来
   if (report.perp && p.cmcId) {
-    first.push(Markup.button.callback('⚡ Perps', encodeCallback({ action: 'perp', networkSlug: p.networkSlug, address: p.address, symbol: p.symbol })));
+    first.push(Markup.button.callback('⚡ Perps', encodeCallback({ action: 'perp', networkSlug: p.networkSlug, address: p.address, symbol: p.symbol, native })));
   }
   rows.push(first);
   if (portfolioEnabled) {
-    rows.push([Markup.button.callback('⭐ Watchlist', encodeCallback({ action: 'port_add', networkSlug: p.networkSlug, address: p.address, symbol: p.symbol }))]);
+    rows.push([Markup.button.callback('⭐ Watchlist', encodeCallback({ action: 'port_add', networkSlug: p.networkSlug, address: p.address, symbol: p.symbol, native }))]);
   }
 
   // PRD F1 第 5 步：提供 inline button 供用户切链
@@ -45,7 +47,7 @@ export function candidateKeyboard(
   const rows = candidates.map(({ candidate: c }) => [
     Markup.button.callback(
       `${c.officialVerified ? '✅ ' : ''}${c.symbol} · ${chainRegistry.displayName(c.networkSlug)} · ${formatUsd(c.liquidityUsd)}`,
-      encodeCallback({ action: 'scan', networkSlug: c.networkSlug, address: c.address, symbol: c.symbol }),
+      encodeCallback({ action: 'scan', networkSlug: c.networkSlug, address: c.address, symbol: c.symbol, native: c.nativeProxy ? c.cmcId : undefined }),
     ),
   ]);
   return Markup.inlineKeyboard(rows);

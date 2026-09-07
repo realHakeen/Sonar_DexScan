@@ -3,7 +3,7 @@ import { looksLikeAddress } from './detectChain.js';
 
 export type ParsedInput =
   /** pair = 链接里是池子地址（DexScreener / GeckoTerminal），扫描前先反查代币。 */
-  | { kind: 'address'; address: string; chainSlug?: string; source: 'raw' | 'link'; pair?: boolean; /** 同一条消息里的 cashtag：地址查不到时退到它 */ fallbackQuery?: string }
+  | { kind: 'address'; address: string; chainSlug?: string; source: 'raw' | 'link'; pair?: boolean; /** 同一条消息里的 cashtag：地址查不到时退到它 */ fallbackQuery?: string; /** 原生币卡片的按钮重扫：身份按这个原生币（见 ScanOptions.nativeCmcId） */ nativeCmcId?: number }
   /** explicit = 用户用 $TICKER 形式明确要查（群里允许触发） */
   | { kind: 'query'; query: string; explicit?: boolean }
   | { kind: 'none' };

@@ -24,7 +24,7 @@ callbackHandlers.on('callback_query', async (ctx) => {
     return;
   }
 
-  const { action, networkSlug, address, symbol } = payload;
+  const { action, networkSlug, address, symbol, native } = payload;
 
   // portfolio 系列：port_refresh 没有 address，要在通用的 address 检查之前处理
   if (action === 'port_add') {
@@ -72,7 +72,7 @@ callbackHandlers.on('callback_query', async (ctx) => {
     // 从卡片进来的：优先用卡片缓存里的 cid（桥接资产按地址反查不到 cid，例如 zec.omft.near）
     const snap = chatId !== undefined ? cachedSnapshot(chatId, messageId) : undefined;
     const snapCid = snap && snap.address.toLowerCase() === address.toLowerCase() ? snap.cmcId : undefined;
-    const input = isCid ? { cmcId: Number(address) } : { cmcId: snapCid, origin: { networkSlug, address, symbol } };
+    const input = isCid ? { cmcId: Number(address) } : { cmcId: snapCid, origin: { networkSlug, address, symbol, native } };
     ctx.log.info('callback', { action, messageId, ...(isCid ? { cmcId: Number(address) } : { address }) });
     // 从卡片打开与视图内刷新都只换按钮、正文不动；候选选择才整条替换
     await runPerpFlow(ctx, input, {
@@ -103,7 +103,7 @@ callbackHandlers.on('callback_query', async (ctx) => {
     ctx.log.info('callback', { action, messageId, address, cacheMiss: true });
     await runScanFlow(
       ctx,
-      { kind: 'address', address, chainSlug: networkSlug, source: 'raw' },
+      { kind: 'address', address, chainSlug: networkSlug, source: 'raw', nativeCmcId: native },
       { editMessageId: messageId, busyMode: 'replace', busyLabel: symbol ?? shortenAddress(address), trigger: 'back' },
     );
     return;
@@ -122,7 +122,7 @@ callbackHandlers.on('callback_query', async (ctx) => {
   const subject = symbol ?? shortenAddress(address);
   await runScanFlow(
     ctx,
-    { kind: 'address', address, chainSlug: networkSlug, source: 'raw' },
+    { kind: 'address', address, chainSlug: networkSlug, source: 'raw', nativeCmcId: native },
     // 原地编辑。刷新保留旧卡片只换按钮；选候选 / 切链则先把消息替换成「Scanning …」
     {
       editMessageId: messageId,
