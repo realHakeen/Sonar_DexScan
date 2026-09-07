@@ -218,25 +218,23 @@ test('Liq 行带流动性 / 市值占比：有 MC 按 MC，只有 FDV 按 FDV，
   assert.match(none, /Liq\s*<\/code> <a [^>]+>\$2\.2M<\/a>$/);
 });
 
-test('原生币代理：头部标 via WNEAR，本链 FDV（封装供应量）不显示，只用主 API 的 FDV', () => {
+test('币层 + 部署层：头部是币，第二行排名 / 赛道，第三行链 · 部署 symbol · 上线时长；FDV 两行都显示并标部署 symbol', () => {
   const html = renderScanCard(
     baseReport({
-      primary: { ...baseReport().primary, cmcId: 6535, symbol: 'NEAR', name: 'NEAR Protocol', networkSlug: 'near', address: 'wrap.near', officialVerified: true, nativeProxy: 'WNEAR', fdvUsd: 58e6, liquidityUsd: 134e6 },
-      core: { cmcId: 6535, categories: [], marketCapUsd: 3.1e9, fdvUsd: 3.1e9, cmcRank: 30 },
+      primary: { ...baseReport().primary, cmcId: 22974, symbol: 'WTAO', name: 'Wrapped TAO', networkSlug: 'ethereum', address: '0x77e06c9eccf2e797fd462a92b6d7642ef85b0a44', officialVerified: true, coin: { cmcId: 22974, symbol: 'TAO', name: 'Bittensor', rank: 31 }, fdvUsd: 30.6e6, liquidityUsd: 4.1e6, listedAt: Date.now() - 400 * 86400e3 },
+      core: { cmcId: 22974, categories: ['AI & Big Data', 'Bittensor Ecosystem'], marketCapUsd: 3.0e9, fdvUsd: 3.1e9, cmcRank: 31 },
     }),
   );
-  assert.match(html, /<b>NEAR<\/b> <a [^>]+>✅<\/a> · NEAR Protocol · <i>via WNEAR<\/i>/);
-  assert.match(html, /🏅 #30/);
-  assert.match(html, /FDV\s*<\/code> \$3\.1B\n/);
-  assert.doesNotMatch(html, /\$58\.0M|all chains/);
-  assert.match(html, /Liq\s*<\/code> <a [^>]+>\$134\.0M<\/a> \(4\.3% MC\)/);
-  // 代表与原生币 symbol 相同（Solana 上的桥接 TAO）时不写 via
-  const same = renderScanCard(baseReport({ primary: { ...baseReport().primary, symbol: 'TAO', name: 'Bittensor', nativeProxy: 'TAO' } }));
-  assert.doesNotMatch(same, /via/);
-});
-
-test('Security 标题只带来源，不带 securityLevel（safe 没信息量）', () => {
-  const html = renderScanCard(baseReport({ security: { provider: 'W3W', level: 'safe', buyTaxPct: 0, sellTaxPct: 0, items: [] } as never }));
-  assert.match(html, /🛡 <b><u>Security<\/u><\/b> · W3W\n/);
-  assert.doesNotMatch(html, /safe/);
+  assert.match(html, /^<b>TAO<\/b> <a [^>]+>✅<\/a> · Bittensor\n🏅 #31 · 🏷 AI &amp; Big Data \/ Bittensor\n🔷 Ethereum · WTAO \(Wrapped TAO\) · 🕐 1\.1y\n/);
+  assert.match(html, /MC\s*<\/code> \$3\.0B all chains/);
+  assert.match(html, /FDV\s*<\/code> \$3\.1B all chains\n├ <code>FDV\s*<\/code> \$30\.6M Ethereum · WTAO\n/);
+  assert.doesNotMatch(html, /via/);
+  assert.match(html, /Liq\s*<\/code> <a [^>]+>\$4\.1M<\/a> \(0\.1% MC\)/);
+  // 部署 symbol 与币相同（Solana 上的桥接 TAO）：第三行只有链和时长，FDV 行不带 symbol
+  const same = renderScanCard(baseReport({ primary: { ...baseReport().primary, symbol: 'TAO', name: 'Bittensor', networkSlug: 'solana', coin: { cmcId: 22974, symbol: 'TAO', name: 'Bittensor', rank: 31 }, fdvUsd: 1e6 }, core: { cmcId: 22974, categories: [], fdvUsd: 3.1e9, cmcRank: 31 } }));
+  assert.match(same, /^<b>TAO<\/b> · Bittensor\n🏅 #31\n[^\n]*Solana\n/);
+  assert.match(same, /FDV\s*<\/code> \$1\.0M Solana\n/);
+  // 普通代币排版不变
+  const plain = renderScanCard(baseReport({ core: { cmcId: 1027, categories: ['Layer 1'], cmcRank: 2 } }));
+  assert.match(plain, /^<b>ETH<\/b> · Ethereum\n🔷 Ethereum · 🏅 #2\n🏷 Layer 1\n/);
 });

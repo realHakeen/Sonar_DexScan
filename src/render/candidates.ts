@@ -12,8 +12,10 @@ export function renderCandidateList(query: string, candidates: ScoredCandidate[]
 
   candidates.forEach(({ candidate: c }, i) => {
     const badge = c.officialVerified ? ` ✅ ${link('CMC listed', CMC_LISTING_URL)}` : '';
+    // 带币层的候选：币在前，部署 symbol 括号里（TAO (WTAO) · Ethereum）
+    const title = c.coin && c.coin.symbol.toUpperCase() !== c.symbol.toUpperCase() ? `${c.coin.symbol} (${c.symbol})` : c.symbol;
     lines.push(
-      `${i + 1}. ${bold(c.symbol)}${badge} · ${escapeHtml(chainRegistry.displayName(c.networkSlug))}`,
+      `${i + 1}. ${bold(title)}${badge} · ${escapeHtml(chainRegistry.displayName(c.networkSlug))}`,
     );
     lines.push(
       `   Liq ${formatUsd(c.liquidityUsd)} · Vol 24h ${formatUsd(c.volume24hUsd)} · ${escapeHtml(shortenAddress(c.address))}`,

@@ -9,7 +9,7 @@ import { concentrationFromHolders, tagDistributionFromHolders } from '../domain/
 import { splitByChain } from '../domain/ranking.js';
 import { evaluateRisks } from '../domain/risk.js';
 import { markOfficialContracts } from '../domain/verification.js';
-import { isNativeCoin, proxyCandidate } from '../domain/nativeProxy.js';
+import { attachCoin, isNativeCoin } from '../domain/nativeProxy.js';
 import type { CoreMarketData, LiquidationStats, PerpStats, PoolInfo, SpotStats, TokenCandidate, TokenReport } from '../domain/types.js';
 
 const log = createLogger('scanService');
@@ -173,11 +173,11 @@ export class ScanService {
    */
   async buildReport(primary: TokenCandidate, secondary: TokenCandidate[], opts: { nativeCmcId?: number } = {}): Promise<TokenReport> {
     // 原生币卡片的按钮按地址重扫（Refresh / 切链 / Watchlist）：按钮带回原生币 cid，身份继续按 NEAR Protocol 而不是 WNEAR
-    if (!primary.nativeProxy && opts.nativeCmcId !== undefined) {
+    if (!primary.coin && opts.nativeCmcId !== undefined) {
       const native = this.index?.byCmcId(opts.nativeCmcId);
       if (native && isNativeCoin(native)) {
-        primary = proxyCandidate(primary, native);
-        log.info('native coin proxied via wrapped token', { native: native.symbol, via: primary.nativeProxy, chain: primary.networkSlug });
+        primary = attachCoin(primary, native);
+        log.info('native coin: on-chain data via wrapped token', { native: native.symbol, via: primary.symbol, chain: primary.networkSlug });
       }
     }
     const loc = locatorOf(primary);
@@ -202,19 +202,16 @@ export class ScanService {
 
     // tokenDetail 字段比 search 全，用它覆盖 —— 但链身份除外：
     // tokenDetail.plt 是长名（"Robinhood Chain" / "BNB Smart Chain (BEP20)"），search.plt 才是短名，且所有 v1 请求都是用它发的
-    // 原生币代理（$NEAR → wrap.near）：身份字段按原生币，不让 tokenDetail 的 WNEAR / cid 11808 覆盖回去
-    const identity: Partial<TokenCandidate> = primary.nativeProxy
+    // 币层（$NEAR → wrap.near）：cid / 排名 / ✅ 按原生币，不让 tokenDetail 的 cid 11808 覆盖回去；部署字段（symbol / name / 池子…）照常取 tokenDetail
+    const identity: Partial<TokenCandidate> = primary.coin
       ? {
-          symbol: primary.symbol,
-          name: primary.name,
           cmcId: primary.cmcId,
           cmcRank: primary.cmcRank,
           officialVerified: primary.officialVerified,
-          nativeProxy: primary.nativeProxy,
+          coin: primary.coin,
           listingMarketCapUsd: undefined,
           circulatingSupply: undefined,
           cexListings: undefined,
-          listedAt: undefined,
         }
       : {};
     let merged: TokenCandidate = detail

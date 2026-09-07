@@ -10,8 +10,8 @@ import { formatUsd } from './format.js';
 export function scanCardKeyboard(report: TokenReport, portfolioEnabled = true): Markup.Markup<InlineKeyboardMarkup> {
   const p = report.primary;
   const rows: InlineKeyboardButton[][] = [];
-  // 原生币代理卡片：按钮带上原生币 cid，重扫后身份仍是 NEAR Protocol 而不是 WNEAR
-  const native = p.nativeProxy ? p.cmcId : undefined;
+  // 带币层的卡片：按钮带上币的 cid，重扫 / 切链后仍是 NEAR Protocol 而不是 WNEAR
+  const native = p.coin?.cmcId;
 
   const first: InlineKeyboardButton[] = [
     Markup.button.callback('🔄 Refresh', encodeCallback({ action: 'refresh', networkSlug: p.networkSlug, address: p.address, native })),
@@ -29,9 +29,10 @@ export function scanCardKeyboard(report: TokenReport, portfolioEnabled = true): 
   // PRD F1 第 5 步：提供 inline button 供用户切链
   if (report.secondaryDeployments.length > 0) {
     const chainRow = report.secondaryDeployments.slice(0, 3).map((d) =>
+      // 部署 symbol 与卡片不同时标出来（TAO 卡切到 Solana 的 TAO / WTAO 卡切到 Solana 的 TAO）
       Markup.button.callback(
-        `Switch to ${chainRegistry.displayName(d.networkSlug)}`,
-        encodeCallback({ action: 'chain', networkSlug: d.networkSlug, address: d.address, symbol: d.symbol }),
+        `Switch to ${chainRegistry.displayName(d.networkSlug)}${d.symbol.toUpperCase() !== p.symbol.toUpperCase() ? ` (${d.symbol})` : ''}`,
+        encodeCallback({ action: 'chain', networkSlug: d.networkSlug, address: d.address, symbol: d.symbol, native }),
       ),
     );
     rows.push(chainRow);
@@ -46,8 +47,8 @@ export function candidateKeyboard(
 ): Markup.Markup<InlineKeyboardMarkup> {
   const rows = candidates.map(({ candidate: c }) => [
     Markup.button.callback(
-      `${c.officialVerified ? '✅ ' : ''}${c.symbol} · ${chainRegistry.displayName(c.networkSlug)} · ${formatUsd(c.liquidityUsd)}`,
-      encodeCallback({ action: 'scan', networkSlug: c.networkSlug, address: c.address, symbol: c.symbol, native: c.nativeProxy ? c.cmcId : undefined }),
+      `${c.officialVerified ? '✅ ' : ''}${c.coin ? `${c.coin.symbol} (${c.symbol})` : c.symbol} · ${chainRegistry.displayName(c.networkSlug)} · ${formatUsd(c.liquidityUsd)}`,
+      encodeCallback({ action: 'scan', networkSlug: c.networkSlug, address: c.address, symbol: c.symbol, native: c.coin?.cmcId }),
     ),
   ]);
   return Markup.inlineKeyboard(rows);

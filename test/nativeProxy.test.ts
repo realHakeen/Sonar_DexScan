@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import { CoinIndex } from '../src/domain/coinIndex.js';
-import { isNativeCoin, proxyCandidate, proxyNativeCoin, representsNative } from '../src/domain/nativeProxy.js';
+import { attachCoin, isNativeCoin, proxyNativeCoin, representsNative } from '../src/domain/nativeProxy.js';
 import type { TokenCandidate } from '../src/domain/types.js';
 
 function make(p: Partial<TokenCandidate>): TokenCandidate {
@@ -34,17 +34,18 @@ test('$NEAR：流动性最高的 Wrapped NEAR 换成 NEAR Protocol 身份，其�
   const bridged = make({ symbol: 'NEAR', name: 'NEAR', networkSlug: 'ethereum', address: '0x85f1', liquidityUsd: 540e3, cmcId: 6535 });
   const linear = make({ symbol: 'LINEAR', name: 'LiNEAR', address: 'linear-protocol.near', liquidityUsd: 4.6e6, cmcId: 19757 });
   const out = proxyNativeCoin([linear, wnear, bridged], idx.byCmcId(6535)!)!;
-  assert.equal(out.proxy.symbol, 'NEAR');
-  assert.equal(out.proxy.name, 'NEAR Protocol');
+  // 币层是 NEAR Protocol，部署层仍是 WNEAR / wrap.near
+  assert.deepEqual(out.proxy.coin, { cmcId: 6535, symbol: 'NEAR', name: 'NEAR Protocol', rank: 30 });
+  assert.equal(out.proxy.symbol, 'WNEAR');
+  assert.equal(out.proxy.name, 'Wrapped NEAR fungible token');
   assert.equal(out.proxy.cmcId, 6535);
   assert.equal(out.proxy.cmcRank, 30);
   assert.equal(out.proxy.officialVerified, true);
-  assert.equal(out.proxy.nativeProxy, 'WNEAR');
   assert.equal(out.proxy.address, 'wrap.near');
-  // 封装代币自己的收录市值 / 上所 / 首池时间不带过去
+  assert.equal(out.proxy.listedAt, 1, '部署层的上线时长保留');
+  // 封装代币自己的收录市值 / 上所列表不带过去
   assert.equal(out.proxy.listingMarketCapUsd, undefined);
   assert.equal(out.proxy.cexListings, undefined);
-  assert.equal(out.proxy.listedAt, undefined);
   assert.equal(out.pool.length, 3);
   assert.equal(out.pool[0], linear);
   assert.equal(out.pool[1], out.proxy);
@@ -74,9 +75,8 @@ test('封装代币自己排名靠前时是独立资产，不代理成原生币�
 test('按钮重扫：拿原生币 cid 给封装币候选套身份（Refresh 后仍是 NEAR Protocol）', () => {
   const idx = index();
   const wnear = make({ symbol: 'WNEAR', name: 'Wrapped NEAR fungible token', address: 'wrap.near', cmcId: 11808, listedAt: 1 });
-  const p = proxyCandidate(wnear, idx.byCmcId(6535)!);
-  assert.equal(p.symbol, 'NEAR');
+  const p = attachCoin(wnear, idx.byCmcId(6535)!);
+  assert.equal(p.coin?.symbol, 'NEAR');
+  assert.equal(p.symbol, 'WNEAR');
   assert.equal(p.cmcId, 6535);
-  assert.equal(p.nativeProxy, 'WNEAR');
-  assert.equal(p.listedAt, undefined);
 });

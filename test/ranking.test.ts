@@ -70,8 +70,8 @@ test('$AGI：精确 ticker 档内按流动性，DEX 上没交易的 CMC 收录�
 
 test('原生币代理排在精确 ticker 之上（$HYPE：Hyperliquid via WHYPE 压过 Solana 上无 cid 的 HYPE）', () => {
   const sol = make({ symbol: 'HYPE', name: 'HYPE', networkSlug: 'solana', liquidityUsd: 16e6, volume24hUsd: 20e6, traders24h: 5000 });
-  const proxy = make({ symbol: 'HYPE', name: 'Hyperliquid', networkSlug: 'hyperevm', liquidityUsd: 52e6, cmcId: 32196, cmcRank: 9, officialVerified: true, nativeProxy: 'WHYPE' });
-  assert.equal(rankCandidates([sol, proxy], 'HYPE')[0]?.candidate.nativeProxy, 'WHYPE');
+  const proxy = make({ symbol: 'WHYPE', name: 'Wrapped HYPE', networkSlug: 'hyperevm', liquidityUsd: 52e6, cmcId: 32196, cmcRank: 9, officialVerified: true, coin: { cmcId: 32196, symbol: 'HYPE', name: 'Hyperliquid', rank: 9 } });
+  assert.equal(rankCandidates([sol, proxy], 'HYPE')[0]?.candidate.symbol, 'WHYPE');
 });
 
 test('ticker 精确匹配是硬性第一档：流动性再大的前缀匹配也排在精确匹配后面', () => {

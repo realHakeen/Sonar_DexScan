@@ -38,34 +38,31 @@ function hasOwnStanding(c: TokenCandidate, index?: CoinIndex): boolean {
 }
 
 /**
- * 给链上代表套上原生币的身份：
- * 卡片头部 / 排名 / 主 API 行情 / 现货 / 合约都按原生币（cid），地址 / 池子 / 成交 / 持有人按封装代币。
- * 封装代币自己的收录市值 / 流通量 / 上所列表 / 首池时间不是原生币的，去掉，免得当兜底或显示成 "🕐 5mo"。
+ * 给链上代表挂上币层：cid / 排名 / ✅ 按原生币（主 API 行情、现货、合约都靠 cid），
+ * symbol / name / 地址 / 池子 / 成交 / 持有人保持封装代币本身，卡片两层都显示。
+ * 封装代币自己的收录市值 / 流通量 / 上所列表不是原生币的，去掉，免得当兜底用。
  */
-export function proxyCandidate(rep: TokenCandidate, native: CoinIndexHit): TokenCandidate {
+export function attachCoin(rep: TokenCandidate, native: CoinIndexHit): TokenCandidate {
   return {
     ...rep,
-    symbol: native.symbol,
-    name: native.name,
     cmcId: native.cmcId,
     cmcRank: native.rank,
     officialVerified: true,
-    nativeProxy: rep.symbol,
+    coin: { cmcId: native.cmcId, symbol: native.symbol, name: native.name, rank: native.rank },
     listingMarketCapUsd: undefined,
     circulatingSupply: undefined,
     cexListings: undefined,
-    listedAt: undefined,
   };
 }
 
 /**
- * 查询词精确命中一个原生币时，从 DEX 候选里挑流动性最高的代表换成代理（其余不动）。
+ * 查询词精确命中一个原生币时，从 DEX 候选里挑流动性最高的代表挂上币层（其余不动）。
  * 找不到代表返回 undefined，走普通流程。
  */
 export function proxyNativeCoin(pool: TokenCandidate[], native: CoinIndexHit, index?: CoinIndex): { pool: TokenCandidate[]; proxy: TokenCandidate } | undefined {
   const reps = pool.filter((c) => representsNative(c, native, index));
   if (reps.length === 0) return undefined;
   const rep = reps.reduce((a, b) => ((b.liquidityUsd ?? 0) > (a.liquidityUsd ?? 0) ? b : a));
-  const proxy = proxyCandidate(rep, native);
+  const proxy = attachCoin(rep, native);
   return { pool: pool.map((c) => (c === rep ? proxy : c)), proxy };
 }

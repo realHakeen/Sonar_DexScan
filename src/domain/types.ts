@@ -7,6 +7,14 @@ export interface CexListing {
   categories: string[];
 }
 
+/** 一个 CMC 币的身份（与链无关）。 */
+export interface CoinIdentity {
+  cmcId: number;
+  symbol: string;
+  name: string;
+  rank?: number;
+}
+
 /** 一条搜索候选 / 一个代币在某条链上的快照。字段已归一化，来源可能是 search 或 tokenDetail。 */
 export interface TokenCandidate {
   /** CMC coin id。有值 = 被 CMC 正式收录，是打通 DEX 与 CEX 数据的钥匙。 */
@@ -73,11 +81,12 @@ export interface TokenCandidate {
   /** CMC 排名（本地索引或主 API）。 */
   cmcRank?: number;
   /**
-   * 原生币代理：symbol / name / cmcId / cmcRank 是原生币（NEAR / TAO / AVAX）的，
-   * 链上数据（地址、池子、成交）来自它的封装 / 桥接代币，这里记该代币的 symbol（WNEAR / WTAO / WAVAX）。
-   * 设了这个字段，scanService 合并 tokenDetail 时不覆盖身份字段。
+   * 币层（coin）：这条链上部署所代表的 CMC 币，与部署本身不是同一个 symbol 时才设
+   * （WTAO 合约 → Bittensor TAO #31；wrap.near → NEAR Protocol）。
+   * 卡片头部、排名、MC、FDV all chains、现货、合约按币层（cmcId 也是币的 cid）；
+   * symbol / name / 地址 / 价格 / 本链 FDV / 池子 / 持有人 / 安全按部署层，两层都显示，互不覆盖。
    */
-  nativeProxy?: string;
+  coin?: CoinIdentity;
   raw: RawRecord;
 }
 

@@ -37,7 +37,7 @@ export function scoreCandidate(c: TokenCandidate, query: string): ScoredCandidat
     c.cmcRank === undefined ? 0 : c.cmcRank <= 100 ? w.cmcRankTop100 : c.cmcRank <= 1000 ? w.cmcRankTop1000 : w.cmcRankListed;
 
   const q = query.trim().toUpperCase();
-  breakdown['exactSymbol'] = c.symbol.toUpperCase() === q ? w.exactSymbolMatch : 0;
+  breakdown['exactSymbol'] = (c.coin?.symbol ?? c.symbol).toUpperCase() === q ? w.exactSymbolMatch : 0;
 
   // 刷量惩罚：成交量高但交易人数极少
   const vol = c.volume24hUsd ?? 0;
@@ -105,7 +105,7 @@ function groupByCoin(scored: ScoredCandidate[]): ScoredCandidate[] {
 }
 
 function tier(s: ScoredCandidate, q: string): number {
-  if (s.candidate.nativeProxy) return 2;
+  if (s.candidate.coin) return 2;
   return s.candidate.symbol.toUpperCase() === q ? 1 : 0;
 }
 

@@ -202,8 +202,9 @@ async function renderReport(ctx: BotContext, messageId: number, report: TokenRep
     extra,
     snapshot: {
       cmcId: p.cmcId,
-      symbol: p.symbol,
-      name: p.name,
+      // 收藏 / 合约视图按币层（TAO 而不是 WTAO）
+      symbol: p.coin?.symbol ?? p.symbol,
+      name: p.coin?.name ?? p.name,
       networkSlug: p.networkSlug,
       address: p.address,
       priceUsd: p.priceUsd,
@@ -232,7 +233,7 @@ function trackCall(ctx: BotContext, report: TokenReport, opts: ScanFlowOptions):
   try {
     const result = calls.track({
       chatId: ctx.chat.id,
-      token: { networkSlug: p.networkSlug, address: p.address, symbol: p.symbol },
+      token: { networkSlug: p.networkSlug, address: p.address, symbol: p.coin?.symbol ?? p.symbol },
       mcapUsd,
       mcapKind,
       caller: canCreate
@@ -302,7 +303,7 @@ async function postMilestone(ctx: BotContext, report: TokenReport, tracked: Trac
 function isDominant(candidates: ScoredCandidate[]): boolean {
   const [first, second] = candidates;
   if (!first || !second) return true;
-  if (first.candidate.nativeProxy) return true;
+  if (first.candidate.coin) return true;
   if (first.candidate.officialVerified && !second.candidate.officialVerified) return true;
   if (first.candidate.officialVerified && (first.breakdown['exactSymbol'] ?? 0) > 0 && !((second.breakdown['exactSymbol'] ?? 0) > 0)) return true;
   const a = first.candidate.liquidityUsd ?? 0;

@@ -52,20 +52,28 @@ export function renderScanCard(report: TokenReport): string {
 
   // ── 头部 ──
   // ✅ 链接到 CMC 收录（CMCP）说明；bold 里可以嵌链接，反过来不行
-  // 原生币代理：链上数据来自封装代币，头部标明（NEAR ✅ · NEAR Protocol · via WNEAR）
-  const via = p.nativeProxy && p.nativeProxy.toUpperCase() !== p.symbol.toUpperCase() ? ` · <i>via ${escapeHtml(p.nativeProxy)}</i>` : '';
-  out.push(`${bold(p.symbol)}${p.officialVerified ? ` ${link('✅', CMC_LISTING_URL)}` : ''} · ${escapeHtml(p.name)}${via}`);
-  const meta: string[] = [`${chainRegistry.emoji(p.networkSlug)} ${escapeHtml(chain.name)}`];
+  // 两层：币（symbol / 名字 / 排名 / 赛道）与部署（链 / 链上 symbol / 上线时长 / 合约）。
+  // 普通代币两层重合，排版不变：`PEPE ✅ · Pepe` / `🔷 Ethereum · #50 · 🕐 2y` / `🏷 …`；
+  // 带币层的（$TAO → WTAO 合约）：`TAO ✅ · Bittensor` / `🏅 #31 · 🏷 …` / `🔷 Ethereum · WTAO (Wrapped TAO) · 🕐 1.2y`
+  const coin = p.coin;
   const rank = report.core?.cmcRank ?? p.cmcRank;
-  if (rank) meta.push(`🏅 #${rank}`);
-  const age = formatAge(p.listedAt);
-  if (age !== '—') meta.push(`🕐 ${age}`);
-  if (p.ownerRenounced === true) meta.push('🔐 Renounced');
-  out.push(meta.join(' · '));
-  if (report.core?.categories.length) {
-    const cats = report.core.categories.map((c) => c.replace(/\s+Ecosystem$/i, '')).slice(0, 3);
-    out.push(`🏷 ${escapeHtml(cats.join(' / '))}`);
+  const cats = report.core?.categories.length ? report.core.categories.map((c) => c.replace(/\s+Ecosystem$/i, '')).slice(0, 3).join(' / ') : undefined;
+  out.push(`${bold(coin?.symbol ?? p.symbol)}${p.officialVerified ? ` ${link('✅', CMC_LISTING_URL)}` : ''} · ${escapeHtml(coin?.name ?? p.name)}`);
+  const deployment: string[] = [`${chainRegistry.emoji(p.networkSlug)} ${escapeHtml(chain.name)}`];
+  if (coin) {
+    const coinMeta: string[] = [];
+    if (rank) coinMeta.push(`🏅 #${rank}`);
+    if (cats) coinMeta.push(`🏷 ${escapeHtml(cats)}`);
+    if (coinMeta.length) out.push(coinMeta.join(' · '));
+    if (coin.symbol.toUpperCase() !== p.symbol.toUpperCase()) deployment.push(`${escapeHtml(p.symbol)} (${escapeHtml(p.name)})`);
+  } else if (rank) {
+    deployment.push(`🏅 #${rank}`);
   }
+  const age = formatAge(p.listedAt);
+  if (age !== '—') deployment.push(`🕐 ${age}`);
+  if (p.ownerRenounced === true) deployment.push('🔐 Renounced');
+  out.push(deployment.join(' · '));
+  if (!coin && cats) out.push(`🏷 ${escapeHtml(cats)}`);
   out.push('', code(p.address));
   out.push('', renderLinks(report));
 
@@ -76,15 +84,15 @@ export function renderScanCard(report: TokenReport): string {
 
   // 口径：MC 来自主 API（全链流通市值）；FDV 来自 DEX token 接口（本链 price × 总供应）。
   // 多链代币两者明显不一致时，各自标明口径。
-  // 原生币代理时本链 FDV 是封装代币的（WNEAR 供应量 × 价格），没有意义，只用主 API 的全链 FDV
-  const chainFdv = p.nativeProxy ? undefined : p.fdvUsd;
+  const chainFdv = p.fdvUsd;
   const coreFdv = report.core?.fdvUsd;
   // 刚收录的币主 API 常给 market_cap = 0，那是"未知"不是"零"
   const mcapRaw = report.core?.marketCapUsd ?? p.listingMarketCapUsd;
   const mcap = mcapRaw !== undefined && mcapRaw > 0 ? mcapRaw : undefined;
   // 全链 FDV 与本链 FDV 的差异超过 15% 才算多链（价格时点差异通常在 10% 内；真正多链的都在 30% 以上）
+  // 带币层时两层永远分开写：FDV all chains 是币的，FDV Ethereum 是 WTAO 合约的（本链供应量 × 价格）
   const multiChain =
-    chainFdv !== undefined && coreFdv !== undefined && coreFdv > 0 && Math.abs(coreFdv - chainFdv) / coreFdv > 0.15;
+    chainFdv !== undefined && coreFdv !== undefined && coreFdv > 0 && (Boolean(coin) || Math.abs(coreFdv - chainFdv) / coreFdv > 0.15);
   if (mcap !== undefined) {
     const fdvForCirc = coreFdv ?? chainFdv;
     const circ = fdvForCirc && fdvForCirc > 0 ? Math.round((mcap / fdvForCirc) * 100) : undefined;
@@ -93,7 +101,7 @@ export function renderScanCard(report: TokenReport): string {
   }
   if (multiChain) {
     market.push(`${label('FDV')} ${formatUsdShort(coreFdv)} all chains`);
-    market.push(`${label('FDV')} ${formatUsdShort(chainFdv)} ${escapeHtml(chain.name)}`);
+    market.push(`${label('FDV')} ${formatUsdShort(chainFdv)} ${escapeHtml(chain.name)}${coin && coin.symbol.toUpperCase() !== p.symbol.toUpperCase() ? ` · ${escapeHtml(p.symbol)}` : ''}`);
   } else if (chainFdv !== undefined || coreFdv !== undefined) {
     market.push(`${label('FDV')} ${formatUsdShort(chainFdv ?? coreFdv)}`);
   }

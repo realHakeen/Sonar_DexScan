@@ -43,7 +43,7 @@ export class SearchService {
       const proxied = proxyNativeCoin(pool, native, this.index);
       if (proxied) {
         pool = proxied.pool;
-        log.info('native coin proxied via wrapped token', { query, native: native.symbol, via: proxied.proxy.nativeProxy, chain: proxied.proxy.networkSlug });
+        log.info('native coin: on-chain data via wrapped token', { query, native: native.symbol, via: proxied.proxy.symbol, chain: proxied.proxy.networkSlug });
       }
     }
 
