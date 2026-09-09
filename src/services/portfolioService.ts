@@ -17,7 +17,9 @@ export interface PortfolioRow {
   change24hPct?: number;
   /** 当前价 / 加入价 − 1，百分比。 */
   sinceAddedPct?: number;
+  /** 真实流通市值；CMC 没核实流通量（给 0）或未收录时为空，渲染层退到 fdvUsd。 */
   marketCapUsd?: number;
+  fdvUsd?: number;
 }
 
 /** 一页 watchlist：当页行情 + 分页信息。 */
@@ -183,9 +185,10 @@ export class PortfolioService {
         let priceUsd: number | undefined;
         let change24hPct: number | undefined;
         let marketCapUsd: number | undefined;
+        let fdvUsd: number | undefined;
         const q = entry.cmcId ? quotes.get(entry.cmcId) : undefined;
         if (q) {
-          ({ priceUsd, change24hPct, marketCapUsd } = q);
+          ({ priceUsd, change24hPct, marketCapUsd, fdvUsd } = q);
         } else {
           // 非 cid 代币：先按链名直打 token 详情；链名与上游 plt 不一致（TON 等）时退到 search 反查
           const c = await this.dexCandidate(entry).catch((err) => {
@@ -194,11 +197,12 @@ export class PortfolioService {
           });
           priceUsd = c?.priceUsd;
           change24hPct = c?.priceChange24hPct;
-          marketCapUsd = c?.listingMarketCapUsd ?? c?.fdvUsd;
+          marketCapUsd = c?.listingMarketCapUsd;
+          fdvUsd = c?.fdvUsd;
         }
         const sinceAddedPct =
           priceUsd !== undefined && entry.addedPriceUsd !== undefined && entry.addedPriceUsd > 0 ? (priceUsd / entry.addedPriceUsd - 1) * 100 : undefined;
-        return { entry, priceUsd, change24hPct, sinceAddedPct, marketCapUsd };
+        return { entry, priceUsd, change24hPct, sinceAddedPct, marketCapUsd, fdvUsd };
       }),
     );
   }

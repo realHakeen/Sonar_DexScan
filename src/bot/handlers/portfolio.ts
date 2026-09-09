@@ -216,7 +216,7 @@ export async function handlePortfolioCopy(ctx: BotContext, shareId: string): Pro
     return;
   }
   const rows = await svc.listWithQuotes(share.ownerId);
-  const prices = new Map(rows.map((r) => [`${r.entry.networkSlug}:${r.entry.address.toLowerCase()}`, { priceUsd: r.priceUsd, marketCapUsd: r.marketCapUsd }]));
+  const prices = new Map(rows.map((r) => [`${r.entry.networkSlug}:${r.entry.address.toLowerCase()}`, { priceUsd: r.priceUsd, marketCapUsd: r.marketCapUsd ?? r.fdvUsd }]));
   const res = svc.copyFrom(share.ownerId, userId, prices);
   ctx.log.info('watchlist copied', { shareId, viewer: userId, ...res });
   ctx.services.stats?.record({ kind: 'share_copy', userId, chatId: ctx.chat?.id, chatType: ctx.chat?.type });

@@ -9,7 +9,7 @@ import { renderWatchlistShare } from '../src/render/portfolio.js';
 import type { CmcGateway } from '../src/api/cmc/index.js';
 
 /** 只实现 portfolio 用到的两条通路。 */
-function stubGateway(opts: { quotes?: Map<number, { priceUsd?: number; change24hPct?: number; marketCapUsd?: number }>; dexPrice?: number }): CmcGateway {
+function stubGateway(opts: { quotes?: Map<number, { priceUsd?: number; change24hPct?: number; marketCapUsd?: number; fdvUsd?: number }>; dexPrice?: number }): CmcGateway {
   return {
     core: { quotesBatch: async () => opts.quotes ?? new Map() },
     dex: {
@@ -47,6 +47,8 @@ test('listWithQuotes：有 cid 走批量行情并算自加入以来涨跌；无 
   assert.equal(pepe.change24hPct, 4.2);
   const dex = rows.find((r) => r.entry.symbol === 'DEXONLY')!;
   assert.equal(dex.priceUsd, 2);
+  assert.equal(dex.marketCapUsd, undefined);
+  assert.equal(dex.fdvUsd, 5e6, '未收录币没有流通市值，带 FDV 给渲染层兜底');
   assert.ok(Math.abs(dex.sinceAddedPct! - 100) < 1e-9);
   assert.equal(dex.change24hPct, -3);
 });
@@ -63,6 +65,11 @@ test('renderPortfolio：空列表提示；三行排版（名字·链 / 价格·M
   assert.match(html, /<b>PEPE<\/b> · Ethereum\n├ \$0\.0₄1200 · MC \$5\.0B\n└ 🟢 \+20% add · 🔴 -5\.1% 24h\n\n<b>NOQUOTE<\/b> · BNB Chain\n\n<i>Tap/);
   const paged = renderPortfolio(pageOf([{ entry: { ...PEPE, addedAt: 0 } }], { page: 2, pages: 5, total: 87 }));
   assert.match(paged, /87 tokens · page 2\/5/);
+  // 没有 MC（CMC 给 0 或未收录）退到 FDV，标签换成 FDV；两个都没有就不出这一段
+  const fdv = renderPortfolio(pageOf([{ entry: { ...PEPE, addedAt: 0 }, priceUsd: 1, fdvUsd: 44.4e6 }, { entry: { ...PEPE, addedAt: 0 }, priceUsd: 1, marketCapUsd: 0, fdvUsd: 3e3 }]));
+  assert.match(fdv, /└ \$1 · FDV \$44\.4M\n/);
+  assert.match(fdv, /└ \$1 · FDV \$3K\n/);
+  assert.doesNotMatch(fdv, /MC /);
 });
 
 test('listPage：只给当页拉行情，页码越界钳位；上限 100', async () => {

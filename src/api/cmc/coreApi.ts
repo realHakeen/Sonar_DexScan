@@ -130,8 +130,8 @@ export class CoreApi {
   }
 
   /** 批量行情（portfolio 用）：逗号传 id，1 credit / 100 个。 */
-  async quotesBatch(cmcIds: number[]): Promise<Map<number, { priceUsd?: number; change24hPct?: number; marketCapUsd?: number }>> {
-    const out = new Map<number, { priceUsd?: number; change24hPct?: number; marketCapUsd?: number }>();
+  async quotesBatch(cmcIds: number[]): Promise<Map<number, { priceUsd?: number; change24hPct?: number; marketCapUsd?: number; fdvUsd?: number }>> {
+    const out = new Map<number, { priceUsd?: number; change24hPct?: number; marketCapUsd?: number; fdvUsd?: number }>();
     const ids = [...new Set(cmcIds)].slice(0, 100);
     if (ids.length === 0) return out;
     const data = await this.client.get<Record<string, CmcQuoteEntry>>(
@@ -145,7 +145,9 @@ export class CoreApi {
       out.set(id, {
         priceUsd: usd.price ?? undefined,
         change24hPct: usd.percent_change_24h ?? undefined,
-        marketCapUsd: usd.market_cap ?? undefined,
+        // 没核实流通量的新币 market_cap 给 0，那是"未知"不是"零"；watchlist 用 FDV 兜底
+        marketCapUsd: usd.market_cap ? usd.market_cap : undefined,
+        fdvUsd: usd.fully_diluted_market_cap ?? undefined,
       });
     }
     return out;

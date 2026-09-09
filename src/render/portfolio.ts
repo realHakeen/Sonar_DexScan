@@ -15,7 +15,9 @@ function tokenBlock(r: PortfolioRow, opts: { sinceAdd: boolean; address: boolean
   const head = `${bold(e.symbol)} · ${escapeHtml(chainRegistry.displayName(e.networkSlug))}`;
   const amounts: string[] = [];
   if (r.priceUsd !== undefined) amounts.push(formatPrice(r.priceUsd));
+  // 有真实流通市值写 MC，没有（CMC 未核实流通量的新币 / 未收录币）退到 FDV，标签跟着口径走
   if (r.marketCapUsd !== undefined && r.marketCapUsd > 0) amounts.push(`MC ${formatUsdShort(r.marketCapUsd)}`);
+  else if (r.fdvUsd !== undefined && r.fdvUsd > 0) amounts.push(`FDV ${formatUsdShort(r.fdvUsd)}`);
   const changes: string[] = [];
   if (opts.sinceAdd && r.sinceAddedPct !== undefined) changes.push(`${changeEmoji(r.sinceAddedPct)} ${pctSigned(r.sinceAddedPct)} add`);
   if (r.change24hPct !== undefined) changes.push(`${changeEmoji(r.change24hPct)} ${pctSigned(r.change24hPct)} 24h`);
