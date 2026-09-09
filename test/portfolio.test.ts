@@ -53,14 +53,14 @@ test('listWithQuotes：有 cid 走批量行情并算自加入以来涨跌；无 
 
 const pageOf = (rows: Parameters<typeof renderPortfolio>[0]['rows'], over: Partial<Parameters<typeof renderPortfolio>[0]> = {}) => ({ rows, page: 1, pages: 1, total: rows.length, ...over });
 
-test('renderPortfolio：空列表提示；单行排版含价格、MC、自加入涨跌与 24h；多页时标题带页码', () => {
+test('renderPortfolio：空列表提示；三行排版（名字·链 / 价格·MC / 自加入·24h）；多页时标题带页码', () => {
   assert.match(renderPortfolio(pageOf([])), /⭐ <b><u>Watchlist<\/u><\/b>\n\nEmpty\./);
   const html = renderPortfolio(pageOf([
     { entry: { ...PEPE, addedAt: 0 }, priceUsd: 0.000012, sinceAddedPct: 20, change24hPct: -5.1, marketCapUsd: 5e9 },
     { entry: { userId: 7, networkSlug: 'bnb', address: '0xd', symbol: 'NOQUOTE', addedAt: 0 } },
   ]));
   assert.match(html, /⭐ <b><u>Watchlist<\/u><\/b>  2 tokens\n\n/);
-  assert.match(html, /<b>PEPE<\/b> · Ethereum · \$0\.0₄1200 · MC \$5\.0B · 🟢 \+20% add · 🔴 -5\.1% 24h\n<b>NOQUOTE<\/b> · BNB Chain\n\n<i>Tap/);
+  assert.match(html, /<b>PEPE<\/b> · Ethereum\n├ \$0\.0₄1200 · MC \$5\.0B\n└ 🟢 \+20% add · 🔴 -5\.1% 24h\n\n<b>NOQUOTE<\/b> · BNB Chain\n\n<i>Tap/);
   const paged = renderPortfolio(pageOf([{ entry: { ...PEPE, addedAt: 0 } }], { page: 2, pages: 5, total: 87 }));
   assert.match(paged, /87 tokens · page 2\/5/);
 });
@@ -135,7 +135,7 @@ test('renderWatchlistShare：带主人名字，不含 since add，附合约地�
   const rows = [{ entry: { ...PEPE, addedAt: 0 }, priceUsd: 0.000012, sinceAddedPct: 20, change24hPct: -5.1, marketCapUsd: 5e9 }];
   const html = renderWatchlistShare('@hakeen', pageOf(rows));
   assert.match(html, /⭐ <b><u>@hakeen's Watchlist<\/u><\/b>  1 token\n\n/);
-  assert.match(html, /<b>PEPE<\/b> · Ethereum · \$0\.0₄1200 · MC \$5\.0B · 🔴 -5\.1% 24h\n<code>0x6982508145454CE325DDBE47A25D4EC3D2311933<\/code>/); // 夹具地址未经 add 归一，保持原样
+  assert.match(html, /<b>PEPE<\/b> · Ethereum\n├ \$0\.0₄1200 · MC \$5\.0B · 🔴 -5\.1% 24h\n└ <code>0x6982508145454CE325DDBE47A25D4EC3D2311933<\/code>/); // 夹具地址未经 add 归一，保持原样
   assert.doesNotMatch(html, /since add|add ·/);
   const inline = renderWatchlistShare('@hakeen', pageOf(rows, { pages: 3, total: 47 }), { inline: true });
   assert.match(inline, /47 tokens\n/);
