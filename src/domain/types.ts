@@ -44,6 +44,8 @@ export interface TokenCandidate {
   circulatingSupply?: number;
   decimals?: number;
   volume24hUsd?: number;
+  /** 链上 24h 成交量相对前 24h 的变化（百分比），由 1h 蜡烛算出（domain/candles.ts），上游没有现成字段。 */
+  volumeChange24hPct?: number;
   /**
    * 卡片口径：该代币所有池子的双边 TVL 合计（与 DexScreener / GeckoTerminal 一致）。
    * search / token 接口给的 liq 是 CMC 口径（≈ 单边），在 scanService 合并时会被池子合计覆盖，原值存到 liquidityCmcUsd。

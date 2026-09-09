@@ -106,8 +106,10 @@ export function renderScanCard(report: TokenReport): string {
     market.push(`${label('FDV')} ${formatUsdShort(chainFdv ?? coreFdv)}`);
   }
 
+  // 链上成交量：金额 · 色点 (相对前 24h 的变化) · 成交 / 流动性倍数
   const volLiq = formatRatio(p.volume24hUsd, p.liquidityUsd);
-  market.push(`${label('Vol')} ${formatUsdShort(p.volume24hUsd)}${volLiq ? `  (${volLiq} liq)` : ''}`);
+  const volChg = p.volumeChange24hPct;
+  market.push(`${label('Vol')} ${formatUsdShort(p.volume24hUsd)}${volChg !== undefined ? ` ${changeEmoji(volChg)} (${formatPercent(volChg)} 24h)` : ''}${volLiq ? ` · ${volLiq} liq` : ''}`);
   if (p.traders24h !== undefined) market.push(`${label('Traders')} ${formatCount(p.traders24h)}`);
   if (p.buys24h !== undefined || p.sells24h !== undefined) {
     market.push(`${label('Txns')} ↑${formatCount(p.buys24h)} · ↓${formatCount(p.sells24h)}`);

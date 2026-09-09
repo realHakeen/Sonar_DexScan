@@ -254,3 +254,10 @@ test('未收录提示不显示；风险区没有可见条目时整块（含 Caut
   assert.match(withWarn, /⚠️ <b><u>Caution<\/u><\/b>\n└ ⚠️ Top 10 own 62\.8%/);
   assert.doesNotMatch(withWarn, /Not listed/);
 });
+
+test('Market Vol 行：有 24h 变化时带色点和括号，成交 / 流动性倍数跟在后面；没有变化时只有倍数', () => {
+  const html = renderScanCard(baseReport({ primary: { ...baseReport().primary, volume24hUsd: 543e3, volumeChange24hPct: 29.03, liquidityUsd: 280e3 } }));
+  assert.match(html, /Vol\s*<\/code> \$543K 🟢 \(\+29\.03% 24h\) · 1\.9× liq\n/);
+  const plain = renderScanCard(baseReport({ primary: { ...baseReport().primary, volume24hUsd: 543e3, liquidityUsd: 280e3 } }));
+  assert.match(plain, /Vol\s*<\/code> \$543K · 1\.9× liq\n/);
+});

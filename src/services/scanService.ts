@@ -7,6 +7,7 @@ import type { CoinIndex } from '../domain/coinIndex.js';
 import { detectChain } from '../domain/detectChain.js';
 import { concentrationFromHolders, tagDistributionFromHolders } from '../domain/holders.js';
 import { splitByChain } from '../domain/ranking.js';
+import { volumeChange24hPct } from '../domain/candles.js';
 import { evaluateRisks } from '../domain/risk.js';
 import { markOfficialContracts } from '../domain/verification.js';
 import { attachCoin, isNativeCoin } from '../domain/nativeProxy.js';
@@ -185,7 +186,7 @@ export class ScanService {
     const startedAt = Date.now();
 
     let derivatives = primary.cmcId ? this.derivatives(primary.cmcId, degraded) : undefined;
-    const [detailRes, securityRes, trendRes, tagsRes, coreRes] = await Promise.allSettled([
+    const [detailRes, securityRes, trendRes, tagsRes, coreRes, candlesRes] = await Promise.allSettled([
       this.cmc.dex.tokenDetail(loc),
       this.cmc.dex.securityDetail(loc),
       this.cmc.dex.holdersTrend(loc),
@@ -193,6 +194,8 @@ export class ScanService {
       primary.cmcId
         ? this.cmc.core.marketData(primary.cmcId)
         : markOfficialContracts(this.cmc.core, [primary], this.index),
+      // 24h 成交量变化：参数与 K 线预览完全一致（1h × 168，市值口径），出图时命中 5 分钟缓存，不多花 credit
+      this.cmc.dex.klineCandles(loc, { interval: '1h', limit: 168, pm: 'm' }),
     ]);
 
     const detail = settled(detailRes, 'tokenDetail', degraded);
@@ -226,6 +229,9 @@ export class ScanService {
         }
       : primary;
     const pools: PoolInfo[] = detail?.pools ?? [];
+    // 成交量变化是锦上添花，蜡烛拉不到不计入 degraded
+    const volChange = candlesRes.status === 'fulfilled' ? volumeChange24hPct(candlesRes.value) : undefined;
+    if (volChange !== undefined) merged = { ...merged, volumeChange24hPct: volChange };
 
     // 流动性口径统一为「所有池子双边 TVL 合计」（DexScreener 定义），与 Pools 区块闭合。
     // CMC 自己的 liq ≈ 单边，会出现"总流动性比第一个池子还小"的矛盾，仅保留作对照。
