@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
-import { PORTFOLIO_MAX_TOKENS, WATCHLIST_SHARE_TTL_MS } from '../config/constants.js';
+import { PORTFOLIO_MAX_TOKENS, WATCHLIST_PAGE_SIZE, WATCHLIST_SHARE_TTL_MS } from '../config/constants.js';
 import type { CmcGateway } from '../api/cmc/index.js';
 import { chainRegistry } from '../domain/chains.js';
 import type { PortfolioEntry, TokenCandidate } from '../domain/types.js';
@@ -18,6 +18,15 @@ export interface PortfolioRow {
   /** 当前价 / 加入价 − 1，百分比。 */
   sinceAddedPct?: number;
   marketCapUsd?: number;
+}
+
+/** 一页 watchlist：当页行情 + 分页信息。 */
+export interface PortfolioPage {
+  rows: PortfolioRow[];
+  /** 1 起始，已钳位到 [1, pages]。 */
+  page: number;
+  pages: number;
+  total: number;
 }
 
 interface DbRow {
@@ -151,7 +160,20 @@ export class PortfolioService {
    * 单个行情失败只影响那一行。
    */
   async listWithQuotes(userId: number): Promise<PortfolioRow[]> {
-    const entries = this.list(userId);
+    return this.quoteRows(this.list(userId));
+  }
+
+  /** 按页取：只给当页拉行情（未收录币每个 1 credit），页码越界钳位到最后一页。 */
+  async listPage(userId: number, page = 1, size = WATCHLIST_PAGE_SIZE): Promise<PortfolioPage> {
+    const all = this.list(userId);
+    const total = all.length;
+    const pages = Math.max(1, Math.ceil(total / size));
+    const p = Math.min(Math.max(1, Math.floor(page) || 1), pages);
+    const rows = await this.quoteRows(all.slice((p - 1) * size, p * size));
+    return { rows, page: p, pages, total };
+  }
+
+  private async quoteRows(entries: PortfolioEntry[]): Promise<PortfolioRow[]> {
     if (entries.length === 0) return [];
     const withCid = entries.filter((e) => e.cmcId);
     const quotes = withCid.length ? await this.cmc.core.quotesBatch(withCid.map((e) => e.cmcId!)).catch(() => new Map()) : new Map();

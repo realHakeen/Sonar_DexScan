@@ -25,7 +25,8 @@ function trusted(pair: CmcDerivativePair, whitelist: Readonly<Record<string, Per
  * 规则（与产品讨论一致，2026-09-04）：
  *  1. 只统计白名单交易所，丢掉 outlier_detected / exclusions 非空的合约对；
  *  2. 同所多个合约对合并，费率取该所 OI 最大的那条；
- *  3. 兜底：最大所 OI 超过第二大所的 PERP_OI_OUTLIER_MULTIPLIER 倍即视为抽风剔除，循环直到收敛；
+ *  3. 兜底：最大所 OI 超过第二大所的 PERP_OI_OUTLIER_MULTIPLIER 倍即视为抽风剔除，循环直到收敛
+ *     （HMSTR 在 BingX 报过 $1.4B 假 OI；代价是 HOOKR 这类只有两家所的小币会误伤，产品决定保留）；
  *  4. 费率参考取 OI 最大且带费率的所，按各所结算周期折算到 8h，再简单年化。
  * 没有任何可信合约对时返回 undefined，卡片整段省略。
  */
@@ -41,7 +42,6 @@ const MAX_SANE_BASIS = 0.01;
 
 export function aggregatePerpPairs(pairs: CmcDerivativePair[] | undefined, opts: AggregateOptions = {}): PerpStats | undefined {
   const whitelist = opts.whitelist ?? PERP_EXCHANGE_WHITELIST;
-  const outlierMultiplier = opts.outlierMultiplier ?? PERP_OI_OUTLIER_MULTIPLIER;
   if (!pairs || pairs.length === 0) return undefined;
 
   const byVenue = new Map<string, PerpVenue & { fundingOi: number; pairs: number }>();
@@ -87,6 +87,7 @@ export function aggregatePerpPairs(pairs: CmcDerivativePair[] | undefined, opts:
     .sort((a, b) => b.openInterestUsd - a.openInterestUsd);
 
   // 兜底：白名单内单所单币抽风。只跟第二名比，不用中位数 —— 头部所合法地比中位数大几十倍是常态。
+  const outlierMultiplier = opts.outlierMultiplier ?? PERP_OI_OUTLIER_MULTIPLIER;
   while (kept.length >= 2 && kept[0]!.openInterestUsd > kept[1]!.openInterestUsd * outlierMultiplier && kept[1]!.openInterestUsd > 0) {
     kept = kept.slice(1);
   }

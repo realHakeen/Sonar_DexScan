@@ -23,6 +23,10 @@ export type CallbackAction =
   | 'port_scan'
   | 'port_refresh'
   | 'port_copy'
+  /** watchlist 翻页：page = 目标页。 */
+  | 'port_page'
+  /** 别人分享的 watchlist（深链版）翻页：address = shareId，page = 目标页。 */
+  | 'port_spage'
   | 'noop';
 
 export interface CallbackPayload {
@@ -33,6 +37,8 @@ export interface CallbackPayload {
   symbol?: string;
   /** 原生币代理卡片（$NEAR → wrap.near）：重扫时身份仍按这个原生币 cid。 */
   native?: number;
+  /** watchlist 页码（1 起始）：翻页 / 删除 / 刷新后留在当前页。 */
+  page?: number;
 }
 
 const store = new TtlCache<CallbackPayload>(CALLBACK_TOKEN_TTL_MS, 20_000);
@@ -50,6 +56,8 @@ const ACTION_CODE: Record<CallbackAction, string> = {
   port_scan: 'ws',
   port_refresh: 'wr',
   port_copy: 'wc',
+  port_page: 'wp',
+  port_spage: 'wsp',
   noop: 'n',
 };
 const CODE_ACTION = Object.fromEntries(
@@ -62,13 +70,13 @@ const CODE_ACTION = Object.fromEntries(
  */
 export function encodeCallback(payload: CallbackPayload): string {
   const base = `${ACTION_CODE[payload.action]}|${payload.networkSlug ?? ''}|${payload.address ?? ''}`;
-  // 第 5 段是原生币 cid，它决定卡片身份，不能丢；symbol 只是占位文案，塞不下就先丢 symbol
-  const native = payload.native !== undefined ? `|${payload.native}` : '';
-  const withSymbol = payload.symbol || native ? `${base}|${payload.symbol ?? ''}${native}` : base;
+  // 第 5 段是原生币 cid（决定卡片身份）、第 6 段是 watchlist 页码，都不能丢；symbol 只是占位文案，塞不下就先丢 symbol
+  const tail = `${payload.native !== undefined ? `|${payload.native}` : '|'}${payload.page !== undefined ? `|${payload.page}` : ''}`.replace(/\|+$/, '');
+  const withSymbol = payload.symbol || tail ? `${base}|${payload.symbol ?? ''}${tail}` : base;
   if (Buffer.byteLength(withSymbol, 'utf8') <= MAX_BYTES) return withSymbol;
-  const withoutSymbol = `${base}|${native}`;
-  if (native && Buffer.byteLength(withoutSymbol, 'utf8') <= MAX_BYTES) return withoutSymbol;
-  if (!native && Buffer.byteLength(base, 'utf8') <= MAX_BYTES) return base;
+  const withoutSymbol = `${base}|${tail}`;
+  if (tail && Buffer.byteLength(withoutSymbol, 'utf8') <= MAX_BYTES) return withoutSymbol;
+  if (!tail && Buffer.byteLength(base, 'utf8') <= MAX_BYTES) return base;
 
   const token = `t|${randomBytes(8).toString('base64url')}`;
   store.set(token, payload);
@@ -78,7 +86,7 @@ export function encodeCallback(payload: CallbackPayload): string {
 export function decodeCallback(data: string): CallbackPayload | null {
   if (data.startsWith('t|')) return store.get(data) ?? null;
 
-  const [code, slug, address, symbol, native] = data.split('|');
+  const [code, slug, address, symbol, native, page] = data.split('|');
   const action = code ? CODE_ACTION[code] : undefined;
   if (!action) return null;
 
@@ -88,5 +96,6 @@ export function decodeCallback(data: string): CallbackPayload | null {
     address: address || undefined,
     symbol: symbol || undefined,
     ...(native && /^\d+$/.test(native) ? { native: Number(native) } : {}),
+    ...(page && /^\d+$/.test(page) ? { page: Number(page) } : {}),
   };
 }

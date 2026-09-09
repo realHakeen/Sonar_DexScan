@@ -70,7 +70,7 @@
 
 按钮：第一行 `🔄 Refresh` · `📈 Trade` · `⚡ Perps`（有合约数据时）；第二行 `⭐ Watchlist`（存储可用时）；有次要链时再一行「Switch to X」。文案尽量短，手机端一行放得下。
 
-**Perps 口径**（2026-09-04 定）：OI 与合约成交量只对 `config/constants.ts#PERP_EXCHANGE_WHITELIST` 的 16 家求和（12 CEX：Binance / OKX / Bybit / Bitget / Gate / KuCoin / MEXC / BingX / Kraken / Crypto.com / HTX / Deribit；4 DEX：Hyperliquid / Aster / Lighter / edgeX）。不能用 `exchange_score` 过滤：BTCC / Tapbit / Weex / Fameex 评分 7.7–8.8 却报全网前几的假 OI，而 Hyperliquid 的 liquidity_score 为 0、edgeX / dYdX 无评分。实测 9 家爆仓所只覆盖白名单 OI 的 63%–83%，缺口主要是 MEXC，所以 OI 不收窄到 9 家。白名单内再剔除 `outlier_detected` / `exclusions` 非空的合约对，并在最大所 OI 超过第二名 20 倍时视为抽风剔除。费率不跨所平均（结算周期不同），只显示 OI 最大所的值并折算到 8h。爆仓是 CMC 汇总的 9 家（Binance / Bitfinex / Hyperliquid / Bybit / Gate / OKX / HTX / Aster / Kraken），是下限。
+**Perps 口径**（2026-09-04 定）：OI 与合约成交量只对 `config/constants.ts#PERP_EXCHANGE_WHITELIST` 的 16 家求和（12 CEX：Binance / OKX / Bybit / Bitget / Gate / KuCoin / MEXC / BingX / Kraken / Crypto.com / HTX / Deribit；4 DEX：Hyperliquid / Aster / Lighter / edgeX）。不能用 `exchange_score` 过滤：BTCC / Tapbit / Weex / Fameex 评分 7.7–8.8 却报全网前几的假 OI，而 Hyperliquid 的 liquidity_score 为 0、edgeX / dYdX 无评分。实测 9 家爆仓所只覆盖白名单 OI 的 63%–83%，缺口主要是 MEXC，所以 OI 不收窄到 9 家。白名单内再剔除 `outlier_detected` / `exclusions` 非空的合约对，并在最大所 OI 超过第二名 20 倍时视为抽风剔除（HMSTR 在 BingX 报过 $1.4B 假 OI；2026-09-07 评估过去掉，因会误伤 HOOKR 这类只有两家所的小币，最终决定保留）。费率不跨所平均（结算周期不同），只显示 OI 最大所的值并折算到 8h。爆仓是 CMC 汇总的 9 家（Binance / Bitfinex / Hyperliquid / Bybit / Gate / OKX / HTX / Aster / Kraken），是下限。
 
 **口径约束**（必须遵守）：`pc24h` / `sts.pc` 是小数，×100 后展示；`mc` / `mcap` 是 price × total supply，标签必须是 FDV；MC 来自主 API，是全链口径；持有人数以 holders 端点为准，`token.hld` 仅兜底；**Liq = 所有池子双边 TVL 合计**（DexScreener 定义），CMC 自己的 `liq` / `liqUsd` ≈ 单边（DexScan 网站显示值，约为前者一半），只作对照不展示。
 

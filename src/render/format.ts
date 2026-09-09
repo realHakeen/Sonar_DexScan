@@ -187,6 +187,14 @@ export function fundingEmoji(rate: number | undefined): string {
   return '⚪️';
 }
 
+/** 紧凑带符号百分比：≥10 用整数，否则 1 位小数（+20% / -5.1% / +0.4%）。 */
+export function pctSigned(v: number | undefined): string {
+  if (v === undefined || !Number.isFinite(v)) return '—';
+  const abs = Math.abs(v);
+  const body = abs >= 10 ? String(Math.round(abs)) : abs.toFixed(1);
+  return `${v > 0 ? '+' : v < 0 ? '-' : ''}${body}%`;
+}
+
 /** 年化：输入小数，一位小数带符号（0.073 → "+7.3%"）。 */
 export function formatApr(apr: number | undefined): string {
   if (apr === undefined || !Number.isFinite(apr)) return '—';

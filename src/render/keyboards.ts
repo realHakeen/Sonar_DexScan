@@ -57,22 +57,37 @@ export function candidateKeyboard(
 /** 分享按钮：Telegram 原生选聊天面板，选中后以用户名义在那个聊天里发 `@bot watchlist`，由 inline 处理器渲染只读版。 */
 export const WATCHLIST_INLINE_QUERY = 'watchlist';
 
+/** 翻页行：◀ 页码 ▶。只有一页时不出。 */
+function pageRow(page: number, pages: number, target: (p: number) => string): InlineKeyboardButton[] | undefined {
+  if (pages <= 1) return undefined;
+  return [
+    Markup.button.callback('◀', page > 1 ? target(page - 1) : encodeCallback({ action: 'noop' })),
+    Markup.button.callback(`${page}/${pages}`, encodeCallback({ action: 'noop' })),
+    Markup.button.callback('▶', page < pages ? target(page + 1) : encodeCallback({ action: 'noop' })),
+  ];
+}
+
 /**
- * /watchlist 列表：一行放两个代币（🔍 SYMBOL · 🗑 · 🔍 SYMBOL · 🗑），省一半高度；末行 Refresh + Share。
+ * /watchlist 列表（当页）：一行放两个代币（🔍 SYMBOL · 🗑 · 🔍 SYMBOL · 🗑）；多页时加翻页行；末行 Refresh + Share。
+ * 🗑 / Refresh 带当前页码，操作完留在这一页。
  */
 export function portfolioKeyboard(
   entries: Array<{ networkSlug: string; address: string; symbol: string }>,
+  page = 1,
+  pages = 1,
 ): Markup.Markup<InlineKeyboardMarkup> {
   const pair = (e: { networkSlug: string; address: string; symbol: string }): InlineKeyboardButton[] => [
     Markup.button.callback(`🔍 ${e.symbol}`, encodeCallback({ action: 'port_scan', networkSlug: e.networkSlug, address: e.address, symbol: e.symbol })),
-    Markup.button.callback('🗑', encodeCallback({ action: 'port_del', networkSlug: e.networkSlug, address: e.address, symbol: e.symbol })),
+    Markup.button.callback('🗑', encodeCallback({ action: 'port_del', networkSlug: e.networkSlug, address: e.address, symbol: e.symbol, page })),
   ];
   const rows: InlineKeyboardButton[][] = [];
   for (let i = 0; i < entries.length; i += 2) {
     rows.push([...pair(entries[i]!), ...(entries[i + 1] ? pair(entries[i + 1]!) : [])]);
   }
+  const nav = pageRow(page, pages, (p) => encodeCallback({ action: 'port_page', page: p }));
+  if (nav) rows.push(nav);
   rows.push([
-    Markup.button.callback('🔄 Refresh', encodeCallback({ action: 'port_refresh' })),
+    Markup.button.callback('🔄 Refresh', encodeCallback({ action: 'port_refresh', page })),
     {
       text: '📤 Share',
       switch_inline_query_chosen_chat: { query: WATCHLIST_INLINE_QUERY, allow_user_chats: true, allow_group_chats: true, allow_channel_chats: true, allow_bot_chats: false },
@@ -97,11 +112,18 @@ export function watchlistShareKeyboard(botUsername: string, shareId: string): In
   };
 }
 
-/** 通过深链进来看到的别人 watchlist：每币一个 🔍 扫描按钮（一行两个），末行一键复制。 */
-export function sharedWatchlistKeyboard(entries: Array<{ networkSlug: string; address: string; symbol: string }>, shareId: string): Markup.Markup<InlineKeyboardMarkup> {
+/** 通过深链进来看到的别人 watchlist（当页）：每币一个 🔍 扫描按钮（一行两个），多页时加翻页行，末行一键复制（复制的是全部）。 */
+export function sharedWatchlistKeyboard(
+  entries: Array<{ networkSlug: string; address: string; symbol: string }>,
+  shareId: string,
+  page = 1,
+  pages = 1,
+): Markup.Markup<InlineKeyboardMarkup> {
   const buttons = entries.map((e) => Markup.button.callback(`🔍 ${e.symbol}`, encodeCallback({ action: 'port_scan', networkSlug: e.networkSlug, address: e.address, symbol: e.symbol })));
   const rows: InlineKeyboardButton[][] = [];
   for (let i = 0; i < buttons.length; i += 2) rows.push(buttons.slice(i, i + 2));
+  const nav = pageRow(page, pages, (p) => encodeCallback({ action: 'port_spage', address: shareId, page: p }));
+  if (nav) rows.push(nav);
   rows.push([Markup.button.callback('⭐ Add all to my watchlist', encodeCallback({ action: 'port_copy', address: shareId }))]);
   return Markup.inlineKeyboard(rows);
 }

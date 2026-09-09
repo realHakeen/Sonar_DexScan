@@ -24,8 +24,10 @@ inlineHandlers.on('inline_query', async (ctx) => {
     await ctx.answerInlineQuery([], { cache_time: 60, is_personal: true, button: { text: 'Watchlist is unavailable right now', start_parameter: 'watchlist' } });
     return;
   }
-  const rows = await svc.listWithQuotes(from.id);
-  if (rows.length === 0) {
+  // inline 消息不能翻页：只发第一页（行情也只拉这 20 个），超出的在正文里提示 Open in Sonar
+  const page = await svc.listPage(from.id, 1);
+  const rows = page.rows;
+  if (page.total === 0) {
     await ctx.answerInlineQuery([], { cache_time: 10, is_personal: true, button: { text: 'Your watchlist is empty — star a token first', start_parameter: 'watchlist' } });
     return;
   }
@@ -34,12 +36,12 @@ inlineHandlers.on('inline_query', async (ctx) => {
   const article: InlineQueryResultArticle = {
     type: 'article',
     id: `wl-${shareId}`,
-    title: `⭐ Share my watchlist (${rows.length} token${rows.length === 1 ? '' : 's'})`,
+    title: `⭐ Share my watchlist (${page.total} token${page.total === 1 ? '' : 's'})`,
     description: rows.map((r) => r.entry.symbol).join(' · '),
-    input_message_content: { message_text: renderWatchlistShare(owner, rows), parse_mode: 'HTML', link_preview_options: { is_disabled: true } },
+    input_message_content: { message_text: renderWatchlistShare(owner, page, { inline: true }), parse_mode: 'HTML', link_preview_options: { is_disabled: true } },
     reply_markup: watchlistShareKeyboard(ctx.botInfo?.username ?? 'sonar', shareId),
   };
-  ctx.log.info('watchlist shared', { userId: from.id, tokens: rows.length });
+  ctx.log.info('watchlist shared', { userId: from.id, tokens: page.total });
   ctx.services.stats?.record({ kind: 'share', userId: from.id });
   // 行情走 15s 缓存；inline 结果按用户缓存 30s，连续点两次不重复取数
   await ctx.answerInlineQuery([article], { cache_time: 30, is_personal: true });

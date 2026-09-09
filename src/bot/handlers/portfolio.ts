@@ -82,10 +82,10 @@ export async function sendPortfolio(ctx: BotContext): Promise<void> {
     await ctx.reply(UNAVAILABLE);
     return;
   }
-  const rows = await svc.listWithQuotes(userId);
+  const page = await svc.listPage(userId, 1);
   ctx.services.stats?.record({ kind: 'watch_view', userId, chatId: ctx.chat?.id, chatType: ctx.chat?.type });
-  const text = renderPortfolio(rows);
-  const keyboard = rows.length ? portfolioKeyboard(rows.map((r) => r.entry)) : undefined;
+  const text = renderPortfolio(page);
+  const keyboard = page.total ? portfolioKeyboard(page.rows.map((r) => r.entry), page.page, page.pages) : undefined;
   if (isGroup(ctx)) {
     try {
       await ctx.telegram.sendMessage(userId, text, { ...HTML, ...(keyboard ?? {}) });
@@ -98,11 +98,11 @@ export async function sendPortfolio(ctx: BotContext): Promise<void> {
   await ctx.reply(text, { ...HTML, ...(keyboard ?? {}) });
 }
 
-/** 列表内的按钮：🗑 移除 / 🔄 刷新 → 原地重绘；🔍 → 新消息出卡片。 */
+/** 列表内的按钮：🗑 移除 / 🔄 刷新 / ◀ ▶ 翻页 → 原地重绘当前页；🔍 → 新消息出卡片；分享版翻页（port_spage，address = shareId）同理。 */
 export async function handlePortfolioCallback(
   ctx: BotContext,
-  action: 'port_del' | 'port_scan' | 'port_refresh',
-  loc: { networkSlug?: string; address?: string; symbol?: string },
+  action: 'port_del' | 'port_scan' | 'port_refresh' | 'port_page' | 'port_spage',
+  loc: { networkSlug?: string; address?: string; symbol?: string; page?: number },
   messageId?: number,
 ): Promise<void> {
   const svc = ctx.services.portfolio;
@@ -124,6 +124,24 @@ export async function handlePortfolioCallback(
     await runScanFlow(ctx, { kind: 'address', address: loc.address, chainSlug: loc.networkSlug, source: 'raw', nativeCmcId }, { trigger: 'watchlist' });
     return;
   }
+  if (action === 'port_spage') {
+    // 别人分享的列表（深链版）翻页：address 是 shareId
+    if (!loc.address || messageId === undefined || ctx.chat === undefined) {
+      await ctx.answerCbQuery('Incomplete button data.');
+      return;
+    }
+    const share = svc.resolveShare(loc.address);
+    if (!share) {
+      await ctx.answerCbQuery('This share link has expired.', { show_alert: true });
+      return;
+    }
+    await ctx.answerCbQuery();
+    const page = await svc.listPage(share.ownerId, loc.page ?? 1);
+    await ctx.telegram
+      .editMessageText(ctx.chat.id, messageId, undefined, renderWatchlistShare(share.ownerName, page), { ...HTML, ...sharedWatchlistKeyboard(page.rows.map((r) => r.entry), loc.address, page.page, page.pages) })
+      .catch((err) => { if (!/not modified/i.test(String(err))) throw err; });
+    return;
+  }
   if (action === 'port_del') {
     if (!loc.address || !loc.networkSlug) {
       await ctx.answerCbQuery('Incomplete button data.');
@@ -132,15 +150,18 @@ export async function handlePortfolioCallback(
     const removed = svc.remove(userId, loc.networkSlug, loc.address);
     if (removed) ctx.services.stats?.record({ kind: 'watch_del', userId, chatId: ctx.chat?.id, chatType: ctx.chat?.type });
     await ctx.answerCbQuery(removed ? `Removed ${loc.symbol ?? ''}`.trim() : 'Not on your watchlist');
+  } else if (action === 'port_page') {
+    await ctx.answerCbQuery();
   } else {
     await ctx.answerCbQuery('Refreshing…');
   }
   if (messageId === undefined || ctx.chat === undefined) return;
   try {
-    const rows = await svc.listWithQuotes(userId);
-    await ctx.telegram.editMessageText(ctx.chat.id, messageId, undefined, renderPortfolio(rows), {
+    // 删除 / 刷新 / 翻页都留在按钮带的页；删空当页时 listPage 会钳位到最后一页
+    const page = await svc.listPage(userId, loc.page ?? 1);
+    await ctx.telegram.editMessageText(ctx.chat.id, messageId, undefined, renderPortfolio(page), {
       ...HTML,
-      ...(rows.length ? portfolioKeyboard(rows.map((r) => r.entry)) : { reply_markup: { inline_keyboard: [] } }),
+      ...(page.total ? portfolioKeyboard(page.rows.map((r) => r.entry), page.page, page.pages) : { reply_markup: { inline_keyboard: [] } }),
     });
   } catch (err) {
     // 内容没变时 Telegram 会报 "message is not modified"，忽略
@@ -160,14 +181,14 @@ export async function openSharedWatchlist(ctx: BotContext, shareId: string): Pro
     await ctx.reply('⭐ This watchlist link has expired (links last 7 days). Ask the owner to share it again.');
     return true;
   }
-  const rows = await svc.listWithQuotes(share.ownerId);
-  if (rows.length === 0) {
+  const page = await svc.listPage(share.ownerId, 1);
+  if (page.total === 0) {
     await ctx.reply(`⭐ ${share.ownerName}'s watchlist is empty now.`);
     return true;
   }
   ctx.log.info('shared watchlist opened', { shareId, ownerId: share.ownerId, viewer: ctx.from?.id });
   ctx.services.stats?.record({ kind: 'share_open', userId: ctx.from?.id, chatId: ctx.chat?.id, chatType: ctx.chat?.type });
-  await ctx.reply(renderWatchlistShare(share.ownerName, rows), { ...HTML, ...sharedWatchlistKeyboard(rows.map((r) => r.entry), shareId) });
+  await ctx.reply(renderWatchlistShare(share.ownerName, page), { ...HTML, ...sharedWatchlistKeyboard(page.rows.map((r) => r.entry), shareId, page.page, page.pages) });
   return true;
 }
 

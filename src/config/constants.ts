@@ -74,7 +74,7 @@ export const PERP_EXCHANGE_WHITELIST: Readonly<Record<string, PerpExchangeSpec>>
   edgex: { name: 'edgeX', kind: 'dex', fundingIntervalH: 4 },
 };
 
-/** 白名单内兜底：某所 OI 超过同币白名单中位数的这个倍数即剔除（防单所单币抽风）。 */
+/** 白名单内兜底：最大所 OI 超过第二名的这个倍数即剔除（防单所单币抽风，HMSTR 在 BingX 报过 $1.4B 假 OI）。 */
 export const PERP_OI_OUTLIER_MULTIPLIER = 20;
 /** 卡片上列出的 OI 前 N 家交易所。 */
 export const PERP_TOP_VENUES = 3;
@@ -115,8 +115,13 @@ export const SPOT_TOP_VENUES = 3;
 /** 现货交易对一次拉多少条（按成交量降序；1 credit / 100 条，前 100 已覆盖几乎全部有效成交量）。 */
 export const SPOT_PAIRS_LIMIT = 100;
 
-/** 每个用户 portfolio 最多存多少个代币（/portfolio 刷新时每个非 cid 代币 1 credit，封顶控制成本）。 */
-export const PORTFOLIO_MAX_TOKENS = 20;
+/** 每个用户 watchlist 最多存多少个代币。行情按页拉（见 WATCHLIST_PAGE_SIZE），上限只影响存储。 */
+export const PORTFOLIO_MAX_TOKENS = 100;
+/**
+ * /watchlist 每页多少个。约束：Telegram 单条消息 4096 字符（单行排版每币约 70–120 字符）、
+ * 每条消息约 100 个按钮（每币 2 个）；行情也只拉当页（未收录币每个 1 credit）。inline 分享消息不能翻页，只发第一页。
+ */
+export const WATCHLIST_PAGE_SIZE = 20;
 
 /** call 追踪的里程碑倍数，每群每币每档只播一次。3x 起播：2x 在 meme 币上太常见，播了是噪音。 */
 export const CALL_MILESTONES: readonly number[] = [3, 5, 10, 20, 50, 100];
