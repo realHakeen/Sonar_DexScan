@@ -43,7 +43,7 @@ callbackHandlers.on('callback_query', async (ctx) => {
     await handlePortfolioCopy(ctx, address);
     return;
   }
-  if (action === 'port_del' || action === 'port_scan' || action === 'port_refresh' || action === 'port_page' || action === 'port_spage') {
+  if (action === 'port_del' || action === 'port_rm' || action === 'port_edit' || action === 'port_scan' || action === 'port_refresh' || action === 'port_page' || action === 'port_spage') {
     await handlePortfolioCallback(ctx, action, { networkSlug, address, symbol, page }, ctx.callbackQuery.message?.message_id);
     return;
   }

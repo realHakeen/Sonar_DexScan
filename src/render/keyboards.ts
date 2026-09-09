@@ -68,26 +68,32 @@ function pageRow(page: number, pages: number, target: (p: number) => string): In
 }
 
 /**
- * /watchlist 列表（当页）：一行放两个代币（🔍 SYMBOL · 🗑 · 🔍 SYMBOL · 🗑）；多页时加翻页行；末行 Refresh + Share。
- * 🗑 / Refresh 带当前页码，操作完留在这一页。
+ * /watchlist 列表（当页）。一行两个币，按钮才有半行宽（一行四个时 symbol 会被截成 "...CK"）：
+ * - 普通模式：`🔍 SYMBOL` 扫描；多页时加翻页行；末行 Refresh · Remove · Share。
+ * - 删除模式（点 Remove 进入）：同样位置变成 `🗑 SYMBOL`，点一个删一个可以连删；末行只有 Done 回普通模式。
+ * 所有回调带当前页码，操作完留在这一页。
  */
 export function portfolioKeyboard(
   entries: Array<{ networkSlug: string; address: string; symbol: string }>,
   page = 1,
   pages = 1,
+  mode: 'scan' | 'remove' = 'scan',
 ): Markup.Markup<InlineKeyboardMarkup> {
-  const pair = (e: { networkSlug: string; address: string; symbol: string }): InlineKeyboardButton[] => [
-    Markup.button.callback(`🔍 ${e.symbol}`, encodeCallback({ action: 'port_scan', networkSlug: e.networkSlug, address: e.address, symbol: e.symbol })),
-    Markup.button.callback('🗑', encodeCallback({ action: 'port_del', networkSlug: e.networkSlug, address: e.address, symbol: e.symbol, page })),
-  ];
+  const button = (e: { networkSlug: string; address: string; symbol: string }): InlineKeyboardButton =>
+    mode === 'remove'
+      ? Markup.button.callback(`🗑 ${e.symbol}`, encodeCallback({ action: 'port_rm', networkSlug: e.networkSlug, address: e.address, symbol: e.symbol, page }))
+      : Markup.button.callback(`🔍 ${e.symbol}`, encodeCallback({ action: 'port_scan', networkSlug: e.networkSlug, address: e.address, symbol: e.symbol }));
   const rows: InlineKeyboardButton[][] = [];
-  for (let i = 0; i < entries.length; i += 2) {
-    rows.push([...pair(entries[i]!), ...(entries[i + 1] ? pair(entries[i + 1]!) : [])]);
+  for (let i = 0; i < entries.length; i += 2) rows.push(entries.slice(i, i + 2).map(button));
+  if (mode === 'remove') {
+    rows.push([Markup.button.callback('✅ Done', encodeCallback({ action: 'port_page', page }))]);
+    return Markup.inlineKeyboard(rows);
   }
   const nav = pageRow(page, pages, (p) => encodeCallback({ action: 'port_page', page: p }));
   if (nav) rows.push(nav);
   rows.push([
     Markup.button.callback('🔄 Refresh', encodeCallback({ action: 'port_refresh', page })),
+    Markup.button.callback('🗑 Remove', encodeCallback({ action: 'port_edit', page })),
     {
       text: '📤 Share',
       switch_inline_query_chosen_chat: { query: WATCHLIST_INLINE_QUERY, allow_user_chats: true, allow_group_chats: true, allow_channel_chats: true, allow_bot_chats: false },

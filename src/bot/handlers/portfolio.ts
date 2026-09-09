@@ -98,10 +98,13 @@ export async function sendPortfolio(ctx: BotContext): Promise<void> {
   await ctx.reply(text, { ...HTML, ...(keyboard ?? {}) });
 }
 
-/** 列表内的按钮：🗑 移除 / 🔄 刷新 / ◀ ▶ 翻页 → 原地重绘当前页；🔍 → 新消息出卡片；分享版翻页（port_spage，address = shareId）同理。 */
+/**
+ * 列表内的按钮：🔄 刷新 / ◀ ▶ 翻页 / Remove 进删除模式 / 🗑 SYMBOL 删一个（留在删除模式）/ Done 回普通模式 → 原地重绘当前页；
+ * 🔍 → 新消息出卡片；分享版翻页（port_spage，address = shareId）同理。port_del 是老按钮的删除，留在普通模式。
+ */
 export async function handlePortfolioCallback(
   ctx: BotContext,
-  action: 'port_del' | 'port_scan' | 'port_refresh' | 'port_page' | 'port_spage',
+  action: 'port_del' | 'port_rm' | 'port_edit' | 'port_scan' | 'port_refresh' | 'port_page' | 'port_spage',
   loc: { networkSlug?: string; address?: string; symbol?: string; page?: number },
   messageId?: number,
 ): Promise<void> {
@@ -142,7 +145,8 @@ export async function handlePortfolioCallback(
       .catch((err) => { if (!/not modified/i.test(String(err))) throw err; });
     return;
   }
-  if (action === 'port_del') {
+  const mode: 'scan' | 'remove' = action === 'port_edit' || action === 'port_rm' ? 'remove' : 'scan';
+  if (action === 'port_del' || action === 'port_rm') {
     if (!loc.address || !loc.networkSlug) {
       await ctx.answerCbQuery('Incomplete button data.');
       return;
@@ -152,6 +156,8 @@ export async function handlePortfolioCallback(
     await ctx.answerCbQuery(removed ? `Removed ${loc.symbol ?? ''}`.trim() : 'Not on your watchlist');
   } else if (action === 'port_page') {
     await ctx.answerCbQuery();
+  } else if (action === 'port_edit') {
+    await ctx.answerCbQuery('Tap a token to remove it');
   } else {
     await ctx.answerCbQuery('Refreshing…');
   }
@@ -161,7 +167,7 @@ export async function handlePortfolioCallback(
     const page = await svc.listPage(userId, loc.page ?? 1);
     await ctx.telegram.editMessageText(ctx.chat.id, messageId, undefined, renderPortfolio(page), {
       ...HTML,
-      ...(page.total ? portfolioKeyboard(page.rows.map((r) => r.entry), page.page, page.pages) : { reply_markup: { inline_keyboard: [] } }),
+      ...(page.total ? portfolioKeyboard(page.rows.map((r) => r.entry), page.page, page.pages, mode) : { reply_markup: { inline_keyboard: [] } }),
     });
   } catch (err) {
     // 内容没变时 Telegram 会报 "message is not modified"，忽略

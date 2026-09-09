@@ -25,6 +25,10 @@ export type CallbackAction =
   | 'port_copy'
   /** watchlist 翻页：page = 目标页。 */
   | 'port_page'
+  /** watchlist 切到删除模式（按钮变成 🗑 SYMBOL），page = 当前页。 */
+  | 'port_edit'
+  /** 删除模式下删一个并留在删除模式（port_del 是普通模式下的删除，留在普通模式）。 */
+  | 'port_rm'
   /** 别人分享的 watchlist（深链版）翻页：address = shareId，page = 目标页。 */
   | 'port_spage'
   | 'noop';
@@ -58,6 +62,8 @@ const ACTION_CODE: Record<CallbackAction, string> = {
   port_copy: 'wc',
   port_page: 'wp',
   port_spage: 'wsp',
+  port_edit: 'we',
+  port_rm: 'wx',
   noop: 'n',
 };
 const CODE_ACTION = Object.fromEntries(

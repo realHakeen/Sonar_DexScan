@@ -88,7 +88,7 @@ test('listPage：只给当页拉行情，页码越界钳位；上限 100', async
 });
 
 test('portfolio 回调码往返，port_refresh 不带地址也能解码；页码走第 6 段', () => {
-  for (const action of ['port_add', 'port_del', 'port_scan'] as const) {
+  for (const action of ['port_add', 'port_del', 'port_rm', 'port_scan'] as const) {
     const data = encodeCallback({ action, networkSlug: 'bnb', address: '0x' + 'a'.repeat(40), symbol: 'PEPE' });
     assert.ok(Buffer.byteLength(data) <= 64);
     assert.equal(decodeCallback(data)?.action, action);
@@ -102,25 +102,27 @@ test('portfolio 回调码往返，port_refresh 不带地址也能解码；页码
   assert.deepEqual(decodeCallback(encodeCallback({ action: 'port_spage', address: 'abc123', page: 2 })), { action: 'port_spage', networkSlug: undefined, address: 'abc123', symbol: undefined, page: 2 });
 });
 
-test('watchlist 键盘：一行两个代币四个按钮，多页时加 ◀ 页码 ▶，末行 Refresh + Share（选聊天分享）', () => {
+test('watchlist 键盘：一行两个 🔍；多页时加 ◀ 页码 ▶；末行 Refresh · Remove · Share；删除模式换成 🗑 SYMBOL + Done', () => {
   const entries = ['A', 'B', 'C'].map((sym, i) => ({ networkSlug: 'bnb', address: '0x' + String(i).repeat(40), symbol: sym }));
+  const cb = (b: unknown) => decodeCallback((b as { callback_data: string }).callback_data);
   const kb = portfolioKeyboard(entries).reply_markup.inline_keyboard;
-  assert.equal(kb.length, 3);
-  assert.deepEqual(kb[0]!.map((b) => b.text), ['🔍 A', '🗑', '🔍 B', '🗑']);
-  assert.deepEqual(kb[1]!.map((b) => b.text), ['🔍 C', '🗑']);
-  assert.deepEqual(kb[2]!.map((b) => b.text), ['🔄 Refresh', '📤 Share']);
-  const share = kb[2]![1] as { switch_inline_query_chosen_chat?: { query: string; allow_group_chats?: boolean } };
+  assert.deepEqual(kb.map((r) => r.map((b) => b.text)), [['🔍 A', '🔍 B'], ['🔍 C'], ['🔄 Refresh', '🗑 Remove', '📤 Share']]);
+  assert.equal(cb(kb[0]![0])?.action, 'port_scan');
+  assert.deepEqual([cb(kb[2]![1])?.action, cb(kb[2]![1])?.page], ['port_edit', 1]);
+  const share = kb[2]![2] as { switch_inline_query_chosen_chat?: { query: string; allow_group_chats?: boolean } };
   assert.equal(share.switch_inline_query_chosen_chat?.query, 'watchlist');
   assert.equal(share.switch_inline_query_chosen_chat?.allow_group_chats, true);
-  // 多页：翻页行在 Refresh 之上，🗑 / Refresh 带当前页
+  // 多页：翻页行在末行之上，Refresh / Remove 带当前页
   const paged = portfolioKeyboard(entries, 2, 3).reply_markup.inline_keyboard;
   assert.deepEqual(paged[2]!.map((b) => b.text), ['◀', '2/3', '▶']);
-  const cb = (b: unknown) => decodeCallback((b as { callback_data: string }).callback_data);
   assert.deepEqual([cb(paged[2]![0])?.page, cb(paged[2]![1])?.action, cb(paged[2]![2])?.page], [1, 'noop', 3]);
-  assert.equal(cb(paged[0]![1])?.page, 2);
-  assert.equal(cb(paged[3]![0])?.page, 2);
-  // 首页 ◀ 是 noop
+  assert.deepEqual([cb(paged[3]![0])?.page, cb(paged[3]![1])?.page], [2, 2]);
   assert.equal(cb(portfolioKeyboard(entries, 1, 3).reply_markup.inline_keyboard[2]![0])?.action, 'noop');
+  // 删除模式：🗑 SYMBOL（port_rm 带页码），没有翻页行，末行只有 Done（port_page 回当页）
+  const rm = portfolioKeyboard(entries, 2, 3, 'remove').reply_markup.inline_keyboard;
+  assert.deepEqual(rm.map((r) => r.map((b) => b.text)), [['🗑 A', '🗑 B'], ['🗑 C'], ['✅ Done']]);
+  assert.deepEqual([cb(rm[0]![0])?.action, cb(rm[0]![0])?.page, cb(rm[0]![0])?.address], ['port_rm', 2, '0x' + '0'.repeat(40)]);
+  assert.deepEqual([cb(rm[2]![0])?.action, cb(rm[2]![0])?.page], ['port_page', 2]);
   const shared = watchlistShareKeyboard('sonar_bot', 'abc123').inline_keyboard;
   assert.deepEqual(shared[0]!.map((b) => ('url' in b ? b.url : '')), ['https://t.me/sonar_bot?start=wl_abc123', 'https://t.me/sonar_bot?startgroup=true']);
   const viewer = sharedWatchlistKeyboard(entries, 'abc123').reply_markup.inline_keyboard;
