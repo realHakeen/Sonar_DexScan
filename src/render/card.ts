@@ -1,7 +1,7 @@
 import { chainRegistry } from '../domain/chains.js';
 import { overallRisk } from '../domain/risk.js';
 import { CMC_LISTING_URL, CMC_SUPPLY_METHODOLOGY_URL, PERP_TOP_VENUES, SPOT_TOP_VENUES } from '../config/constants.js';
-import { formatCallAge, formatMultiple, userLink } from '../domain/calls.js';
+import { formatCallAge, formatMultiple, multipleEmoji, userLink } from '../domain/calls.js';
 import type { LiquidationStats, PerpStats, PoolInfo, SecurityScan, SpotStats, TokenReport } from '../domain/types.js';
 import {
   bar,
@@ -381,10 +381,12 @@ function renderPerpRows(perp: PerpStats | undefined, liq: LiquidationStats | und
   return rows;
 }
 
-/** 🚀 aaronseaemcee @ $21.5M [10.5x] (37d 1h ago) 🔼 */
+/** 🚀 aaronseaemcee @ $21.5M [10.5x] 🔥 (37d 1h ago) 🔼 */
 function renderCallLine(c: NonNullable<TokenReport['call']>): string {
   const who = c.username ? link(escapeHtml(c.username), userLink(c.username)!) : bold(c.displayName);
-  const mult = Number.isFinite(c.multiple) ? ` [${formatMultiple(c.multiple)}]` : '';
+  // 倍数后面带个表情：赚的 🔥🚀💰…，亏的 😭💀📉…，按 call 时间戳挑，同一条 call 刷新不变
+  const emoji = multipleEmoji(c.multiple, c.calledAt);
+  const mult = Number.isFinite(c.multiple) ? ` [${formatMultiple(c.multiple)}]${emoji ? ` ${emoji}` : ''}` : '';
   const rel = c.isNew ? 'now' : formatCallAge(c.calledAt);
   const age = rel === 'now' ? 'now' : `${rel} ago`;
   const jump = c.messageUrl ? ` ${link('🔼', c.messageUrl)}` : '';

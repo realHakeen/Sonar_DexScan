@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { crossedMilestone, formatCallAge, formatMultiple, messageLink } from '../src/domain/calls.js';
+import { crossedMilestone, formatCallAge, formatMultiple, messageLink, multipleEmoji } from '../src/domain/calls.js';
 import { openMemoryDatabase } from '../src/infra/db.js';
 import { CallService } from '../src/services/callService.js';
 import { renderBannerPng, renderBannerSvg } from '../src/render/banner.js';
@@ -25,7 +25,9 @@ test('formatCallAge / formatMultiple / messageLink', () => {
   assert.equal(formatCallAge(now - (3 * 60 + 20) * 60_000, now), '3h 20m');
   assert.equal(formatCallAge(now - (37 * 24 + 1) * 3_600_000, now), '37d 1h');
   assert.equal(formatMultiple(10.46), '10.5x');
-  assert.equal(formatMultiple(0.42), '0.4x');
+  assert.equal(formatMultiple(0.42), '-58%');
+  assert.equal(formatMultiple(0.3), '-70%');
+  assert.equal(formatMultiple(0.97), '1.0x');
   assert.equal(formatMultiple(123.4), '123x');
   assert.equal(messageLink(-1001234567890, 42), 'https://t.me/c/1234567890/42');
   assert.equal(messageLink(-123456, 42), undefined); // 普通群没有链接
@@ -88,10 +90,22 @@ test('卡片 call 行：用户名链接 · 市值 · 倍数 · 时长 · 🔼', 
     call: { displayName: 'Aaron', username: 'aaronseaemcee', messageUrl: 'https://t.me/c/1/77', calledAt: Date.now() - 37 * 24 * 3_600_000 - 3_600_000, mcapUsd: 21.53e6, mcapKind: 'mc', multiple: 10.46, peakMultiple: 12, isNew: false },
   };
   const html = renderScanCard(report);
-  assert.match(html, /🚀 <a href="https:\/\/t\.me\/aaronseaemcee">aaronseaemcee<\/a> @ \$21\.5M \[10\.5x\] \(37d 1h ago\) <a href="https:\/\/t\.me\/c\/1\/77">🔼<\/a>/);
+  assert.match(html, /🚀 <a href="https:\/\/t\.me\/aaronseaemcee">aaronseaemcee<\/a> @ \$21\.5M \[10\.5x\] (🔥|🚀|💰|📈|🤑|💎) \(37d 1h ago\) <a href="https:\/\/t\.me\/c\/1\/77">🔼<\/a>/);
   const fresh = renderScanCard({ ...report, call: { ...report.call!, isNew: true, multiple: 1, username: undefined, messageUrl: undefined } });
   assert.match(fresh, /\n\n🚀 <b>Aaron<\/b> @ \$21\.5M \[1\.0x\] \(now\)$/);
   const justNow = renderScanCard({ ...report, call: { ...report.call!, isNew: false, calledAt: Date.now() - 20_000, multiple: 1 } });
   assert.match(justNow, /\[1\.0x\] \(now\)/, '一分钟内不写 "now ago"');
   assert.ok(html.indexOf('🚀') > html.indexOf('<code>0x'), 'call 行在合约地址之后（卡片尾部）');
+});
+
+test('multipleEmoji：赚的从 🔥 组挑、亏的从 😭 组挑、1x 附近为空；同 seed 稳定，不同 seed 会变', () => {
+  const gains = ['🔥', '🚀', '💰', '📈', '🤑', '💎'];
+  const losses = ['😭', '💀', '📉', '🩸', '🫠', '🤡'];
+  assert.ok(gains.includes(multipleEmoji(2.5, 1_700_000_000_000)));
+  assert.ok(losses.includes(multipleEmoji(0.3, 1_700_000_000_000)));
+  assert.equal(multipleEmoji(1.0, 1), '');
+  assert.equal(multipleEmoji(Number.NaN, 1), '');
+  assert.equal(multipleEmoji(2.5, 5000), multipleEmoji(2.5, 5000));
+  const seen = new Set(Array.from({ length: 12 }, (_, i) => multipleEmoji(2.5, i * 1000)));
+  assert.equal(seen.size, gains.length);
 });
