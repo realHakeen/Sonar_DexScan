@@ -118,3 +118,17 @@ test('parseProfile：取指定链上带 header / imageUrl 的第一条 pair 的�
   assert.equal(parseProfile({ pairs: [{ chainId: 'solana' }] }), undefined);
   assert.equal(parseProfile(null), undefined);
 });
+
+test('LoreService：缓存行带 prompt 版本，旧版本（无前缀）的缓存不命中', async () => {
+  const db = openMemoryDatabase();
+  db.prepare("INSERT INTO lore (network_slug, address, text, sources, header, created_at) VALUES ('robinhood', '0xabc', 'old blurb', 'website', NULL, ?)").run(Date.now());
+  let calls = 0;
+  const svc = new LoreService(gateway({ website: 'https://x.example' }), async () => (calls++, { text: 'new blurb' }), db, async (url) => ({ url, text: 'Some readable project text that is long enough to count as a source.', kind: 'html' as const }), 60_000, async () => undefined);
+  const r = await svc.forToken({ networkSlug: 'robinhood', address: '0xABC' });
+  assert.equal(r.cached, false);
+  assert.equal(r.text, 'new blurb');
+  assert.equal(calls, 1);
+  const row = db.prepare("SELECT sources FROM lore WHERE address = '0xabc'").get() as { sources: string };
+  assert.equal(row.sources, 'v2:website');
+  assert.equal((await svc.forToken({ networkSlug: 'robinhood', address: '0xabc' })).cached, true);
+});

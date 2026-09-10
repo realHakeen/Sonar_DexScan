@@ -25,10 +25,10 @@ export interface Lore {
 }
 
 /**
- * prompt 或素材管线有实质改动时更新这个时间：早于它的缓存一律失效，部署后不用等 24h 才看到新版输出。
- * 2026-09-10 04:30Z：禁止模型评论素材本身；bundle 文案裁剪优先保留提到代币的句子。
+ * prompt 或素材管线有实质改动时 +1：缓存行里记着生成时的版本，不一致就重新生成，部署后立刻生效，与时间无关。
+ * v2（2026-09-10）：禁止模型评论素材本身；bundle 文案裁剪优先保留提到代币的句子。
  */
-const PROMPT_CHANGED_AT = Date.UTC(2026, 8, 10, 4, 30);
+const PROMPT_VERSION = 2;
 
 const SYSTEM = `You write "lore" blurbs for a Telegram crypto scanner bot. Given only the source material provided, write 3-5 sentences in English: first what the project is, then how the token is used, then notable mechanics or facts (launch date, supply, chain).
 Rules:
@@ -90,8 +90,11 @@ export class LoreService {
     const row = this.db.prepare('SELECT text, sources, header, created_at FROM lore WHERE network_slug = ? AND address = ?').get(networkSlug, address.toLowerCase()) as
       | { text: string; sources: string; header: string | null; created_at: number }
       | undefined;
-    if (!row || row.created_at < Date.now() - this.ttlMs || row.created_at < PROMPT_CHANGED_AT) return undefined;
-    return { text: row.text, sources: row.sources ? row.sources.split(',') : [], header: row.header ?? undefined };
+    if (!row || row.created_at < Date.now() - this.ttlMs) return undefined;
+    // sources 列格式 "v2:website,cmc"；没有版本前缀（v1 时代）或版本不同 → 当没缓存
+    const m = /^v(\d+):(.*)$/.exec(row.sources);
+    if (!m || Number(m[1]) !== PROMPT_VERSION) return undefined;
+    return { text: row.text, sources: m[2] ? m[2].split(',') : [], header: row.header ?? undefined };
   }
 
   private writeCache(networkSlug: string, address: string, text: string, sources: string[], header?: string): void {
@@ -99,7 +102,7 @@ export class LoreService {
     try {
       this.db
         .prepare('INSERT INTO lore (network_slug, address, text, sources, header, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(network_slug, address) DO UPDATE SET text = excluded.text, sources = excluded.sources, header = excluded.header, created_at = excluded.created_at')
-        .run(networkSlug, address.toLowerCase(), text, sources.join(','), header ?? null, Date.now());
+        .run(networkSlug, address.toLowerCase(), text, `v${PROMPT_VERSION}:${sources.join(',')}`, header ?? null, Date.now());
     } catch (err) {
       log.warn('lore cache write failed', { err: String(err) });
     }
