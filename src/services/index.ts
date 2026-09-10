@@ -13,6 +13,7 @@ import { ScanService } from './scanService.js';
 import { SearchService } from './searchService.js';
 import { LoreService } from './loreService.js';
 import { geminiGenerator } from '../api/gemini.js';
+import { executeSkill } from '../api/cmc/skills.js';
 
 export { ScanService } from './scanService.js';
 export { SearchService } from './searchService.js';
@@ -68,7 +69,7 @@ export function createServices(cmc: CmcGateway = createCmcGateway()): Services {
     portfolio: db ? new PortfolioService(db, cmc) : undefined,
     calls: db ? new CallService(db) : undefined,
     stats: db ? new StatsService(db) : undefined,
-    lore: new LoreService(cmc, geminiGenerator(), db ?? undefined),
+    lore: new LoreService(cmc, geminiGenerator(), db ?? undefined, undefined, undefined, undefined, env.LORE_CMC_SKILL === 'true' ? executeSkill : undefined),
     refreshIndex,
     startIndexRefresh() {
       if (timer) return;

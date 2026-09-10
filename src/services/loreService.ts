@@ -6,6 +6,7 @@ import { chainRegistry } from '../domain/chains.js';
 import type { TokenCandidate } from '../domain/types.js';
 import { fetchPageText, type PageText } from '../infra/fetchText.js';
 import { tokenProfile, type DexscreenerProfile } from '../api/dexscreener.js';
+import type { SkillResult } from '../api/cmc/skills.js';
 import { createLogger } from '../infra/logger.js';
 
 const log = createLogger('lore');
@@ -16,7 +17,7 @@ export interface Lore {
   networkSlug: string;
   address: string;
   text: string;
-  /** 用到的素材：website / cmc；为空表示没有任何正文，只给了链接。 */
+  /** 用到的素材：website / cmc / news / skill；为空表示没有任何正文，只给了链接。 */
   sources: string[];
   /** DexScreener 上项目方提交的横幅图，有就发图片消息。 */
   headerImage?: string;
@@ -34,6 +35,7 @@ const SYSTEM = `You write "lore" blurbs for a Telegram crypto scanner bot. Given
 Rules:
 - Use only facts present in the sources. Never invent partnerships, listings, prices, or hype. Present the project's own website claims as what the project says, not as verified fact.
 - Never comment on the sources themselves: do not mention that they are thin, fragmented, incomplete, UI text, metadata, or that a description is missing. Do not mention which chain was scanned or that other chains may exist.
+- News items are third-party reporting: you may use what they say the project is and does, phrased as reported ("described as", "launched as"). A CoinMarketCap research note's "framed in public discussion" / "narrative" parts are market chatter: phrase them as how the token is being talked about, never as fact.
 - If the only substantive source is the CoinMarketCap listing sentence (chain, supply, launch platform), write 1-2 sentences with those facts, e.g. "<name> is a <chain> token launched on <platform> with a supply of <n>; the project has not published a description." Do not pad it.
 - Only if the sources contain literally nothing about the project beyond its name and links, write exactly one sentence: "No public description of <name> is available yet." and stop.
 - Plain text, no headings, no bullet points, no emoji, no markdown.`;
@@ -51,6 +53,8 @@ export class LoreService {
     private readonly fetchText: (url: string, keywords?: string[]) => Promise<PageText | undefined> = (url, keywords) => fetchPageText(url, { keywords }),
     private readonly ttlMs = env.LORE_CACHE_TTL_MS,
     private readonly fetchProfile: (address: string, chainId?: string) => Promise<DexscreenerProfile | undefined> = tokenProfile,
+    /** CMC skill 兜底；默认不注入（测试里绝不能碰真接口），组合根按 LORE_CMC_SKILL 决定。 */
+    private readonly runSkill?: (name: string, params: Record<string, unknown>) => Promise<SkillResult>,
   ) {}
 
   get enabled(): boolean {
@@ -67,18 +71,32 @@ export class LoreService {
     const links = { website: c.website, twitter: c.twitter, telegram: c.telegram };
     if (cached) return { symbol: c.symbol, name: c.name, networkSlug: loc.networkSlug, address: c.address, text: cached.text, sources: cached.sources, headerImage: cached.header, links, cached: true };
 
-    const [page, cmcInfo, profile] = await Promise.all([
+    const chainId = chainRegistry.get(loc.networkSlug).dexscreenerId;
+    const [page, cmcInfo, news, profile] = await Promise.all([
       c.website ? this.fetchText(c.website, [c.symbol, c.name]) : Promise.resolve(undefined),
       c.cmcId ? this.cmc.core.info(c.cmcId).catch(() => undefined) : Promise.resolve(undefined),
-      this.fetchProfile(c.address, chainRegistry.get(loc.networkSlug).dexscreenerId),
+      c.cmcId ? this.cmc.core.news(c.cmcId, 5).catch(() => []) : Promise.resolve([]),
+      this.fetchProfile(c.address, chainId),
     ]);
     // 横幅只在 DexScreener 资料里的链接和 CMC 登记的官网 / X 对得上时才用：它那边偶尔把别的项目的资料挂在这个合约上（4STOCK 拿到的是 Superstables 的图）
     const header = profile && profileMatches(profile, links) ? profile.header : undefined;
     const sources: string[] = [];
     if (page) sources.push('website');
     if (cmcInfo?.description) sources.push('cmc');
+    if (news.length) sources.push('news');
 
-    const user = buildPrompt(c, page, cmcInfo?.description);
+    // 官网和新闻都空（four.meme / pump.fun 上的币常见）：CMC skill 兜底，它有链上画像和"市场怎么讲这个币"，20 credits、约 40s
+    let skill: SkillResult | undefined;
+    if (!page && news.length === 0 && this.runSkill && chainId) {
+      skill = await this.runSkill('onchain_memecoin_token_profile', { contract_address: c.address, chain: chainId }).catch((err) => {
+        log.warn('lore skill failed', { symbol: c.symbol, err: String(err) });
+        return undefined;
+      });
+      if (skill?.ok && skill.analysis) sources.push('skill');
+      else skill = undefined;
+    }
+
+    const user = buildPrompt(c, page, cmcInfo?.description, news, skill?.ok ? skill : undefined);
     const started = Date.now();
     const out = await this.generate(SYSTEM, user);
     log.info('lore generated', { symbol: c.symbol, chain: loc.networkSlug, sources, elapsed: Date.now() - started, in: out.inputTokens, out: out.outputTokens });
@@ -136,13 +154,22 @@ export function launchpadOf(website: string | undefined): string | undefined {
   }
 }
 
-export function buildPrompt(c: TokenCandidate, page: PageText | undefined, cmcDescription: string | undefined): string {
+export interface NewsItem {
+  title: string;
+  subtitle?: string;
+  releasedAt?: string;
+  source?: string;
+}
+
+export function buildPrompt(c: TokenCandidate, page: PageText | undefined, cmcDescription: string | undefined, news: NewsItem[] = [], skill?: SkillResult): string {
   const launchpad = launchpadOf(c.website);
   const parts = [
     // "on <chain>" 会让模型把多链项目写成"某链上的项目"（Delysium 被写成 BNB Chain 项目），改成"扫描的合约在哪条链"
     `Token: ${c.symbol} (${c.name}). Contract scanned on ${chainRegistry.displayName(c.networkSlug)} (the project may also exist on other chains). Website: ${c.website ?? '-'}. X: ${c.twitter ?? '-'}. Telegram: ${c.telegram ?? '-'}.${c.listedAt ? ` First DEX pool was created on ${new Date(c.listedAt).toISOString().slice(0, 10)} (past event).` : ''}`,
     launchpad ? `The website field points to the ${launchpad} launchpad, so the token was launched there and has no separate project site.` : '',
     cmcDescription ? `CoinMarketCap description:\n${cmcDescription.slice(0, 1500)}` : 'Not listed on CoinMarketCap (no CMC description).',
+    news.length ? `Recent news about the project (headline — summary, source, date):\n${news.map((n) => `- ${n.title}${n.subtitle ? ` — ${n.subtitle}` : ''} (${n.source ?? 'unknown source'}${n.releasedAt ? `, ${n.releasedAt}` : ''})`).join('\n')}` : '',
+    skill?.analysis ? `CoinMarketCap automated research note (${skill.status ?? 'ok'}, confidence ${skill.confidence ?? 'unknown'}):\n${skill.analysis.slice(0, 2500)}` : '',
     page
       ? `Project website text (${page.url})${page.kind === 'bundle' ? ' — extracted from the site\'s app bundle, so sentences may be fragmented or out of order; ignore UI labels and error messages' : ''}:\n${page.meta ? `${page.meta}\n` : ''}${page.text}`
       : 'Project website text: unavailable (no website, or the site has no readable text).',

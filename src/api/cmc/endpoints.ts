@@ -71,6 +71,8 @@ export const ENDPOINTS = {
      * 1 credit / 100 条（2026-09-05 实测）。
      */
     marketPairs: '/v2/cryptocurrency/market-pairs/latest',
+    /** GET id / limit → [{ title, subtitle, released_at, source_name, source_url }]。0 credits（2026-09-10 实测）。/lore 的叙事素材。 */
+    news: '/v1/content/latest',
   },
   /**
    * v5 衍生品端点（2026-09-04 实测）。参数名与文档不同：按币是 crypto_id，按所是 exchange_slug / exchange_id。

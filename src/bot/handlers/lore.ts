@@ -20,7 +20,7 @@ export async function runLoreCommand(ctx: BotContext, arg: string): Promise<void
   const parsed = parseInput(arg);
   if (parsed.kind === 'none') throw new InvalidInputError('/lore needs a contract address, link or $TICKER');
 
-  const msg = await ctx.reply('📖 Reading the project…', { reply_parameters: ctx.message ? { message_id: ctx.message.message_id } : undefined });
+  const msg = await ctx.reply('📖 Reading the project… this can take up to a minute.', { reply_parameters: ctx.message ? { message_id: ctx.message.message_id } : undefined });
   const edit = (text: string) => ctx.telegram.editMessageText(ctx.chat!.id, msg.message_id, undefined, text, HTML);
   const started = Date.now();
   try {

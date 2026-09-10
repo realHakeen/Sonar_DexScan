@@ -6,6 +6,7 @@ import { renderLore } from '../src/bot/handlers/lore.js';
 import { openMemoryDatabase } from '../src/infra/db.js';
 import type { CmcGateway } from '../src/api/cmc/index.js';
 import { parseProfile } from '../src/api/dexscreener.js';
+import { parseRpcBody, parseSkillPayload } from '../src/api/cmc/skills.js';
 
 test('extractVisibleText：去 script / style，剥标签，解实体，压空白，截断', () => {
   const html = '<html><head><title>X</title><style>.a{}</style><script>var a=1</script><meta name="description" content="Cat &amp; mining game"></head><body><h1>Project Mars</h1><p>Plant   rigs,&nbsp;collect ore.</p><div>Tokenomics &#8212; 3.5M</div><noscript>no js</noscript></body></html>';
@@ -15,15 +16,18 @@ test('extractVisibleText：去 script / style，剥标签，解实体，压空�
   assert.equal(extractMetaDescription('<meta name="description" content="short">'), undefined);
 });
 
-function gateway(over: { website?: string; cmcId?: number; description?: string } = {}): CmcGateway {
+function gateway(over: { website?: string; cmcId?: number; description?: string; news?: Array<{ title: string; subtitle?: string }>; networkSlug?: string } = {}): CmcGateway {
   return {
     dex: {
       tokenDetail: async () => ({
-        candidate: { symbol: 'DRILL', name: 'Project Mars', networkSlug: 'robinhood', address: '0xD9d674B04A72AFfe00E06385535Eaac10B988fCa', website: over.website, twitter: 'https://x.com/projectmars_rh', cmcId: over.cmcId, listedAt: Date.UTC(2026, 8, 7), raw: {} },
+        candidate: { symbol: 'DRILL', name: 'Project Mars', networkSlug: over.networkSlug ?? 'robinhood', address: '0xD9d674B04A72AFfe00E06385535Eaac10B988fCa', website: over.website, twitter: 'https://x.com/projectmars_rh', cmcId: over.cmcId, listedAt: Date.UTC(2026, 8, 7), raw: {} },
         pools: [],
       }),
     },
-    core: { info: async () => (over.description ? { id: over.cmcId, name: 'x', symbol: 'x', description: over.description } : undefined) },
+    core: {
+      info: async () => (over.description ? { id: over.cmcId, name: 'x', symbol: 'x', description: over.description } : undefined),
+      news: async () => over.news ?? [],
+    },
   } as unknown as CmcGateway;
 }
 
@@ -152,4 +156,44 @@ test('launchpadOf 与 buildPrompt：官网是 four.meme / pump.fun 这类发射�
   const p = buildPrompt({ symbol: '4STOCK', name: '4Stock', networkSlug: 'bnb', address: '0x', website: 'https://four.meme', raw: {} }, undefined, '4Stock (4Stock) is a cryptocurrency and operates on the BNB Smart Chain (BEP20) platform.');
   assert.match(p, /points to the four\.meme launchpad/);
   assert.match(p, /CoinMarketCap description:\n4Stock/);
+});
+
+test('新闻进 prompt；官网和新闻都空时才调 CMC skill，skill 的 analysis 进 prompt 并记 sources=skill', async () => {
+  const seen: string[] = [];
+  const gen = async (_s: string, user: string) => (seen.push(user), { text: 'blurb' });
+  let skillCalls: Array<[string, Record<string, unknown>]> = [];
+  const skill = async (name: string, params: Record<string, unknown>) => (skillCalls.push([name, params]), { ok: true, status: 'ok', confidence: 'medium', analysis: 'Narrative summary: framed as a stock-themed memecoin.' });
+  // 有新闻：不调 skill
+  const withNews = new LoreService(gateway({ cmcId: 42249, networkSlug: 'bnb', news: [{ title: 'What Is 4Stock?', subtitle: 'Tokenized US stocks on BNB Chain.' }] }), gen, undefined, async () => undefined, 60_000, async () => undefined, skill);
+  const a = await withNews.forToken({ networkSlug: 'bnb', address: '0x1' });
+  assert.deepEqual(a.sources, ['news']);
+  assert.match(seen[0]!, /Recent news about the project[\s\S]*What Is 4Stock\? — Tokenized US stocks on BNB Chain\./);
+  assert.equal(skillCalls.length, 0);
+  // 没官网没新闻：调 skill，链名用 DexScreener 的 id（bnb → bsc）
+  const bare = new LoreService(gateway({ cmcId: 42249, networkSlug: 'bnb' }), gen, undefined, async () => undefined, 60_000, async () => undefined, skill);
+  const b = await bare.forToken({ networkSlug: 'bnb', address: '0x1' });
+  assert.deepEqual(b.sources, ['skill']);
+  assert.deepEqual(skillCalls, [['onchain_memecoin_token_profile', { contract_address: '0xD9d674B04A72AFfe00E06385535Eaac10B988fCa', chain: 'bsc' }]]);
+  assert.match(seen[1]!, /CoinMarketCap automated research note \(ok, confidence medium\):\nNarrative summary: framed as a stock-themed memecoin\./);
+  // skill 关闭（undefined）：不调
+  skillCalls = [];
+  const off = new LoreService(gateway({ networkSlug: 'bnb' }), gen, undefined, async () => undefined, 60_000, async () => undefined, undefined);
+  assert.deepEqual((await off.forToken({ networkSlug: 'bnb', address: '0x1' })).sources, []);
+  assert.equal(skillCalls.length, 0);
+  // skill 失败：sources 不记，正文照常生成
+  const failing = new LoreService(gateway({ networkSlug: 'bnb' }), gen, undefined, async () => undefined, 60_000, async () => undefined, async () => ({ ok: false }));
+  assert.deepEqual((await failing.forToken({ networkSlug: 'bnb', address: '0x1' })).sources, []);
+});
+
+test('CMC MCP 返回解析：SSE 文本取最后一条 data，两种 result 外壳都能取到 analysis', () => {
+  const sse = 'event:message\ndata:{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-03-26"}}\nevent:message\ndata:{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"{\\"result\\":{\\"ok\\":true,\\"data\\":{\\"type\\":\\"evidence_pack\\",\\"data\\":{\\"status\\":\\"ok\\",\\"confidence\\":\\"medium\\",\\"decision_report\\":{\\"title\\":\\"T\\",\\"conclusion\\":\\"C\\",\\"analysis\\":\\"A\\"}}}},\\"executionMeta\\":{\\"executionTimeMs\\":\\"41131\\"}}"}]}}\n';
+  const r = parseSkillPayload(parseRpcBody(sse));
+  assert.deepEqual(r, { ok: true, status: 'ok', confidence: 'medium', title: 'T', conclusion: 'C', analysis: 'A', elapsedMs: 41131 });
+  // output 字符串形态 + error
+  const rpc = { result: { content: [{ type: 'text', text: JSON.stringify({ result: { error: '', exitCode: 0, output: JSON.stringify({ error: { code: '500', message: 'unavailable' } }), success: true }, executionMeta: { executionTimeMs: '41180' } }) }] } };
+  assert.deepEqual(parseSkillPayload(rpc), { ok: false, elapsedMs: 41180 });
+  const rpc2 = { result: { content: [{ type: 'text', text: JSON.stringify({ result: { output: JSON.stringify({ type: 'verification_pack', data: { status: 'blocked', decision_report: { analysis: 'B' } } }) } }) }] } };
+  assert.equal(parseSkillPayload(rpc2).analysis, 'B');
+  assert.deepEqual(parseSkillPayload({}), { ok: false });
+  assert.deepEqual(parseRpcBody('{"a":1}'), { a: 1 });
 });

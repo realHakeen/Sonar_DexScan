@@ -34,6 +34,15 @@ export interface CmcMapEntry {
   } | null;
 }
 
+/** /v1/content/latest 单条（字段名 2026-09-10 实测）。 */
+export interface CmcNewsItem {
+  title?: string;
+  subtitle?: string;
+  released_at?: string;
+  source_name?: string;
+  source_url?: string;
+}
+
 export interface CmcQuoteEntry {
   id: number;
   name: string;

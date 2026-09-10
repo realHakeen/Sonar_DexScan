@@ -46,6 +46,9 @@ const schema = z.object({
   LORE_MODEL: z.string().default('gemini-3.5-flash-lite'),
   /** 同一个币的 lore 缓存多久（项目简介一天内不会变）。 */
   LORE_CACHE_TTL_MS: numeric(24 * 60 * 60 * 1000),
+  /** 官网和新闻都没素材时，是否调 CMC Agent Hub 的 skill 兜底（每次 20 credits、约 40s）。 */
+  LORE_CMC_SKILL: z.string().default('true'),
+  CMC_MCP_URL: z.string().url().default('https://mcp.coinmarketcap.com/mcp'),
 
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   /** 能用 /stats 的 Telegram 用户 id，逗号分隔。空 = 没人能用。 */
