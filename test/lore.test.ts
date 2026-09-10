@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import { extractMetaDescription, extractProseFromScript, extractVisibleText } from '../src/domain/webText.js';
-import { LoreService, buildPrompt } from '../src/services/loreService.js';
+import { LoreService, buildPrompt, launchpadOf, profileMatches } from '../src/services/loreService.js';
 import { renderLore } from '../src/bot/handlers/lore.js';
 import { openMemoryDatabase } from '../src/infra/db.js';
 import type { CmcGateway } from '../src/api/cmc/index.js';
@@ -35,7 +35,7 @@ test('LoreService：抓官网正文 + 喂模型 + 写缓存；第二次命中缓
   };
   const kwSeen: string[][] = [];
   const fetchText = async (url: string, keywords?: string[]) => (kwSeen.push(keywords ?? []), { url, text: 'Explore 5,000 plots across 5 regions. Plant rigs, collect $DRILL and ore.', meta: undefined, kind: 'html' as const });
-  const svc = new LoreService(gateway({ website: 'https://project-mars.app/docs' }), gen, openMemoryDatabase(), fetchText, 60_000, async () => ({ header: 'https://cdn.dexscreener.com/h.png', websites: [], socials: [] }));
+  const svc = new LoreService(gateway({ website: 'https://project-mars.app/docs' }), gen, openMemoryDatabase(), fetchText, 60_000, async () => ({ header: 'https://cdn.dexscreener.com/h.png', websites: ['https://project-mars.app/docs'], socials: [] }));
   assert.equal(svc.enabled, true);
   const a = await svc.forToken({ networkSlug: 'robinhood', address: '0xd9d674b04a72affe00e06385535eaac10b988fca' });
   assert.equal(a.text, 'Project Mars is a mining game.');
@@ -133,4 +133,23 @@ test('LoreService：缓存行带 prompt 版本，旧版本（无前缀）的缓�
   const row = db.prepare('SELECT sources FROM lore WHERE address = ?').get(addr) as { sources: string };
   assert.equal(row.sources, 'v2:website');
   assert.equal((await svc.forToken({ networkSlug: 'robinhood', address: addr })).cached, true);
+});
+
+test('profileMatches：DexScreener 资料的链接要和 CMC 登记的官网 / X 对得上，否则横幅不用（4STOCK 拿到 Superstables 的图）', () => {
+  const links = { website: 'https://project-mars.app/docs', twitter: 'https://x.com/projectmars_rh' };
+  assert.equal(profileMatches({ header: 'h', websites: ['https://www.project-mars.app/'], socials: [] }, links), true);
+  assert.equal(profileMatches({ header: 'h', websites: [], socials: [{ type: 'twitter', url: 'https://twitter.com/ProjectMars_RH' }] }, links), true);
+  assert.equal(profileMatches({ header: 'h', websites: [], socials: [] }, links), false);
+  assert.equal(profileMatches({ header: 'h', websites: ['https://superstables.xyz'], socials: [{ type: 'twitter', url: 'https://x.com/superstables' }] }, links), false);
+  assert.equal(profileMatches({ header: 'h', websites: ['https://cate.meme/'], socials: [] }, { website: 'https://cate.meme', twitter: 'https://twitter.com/i/communities/2004330768022004131' }), true);
+});
+
+test('launchpadOf 与 buildPrompt：官网是 four.meme / pump.fun 这类发射平台时在 prompt 里说明', () => {
+  assert.equal(launchpadOf('https://four.meme'), 'four.meme');
+  assert.equal(launchpadOf('https://www.pump.fun/coin/x'), 'pump.fun');
+  assert.equal(launchpadOf('https://project-mars.app/docs'), undefined);
+  assert.equal(launchpadOf(undefined), undefined);
+  const p = buildPrompt({ symbol: '4STOCK', name: '4Stock', networkSlug: 'bnb', address: '0x', website: 'https://four.meme', raw: {} }, undefined, '4Stock (4Stock) is a cryptocurrency and operates on the BNB Smart Chain (BEP20) platform.');
+  assert.match(p, /points to the four\.meme launchpad/);
+  assert.match(p, /CoinMarketCap description:\n4Stock/);
 });

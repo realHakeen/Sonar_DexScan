@@ -34,6 +34,7 @@ const SYSTEM = `You write "lore" blurbs for a Telegram crypto scanner bot. Given
 Rules:
 - Use only facts present in the sources. Never invent partnerships, listings, prices, or hype. Present the project's own website claims as what the project says, not as verified fact.
 - Never comment on the sources themselves: do not mention that they are thin, fragmented, incomplete, UI text, metadata, or that a description is missing. Do not mention which chain was scanned or that other chains may exist.
+- If the only substantive source is the CoinMarketCap listing sentence (chain, supply, launch platform), write 1-2 sentences with those facts, e.g. "<name> is a <chain> token launched on <platform> with a supply of <n>; the project has not published a description." Do not pad it.
 - Only if the sources contain literally nothing about the project beyond its name and links, write exactly one sentence: "No public description of <name> is available yet." and stop.
 - Plain text, no headings, no bullet points, no emoji, no markdown.`;
 
@@ -71,7 +72,8 @@ export class LoreService {
       c.cmcId ? this.cmc.core.info(c.cmcId).catch(() => undefined) : Promise.resolve(undefined),
       this.fetchProfile(c.address, chainRegistry.get(loc.networkSlug).dexscreenerId),
     ]);
-    const header = profile?.header;
+    // 横幅只在 DexScreener 资料里的链接和 CMC 登记的官网 / X 对得上时才用：它那边偶尔把别的项目的资料挂在这个合约上（4STOCK 拿到的是 Superstables 的图）
+    const header = profile && profileMatches(profile, links) ? profile.header : undefined;
     const sources: string[] = [];
     if (page) sources.push('website');
     if (cmcInfo?.description) sources.push('cmc');
@@ -110,14 +112,61 @@ export class LoreService {
 }
 
 /** 喂给模型的素材。没有正文时明说，让模型按"素材不足"写短一点，而不是编。 */
+/** 官网字段填的是发射平台首页（four.meme / pump.fun …）而不是项目自己的站：抓不到项目文字，但"在哪发射"本身是个事实。 */
+const LAUNCHPAD_HOSTS: Record<string, string> = {
+  'four.meme': 'four.meme',
+  'pump.fun': 'pump.fun',
+  'moonshot.com': 'Moonshot',
+  'bonk.fun': 'bonk.fun',
+  'letsbonk.fun': 'letsbonk.fun',
+  'believe.app': 'Believe',
+  'zora.co': 'Zora',
+  'clanker.world': 'Clanker',
+  'virtuals.io': 'Virtuals',
+  'app.virtuals.io': 'Virtuals',
+};
+
+export function launchpadOf(website: string | undefined): string | undefined {
+  if (!website) return undefined;
+  try {
+    const host = new URL(website).hostname.replace(/^www\./, '');
+    return LAUNCHPAD_HOSTS[host];
+  } catch {
+    return undefined;
+  }
+}
+
 export function buildPrompt(c: TokenCandidate, page: PageText | undefined, cmcDescription: string | undefined): string {
+  const launchpad = launchpadOf(c.website);
   const parts = [
     // "on <chain>" 会让模型把多链项目写成"某链上的项目"（Delysium 被写成 BNB Chain 项目），改成"扫描的合约在哪条链"
     `Token: ${c.symbol} (${c.name}). Contract scanned on ${chainRegistry.displayName(c.networkSlug)} (the project may also exist on other chains). Website: ${c.website ?? '-'}. X: ${c.twitter ?? '-'}. Telegram: ${c.telegram ?? '-'}.${c.listedAt ? ` First DEX pool was created on ${new Date(c.listedAt).toISOString().slice(0, 10)} (past event).` : ''}`,
+    launchpad ? `The website field points to the ${launchpad} launchpad, so the token was launched there and has no separate project site.` : '',
     cmcDescription ? `CoinMarketCap description:\n${cmcDescription.slice(0, 1500)}` : 'Not listed on CoinMarketCap (no CMC description).',
     page
       ? `Project website text (${page.url})${page.kind === 'bundle' ? ' — extracted from the site\'s app bundle, so sentences may be fragmented or out of order; ignore UI labels and error messages' : ''}:\n${page.meta ? `${page.meta}\n` : ''}${page.text}`
       : 'Project website text: unavailable (no website, or the site has no readable text).',
   ];
-  return parts.join('\n\n');
+  return parts.filter(Boolean).join('\n\n');
+}
+
+/** DexScreener 资料的网站或社交链接与 CMC 登记的官网 / X 至少有一个同域名（或同 X 账号）。 */
+export function profileMatches(profile: DexscreenerProfile, links: { website?: string; twitter?: string; telegram?: string }): boolean {
+  const hosts = (u: string | undefined) => {
+    if (!u) return undefined;
+    try {
+      return new URL(u).hostname.replace(/^www\./, '').toLowerCase();
+    } catch {
+      return undefined;
+    }
+  };
+  const handle = (u: string | undefined) => /(?:x|twitter)\.com\/(?:i\/communities\/)?([A-Za-z0-9_]+)/i.exec(u ?? '')?.[1]?.toLowerCase();
+  const ours = new Set([hosts(links.website), hosts(links.telegram)].filter(Boolean));
+  const ourHandle = handle(links.twitter);
+  for (const w of profile.websites) if (ours.has(hosts(w))) return true;
+  for (const s of profile.socials) {
+    if (ours.has(hosts(s.url))) return true;
+    if (ourHandle && handle(s.url) === ourHandle) return true;
+  }
+  return false;
 }
