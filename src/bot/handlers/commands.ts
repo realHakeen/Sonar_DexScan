@@ -135,8 +135,10 @@ commandHandlers.command('stats', async (ctx) => {
   }
 });
 
+/** /ping — 顺带报正在跑的提交号（Railway 注入 RAILWAY_GIT_COMMIT_SHA），部署有没有生效一眼就能看出来。 */
 commandHandlers.command('ping', async (ctx) => {
-  await ctx.reply('pong');
+  const sha = process.env['RAILWAY_GIT_COMMIT_SHA']?.slice(0, 7);
+  await ctx.reply(sha ? `pong · ${sha}` : 'pong');
 });
 
 function commandArgument(text: string): string {
