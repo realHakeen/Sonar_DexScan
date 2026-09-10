@@ -22,7 +22,7 @@ const BUNDLE_MAX_BYTES = 3_000_000;
  * 抓一个公开网页的可见文本（≤ 6000 字）。只认 http(s)，10 秒超时（走代理时 SPA 壳页 + bundle 实测 6s），最多 1MB；失败或几乎没有文字返回 undefined。
  * 不做 JS 渲染：抓不到正文的站点由调用方退到只给链接。
  */
-export async function fetchPageText(url: string, opts: { timeoutMs?: number; maxChars?: number } = {}): Promise<PageText | undefined> {
+export async function fetchPageText(url: string, opts: { timeoutMs?: number; maxChars?: number; /** 裁剪 bundle 文案时优先保留含这些词的句子（代币符号、项目名） */ keywords?: string[] } = {}): Promise<PageText | undefined> {
   let u: URL;
   try {
     u = new URL(url);
@@ -42,7 +42,7 @@ export async function fetchPageText(url: string, opts: { timeoutMs?: number; max
     if (text.length >= SHELL_MAX_CHARS) return { url: u.toString(), text, meta, kind: 'html' };
     // 单页应用：HTML 只有壳（Project Mars 的文档站 905 字节），正文在 JS bundle 的渲染函数里
     // bundle 挖出来的文案碎、噪音多，给模型的额度放宽一些（Gemini 免费档输入不计费）
-    const prose = await proseFromBundles(u, html, Math.max(maxChars, 10_000), opts.timeoutMs ?? 10_000);
+    const prose = await proseFromBundles(u, html, Math.max(maxChars, 10_000), opts.timeoutMs ?? 10_000, opts.keywords ?? []);
     if (prose) return { url: u.toString(), text: prose, meta, kind: 'bundle' };
     if (text.length < 120 && !meta) return undefined;
     return { url: u.toString(), text, meta, kind: 'html' };
@@ -53,7 +53,7 @@ export async function fetchPageText(url: string, opts: { timeoutMs?: number; max
 }
 
 /** 壳页里的同源 <script src> → 拉下来挖文案。跨域的（CDN 上的框架）不拉，文案不会在那里。 */
-async function proseFromBundles(page: URL, html: string, maxChars: number, timeoutMs: number): Promise<string | undefined> {
+async function proseFromBundles(page: URL, html: string, maxChars: number, timeoutMs: number, keywords: string[]): Promise<string | undefined> {
   const srcs: string[] = [];
   for (const m of html.matchAll(/<script[^>]+src=["']([^"']+)["']/gi)) {
     try {
@@ -70,7 +70,7 @@ async function proseFromBundles(page: URL, html: string, maxChars: number, timeo
       const res = await fetch(src, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(timeoutMs * 2) });
       if (!res.ok) continue;
       const js = (await res.text()).slice(0, BUNDLE_MAX_BYTES);
-      const prose = extractProseFromScript(js, maxChars);
+      const prose = extractProseFromScript(js, maxChars, keywords);
       if (prose.length >= SHELL_MAX_CHARS) parts.push(prose);
     } catch (err) {
       log.debug('bundle fetch failed', { src, err: String(err) });

@@ -24,7 +24,18 @@ export interface Lore {
   cached: boolean;
 }
 
-const SYSTEM = `You write "lore" blurbs for a Telegram crypto scanner bot. Given only the source material provided, write 3-5 sentences in English explaining what the project is, how the token is used, and any notable facts (launch, chain, mechanics). Rules: use only facts present in the sources; never invent partnerships, listings, prices, or hype; treat the project's own website claims as claims, not verified facts; if the sources are thin, say so in one short sentence and stop; do not describe the metadata line itself (which chain was scanned, that other chains may exist, that a description is missing) unless it is the only thing you can say. Plain text, no headings, no bullet points, no emoji, no markdown.`;
+/**
+ * prompt 或素材管线有实质改动时更新这个时间：早于它的缓存一律失效，部署后不用等 24h 才看到新版输出。
+ * 2026-09-10 04:30Z：禁止模型评论素材本身；bundle 文案裁剪优先保留提到代币的句子。
+ */
+const PROMPT_CHANGED_AT = Date.UTC(2026, 8, 10, 4, 30);
+
+const SYSTEM = `You write "lore" blurbs for a Telegram crypto scanner bot. Given only the source material provided, write 3-5 sentences in English: first what the project is, then how the token is used, then notable mechanics or facts (launch date, supply, chain).
+Rules:
+- Use only facts present in the sources. Never invent partnerships, listings, prices, or hype. Present the project's own website claims as what the project says, not as verified fact.
+- Never comment on the sources themselves: do not mention that they are thin, fragmented, incomplete, UI text, metadata, or that a description is missing. Do not mention which chain was scanned or that other chains may exist.
+- Only if the sources contain literally nothing about the project beyond its name and links, write exactly one sentence: "No public description of <name> is available yet." and stop.
+- Plain text, no headings, no bullet points, no emoji, no markdown.`;
 
 /**
  * /lore：项目简介。素材 = CMC DEX token 资料（名字、链、官网、X、TG）+ 官网正文（服务端渲染的才抓得到）+ CMC 收录描述，
@@ -36,7 +47,7 @@ export class LoreService {
     private readonly cmc: CmcGateway,
     private readonly generate: TextGenerator | undefined,
     private readonly db?: DatabaseSync,
-    private readonly fetchText: (url: string) => Promise<PageText | undefined> = fetchPageText,
+    private readonly fetchText: (url: string, keywords?: string[]) => Promise<PageText | undefined> = (url, keywords) => fetchPageText(url, { keywords }),
     private readonly ttlMs = env.LORE_CACHE_TTL_MS,
     private readonly fetchProfile: (address: string, chainId?: string) => Promise<DexscreenerProfile | undefined> = tokenProfile,
   ) {}
@@ -56,7 +67,7 @@ export class LoreService {
     if (cached) return { symbol: c.symbol, name: c.name, networkSlug: loc.networkSlug, address: c.address, text: cached.text, sources: cached.sources, headerImage: cached.header, links, cached: true };
 
     const [page, cmcInfo, profile] = await Promise.all([
-      c.website ? this.fetchText(c.website) : Promise.resolve(undefined),
+      c.website ? this.fetchText(c.website, [c.symbol, c.name]) : Promise.resolve(undefined),
       c.cmcId ? this.cmc.core.info(c.cmcId).catch(() => undefined) : Promise.resolve(undefined),
       this.fetchProfile(c.address, chainRegistry.get(loc.networkSlug).dexscreenerId),
     ]);
@@ -79,7 +90,7 @@ export class LoreService {
     const row = this.db.prepare('SELECT text, sources, header, created_at FROM lore WHERE network_slug = ? AND address = ?').get(networkSlug, address.toLowerCase()) as
       | { text: string; sources: string; header: string | null; created_at: number }
       | undefined;
-    if (!row || row.created_at < Date.now() - this.ttlMs) return undefined;
+    if (!row || row.created_at < Date.now() - this.ttlMs || row.created_at < PROMPT_CHANGED_AT) return undefined;
     return { text: row.text, sources: row.sources ? row.sources.split(',') : [], header: row.header ?? undefined };
   }
 

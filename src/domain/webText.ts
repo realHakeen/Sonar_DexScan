@@ -45,7 +45,7 @@ function decodeEntities(s: string): string {
  * Vite 单文件 bundle 里依赖库在前、应用代码在后，库的报错文案（ethers / noble）也像英文句子，
  * 所以从尾部取 maxChars：应用自己的文案离尾部近。结果是"近似正文"，够模型写简介，不是精确页面。
  */
-export function extractProseFromScript(js: string, maxChars = 8000): string {
+export function extractProseFromScript(js: string, maxChars = 8000, keywords: string[] = []): string {
   const seen = new Set<string>();
   const cands: string[] = [];
   for (const raw of argumentStrings(js)) {
@@ -56,11 +56,13 @@ export function extractProseFromScript(js: string, maxChars = 8000): string {
     seen.add(key);
     cands.push(t);
   }
-  // 超长时先丢短的（按钮 / 标签文案），保留长段落（文档正文）；保持原顺序
+  // 超长时先丢价值低的：提到代币符号 / 项目名的句子（"$DRILL pays for rigs…"）最后才丢，其余按短的先丢；保持原顺序
+  const kws = keywords.map((k) => k.trim().toLowerCase()).filter((k) => k.length >= 2);
+  const value = (c: string) => (kws.some((k) => c.toLowerCase().includes(k)) ? 100_000 : 0) + c.length;
   let total = cands.reduce((n, c) => n + c.length + 1, 0);
   const keep = new Set(cands);
   if (total > maxChars) {
-    for (const c of [...cands].sort((a, b) => a.length - b.length)) {
+    for (const c of [...cands].sort((a, b) => value(a) - value(b))) {
       if (total <= maxChars) break;
       keep.delete(c);
       total -= c.length + 1;

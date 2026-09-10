@@ -33,7 +33,8 @@ test('LoreService：抓官网正文 + 喂模型 + 写缓存；第二次命中缓
     calls.push(user);
     return { text: 'Project Mars is a mining game.', inputTokens: 10, outputTokens: 5 };
   };
-  const fetchText = async (url: string) => ({ url, text: 'Explore 5,000 plots across 5 regions. Plant rigs, collect $DRILL and ore.', meta: undefined, kind: 'html' as const });
+  const kwSeen: string[][] = [];
+  const fetchText = async (url: string, keywords?: string[]) => (kwSeen.push(keywords ?? []), { url, text: 'Explore 5,000 plots across 5 regions. Plant rigs, collect $DRILL and ore.', meta: undefined, kind: 'html' as const });
   const svc = new LoreService(gateway({ website: 'https://project-mars.app/docs' }), gen, openMemoryDatabase(), fetchText, 60_000, async () => ({ header: 'https://cdn.dexscreener.com/h.png', websites: [], socials: [] }));
   assert.equal(svc.enabled, true);
   const a = await svc.forToken({ networkSlug: 'robinhood', address: '0xd9d674b04a72affe00e06385535eaac10b988fca' });
@@ -41,6 +42,7 @@ test('LoreService：抓官网正文 + 喂模型 + 写缓存；第二次命中缓
   assert.deepEqual(a.sources, ['website']);
   assert.equal(a.cached, false);
   assert.equal(a.headerImage, 'https://cdn.dexscreener.com/h.png');
+  assert.deepEqual(kwSeen[0], ['DRILL', 'Project Mars'], '抓官网时把符号和名字当裁剪关键词传下去');
   assert.match(calls[0]!, /Token: DRILL \(Project Mars\)\. Contract scanned on Robinhood Chain/);
   assert.match(calls[0]!, /Not listed on CoinMarketCap/);
   assert.match(calls[0]!, /Project website text \(https:\/\/project-mars\.app\/docs\):\nExplore 5,000 plots/);
@@ -98,6 +100,10 @@ test('extractProseFromScript：从编译后的 Vue 渲染函数里挖文案，�
   const short = extractProseFromScript(js, 90);
   assert.match(short, /Explore 5,000 plots/);
   assert.doesNotMatch(short, /and build up/);
+  // 带关键词：提到代币的短句优先于不提的长句
+  const kw = extractProseFromScript(js + ';P("Swap ETH for $DRILL first.",-1)', 60, ['DRILL']);
+  assert.match(kw, /Swap ETH for \$DRILL first\./);
+  assert.doesNotMatch(kw, /Explore 5,000 plots/);
 });
 
 test('parseProfile：取指定链上带 header / imageUrl 的第一条 pair 的资料；没资料的返回 undefined', () => {
