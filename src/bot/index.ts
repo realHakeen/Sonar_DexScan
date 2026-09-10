@@ -16,6 +16,7 @@ const log = createLogger('bot');
 const COMMANDS = [
   { command: 's', description: 'Scan a token (address / name / link)' },
   { command: 'perp', description: 'Perps: OI, funding, liquidations by venue' },
+  { command: 'lore', description: 'What the project is, in a few sentences' },
   { command: 'watchlist', description: 'Your starred tokens' },
   { command: 'help', description: 'How to use' },
   { command: 'start', description: 'Start' },

@@ -8,6 +8,7 @@ import { runScanFlow } from './scanFlow.js';
 import { runPerpFlow } from './perpFlow.js';
 import { openSharedWatchlist, sendPortfolio } from './portfolio.js';
 import { admitScan } from '../middlewares/throttle.js';
+import { runLoreCommand } from './lore.js';
 
 const START_TEXT = [
   '👋 <b>DexScan Bot</b> — paste an address, get a due-diligence report.',
@@ -20,6 +21,7 @@ const START_TEXT = [
   '<b>Commands</b>',
   '/s &lt;address or name&gt; — scan a token',
   '/perp &lt;ticker or address&gt; — open interest, funding, liquidations by venue',
+  '/lore &lt;address or $TICKER&gt; — what the project is, in a few sentences',
   '/watchlist — tokens you starred, with change since you added them',
   '/help — how it works',
   '',
@@ -35,6 +37,7 @@ const HELP_TEXT = [
   '<b>Commands</b>',
   '/s &lt;address | name | link&gt; — full report',
   '/perp &lt;ticker | address&gt; — perpetuals view, e.g. <code>/perp BTC</code> or <code>/perp PEPE</code>',
+  '/lore &lt;address | link | $TICKER&gt; — a short plain-English brief on what the project is, written from its own website and CMC listing. No price talk, no hype; if the site has no readable text it says so',
   '/watchlist — your starred tokens: price, market cap, change since you added, 24h change. Tap ⭐ Watchlist under any report to star one (up to 20). 📤 Share posts a read-only copy to any chat you pick',
   '/help — this message',
   '',
@@ -92,6 +95,14 @@ commandHandlers.command('perp', async (ctx) => {
   if (!arg) throw new InvalidInputError('/perp needs a ticker or contract address, e.g. /perp PEPE');
   if (!(await admitScan(ctx))) return;
   await runPerpFlow(ctx, { query: arg }, { trigger: 'command' });
+});
+
+/** /lore <地址 | 链接 | $ticker> — 项目简介（官网正文 + CMC 描述 → 模型压成几句）。 */
+commandHandlers.command('lore', async (ctx) => {
+  const arg = commandArgument(ctx.message?.text ?? '');
+  if (!arg) throw new InvalidInputError('/lore needs a contract address, link or $TICKER, e.g. /lore 0x…');
+  if (!(await admitScan(ctx))) return;
+  await runLoreCommand(ctx, arg);
 });
 
 /** /watchlist — 个人收藏列表（群里发到私聊）。刷新行情也算一次请求，走限流。 */

@@ -33,7 +33,8 @@ function firstPair(data: unknown): DexscreenerPair | undefined {
 }
 
 async function get(path: string): Promise<unknown> {
-  const res = await fetch(`${BASE}${path}`, { signal: AbortSignal.timeout(4000), headers: { Accept: 'application/json' } });
+  // 走代理时实测 3s 左右，4s 会擦边超时
+  const res = await fetch(`${BASE}${path}`, { signal: AbortSignal.timeout(10_000), headers: { Accept: 'application/json' } });
   if (!res.ok) throw new Error(`dexscreener ${res.status}`);
   return res.json();
 }
@@ -47,6 +48,41 @@ export async function recoverPair(chainId: string, pairAddress: string): Promise
     return firstPair(await get(`/pairs/${encodeURIComponent(chainId)}/${encodeURIComponent(pairAddress)}`));
   } catch (err) {
     log.warn('pair case recovery failed', { chainId, pairAddress, err: String(err) });
+    return undefined;
+  }
+}
+
+/** 项目方在 DexScreener 提交的资料：横幅图、头像、链接。/lore 用横幅当图片消息的封面；没提交过资料的币返回 undefined。 */
+export interface DexscreenerProfile {
+  header?: string;
+  imageUrl?: string;
+  websites: string[];
+  socials: Array<{ type: string; url: string }>;
+}
+
+export function parseProfile(data: unknown, chainId?: string): DexscreenerProfile | undefined {
+  const pairs = (data as { pairs?: unknown[] } | null)?.pairs;
+  if (!Array.isArray(pairs)) return undefined;
+  for (const raw of pairs) {
+    const p = raw as { chainId?: string; info?: { header?: string; imageUrl?: string; websites?: Array<{ url?: string }>; socials?: Array<{ type?: string; url?: string }> } };
+    if (chainId && p.chainId !== chainId) continue;
+    const info = p.info;
+    if (!info || (!info.header && !info.imageUrl)) continue;
+    return {
+      header: info.header,
+      imageUrl: info.imageUrl,
+      websites: (info.websites ?? []).map((w) => w.url).filter((u): u is string => Boolean(u)),
+      socials: (info.socials ?? []).filter((s): s is { type: string; url: string } => Boolean(s.type && s.url)),
+    };
+  }
+  return undefined;
+}
+
+export async function tokenProfile(tokenAddress: string, chainId?: string): Promise<DexscreenerProfile | undefined> {
+  try {
+    return parseProfile(await get(`/tokens/${encodeURIComponent(tokenAddress)}`), chainId);
+  } catch (err) {
+    log.debug('token profile fetch failed', { tokenAddress, err: String(err) });
     return undefined;
   }
 }

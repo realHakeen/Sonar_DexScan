@@ -153,11 +153,12 @@ export class CoreApi {
     return out;
   }
 
-  /** 赛道分类与官方链接的兜底来源（quotes 未带 tags 时使用）。 */
+  /** 赛道分类、官方链接与项目描述（/lore 的素材之一；description 是 CMC 的模板句，信息量低但稳定）。1 小时缓存。 */
   async info(cmcId: number): Promise<CmcInfoEntry | undefined> {
     const data = await this.client.get<Record<string, CmcInfoEntry>>(
       ENDPOINTS.core.info,
-      { id: cmcId, aux: 'urls,logo,tags,platform,category' },
+      // 合法 aux 只有 urls, logo, description, tags, platform, date_added, notice, status；之前带的 category 让这个调用一直 400
+      { id: cmcId, aux: 'urls,logo,description,tags,platform' },
       { cacheTtlMs: env.CACHE_TTL_META_MS, softFail: true },
     );
     return data?.[String(cmcId)];

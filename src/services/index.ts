@@ -11,6 +11,8 @@ import { CallService } from './callService.js';
 import { StatsService } from './statsService.js';
 import { ScanService } from './scanService.js';
 import { SearchService } from './searchService.js';
+import { LoreService } from './loreService.js';
+import { geminiGenerator } from '../api/gemini.js';
 
 export { ScanService } from './scanService.js';
 export { SearchService } from './searchService.js';
@@ -31,6 +33,8 @@ export interface Services {
   calls?: CallService;
   /** 使用统计（events / groups / credits），同样依赖数据库。 */
   stats?: StatsService;
+  /** /lore：项目简介。没配 LORE_API_KEY 时 enabled=false，命令提示未配置。 */
+  lore: LoreService;
   /** 拉全量 map 建索引。0 credits；失败不影响其它功能，只是名称搜索少一条通路。 */
   refreshIndex(): Promise<void>;
   /** 启动后台定时刷新（unref，不阻塞退出）。 */
@@ -64,6 +68,7 @@ export function createServices(cmc: CmcGateway = createCmcGateway()): Services {
     portfolio: db ? new PortfolioService(db, cmc) : undefined,
     calls: db ? new CallService(db) : undefined,
     stats: db ? new StatsService(db) : undefined,
+    lore: new LoreService(cmc, geminiGenerator(), db ?? undefined),
     refreshIndex,
     startIndexRefresh() {
       if (timer) return;

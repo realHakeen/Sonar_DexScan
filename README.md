@@ -81,6 +81,7 @@ Dependency direction: `bot → services → domain / api → infra`. `domain` an
 | F3d | `⭐ Watchlist` button + `/watchlist`: per-user starred tokens with change since added; `📤 Share` posts a read-only copy via the native chat picker (inline mode, enable with BotFather `/setinline`) with `Open in Sonar` (deep link → interactive copy + one-tap import) and `Add Sonar to group` buttons | `infra/db.ts`, `services/portfolioService.ts`, `bot/handlers/portfolio.ts`, `bot/handlers/inline.ts` |
 | F3c | Spot block: CEX listings, spot volume + 24h change, CEX/DEX split, top venues by volume (whitelist), CEX-vs-DEX premium | `domain/spot.ts`, `api/cmc/coreApi.ts`, `render/card.ts` |
 | — | `/perp <ticker or address>`: per-venue OI / volume / funding, basis vs index, 1h / 4h / 24h liquidations; native coins supported | `services/perpService.ts`, `render/perpCard.ts`, `bot/handlers/perpFlow.ts` |
+| — | `/lore <address, link or $TICKER>`: 3–5 plain-English sentences on what the project is, written by Gemini (free tier, `LORE_API_KEY`) from the project website text + CMC listing description; cached 24h per token; no X data, no JS rendering (sites without readable text get links only) | `services/loreService.ts`, `api/gemini.ts`, `infra/fetchText.ts`, `bot/handlers/lore.ts` |
 
 ### Deliberate implementation details
 

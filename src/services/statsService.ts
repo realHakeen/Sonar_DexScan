@@ -9,6 +9,7 @@ const DAY_MS = 86_400_000;
 export type EventKind =
   | 'scan'
   | 'perp'
+  | 'lore'
   | 'watch_add'
   | 'watch_del'
   | 'watch_view'

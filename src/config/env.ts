@@ -41,6 +41,12 @@ const schema = z.object({
   RISK_MIN_LIQUIDITY_USD: z.coerce.number().default(5000),
   RISK_MAX_TAX_PCT: z.coerce.number().default(10),
 
+  /** /lore：Gemini API key（AI Studio 免费档即可）。缺省 = /lore 提示未配置。 */
+  LORE_API_KEY: z.string().optional().default(''),
+  LORE_MODEL: z.string().default('gemini-3.5-flash-lite'),
+  /** 同一个币的 lore 缓存多久（项目简介一天内不会变）。 */
+  LORE_CACHE_TTL_MS: numeric(24 * 60 * 60 * 1000),
+
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   /** 能用 /stats 的 Telegram 用户 id，逗号分隔。空 = 没人能用。 */
   ADMIN_USER_IDS: z.string().optional().default(''),

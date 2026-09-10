@@ -58,6 +58,15 @@ const MIGRATIONS = [
    )`,
   `CREATE INDEX IF NOT EXISTS events_day ON events(day)`,
   `CREATE INDEX IF NOT EXISTS events_user ON events(user_id, ts)`,
+  `CREATE TABLE IF NOT EXISTS lore (
+     network_slug TEXT NOT NULL,
+     address TEXT NOT NULL,
+     text TEXT NOT NULL,
+     sources TEXT NOT NULL,
+     header TEXT,
+     created_at INTEGER NOT NULL,
+     PRIMARY KEY (network_slug, address)
+   )`,
   `CREATE INDEX IF NOT EXISTS events_kind ON events(kind, ts)`,
   `CREATE TABLE IF NOT EXISTS groups (
      chat_id INTEGER PRIMARY KEY,
