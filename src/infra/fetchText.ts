@@ -1,5 +1,5 @@
 import { createLogger } from './logger.js';
-import { extractMetaDescription, extractProseFromScript, extractVisibleText } from '../domain/webText.js';
+import { extractArticleFromNextData, extractMetaDescription, extractProseFromScript, extractVisibleText } from '../domain/webText.js';
 
 const log = createLogger('fetchText');
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36';
@@ -80,4 +80,31 @@ async function proseFromBundles(page: URL, html: string, maxChars: number, timeo
   const joined = parts.join('\n');
   log.info('prose mined from app bundle', { page: page.hostname, scripts: srcs.length, chars: joined.length });
   return joined.length > maxChars ? joined.slice(0, maxChars) : joined;
+}
+
+/**
+ * 新闻文章正文（/lore 用）：CMC community 文章页是 Next.js，正文在 __NEXT_DATA__ 里；其它站退回可见文本。
+ * 失败或太短返回 undefined。
+ */
+export async function fetchArticleText(url: string, opts: { timeoutMs?: number; maxChars?: number } = {}): Promise<string | undefined> {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return undefined;
+  }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return undefined;
+  try {
+    const res = await fetch(u, { headers: { 'User-Agent': UA, Accept: 'text/html,*/*' }, signal: AbortSignal.timeout(opts.timeoutMs ?? 10_000), redirect: 'follow' });
+    if (!res.ok) return undefined;
+    const html = (await res.text()).slice(0, 1_500_000);
+    const maxChars = opts.maxChars ?? 4000;
+    const fromNext = extractArticleFromNextData(html, maxChars);
+    if (fromNext) return fromNext;
+    const text = extractVisibleText(html, maxChars);
+    return text.length >= 400 ? text : undefined;
+  } catch (err) {
+    log.debug('article fetch failed', { url, err: String(err) });
+    return undefined;
+  }
 }

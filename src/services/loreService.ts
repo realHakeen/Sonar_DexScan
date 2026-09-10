@@ -4,7 +4,7 @@ import type { TextGenerator } from '../api/gemini.js';
 import { env } from '../config/env.js';
 import { chainRegistry } from '../domain/chains.js';
 import type { TokenCandidate } from '../domain/types.js';
-import { fetchPageText, type PageText } from '../infra/fetchText.js';
+import { fetchArticleText, fetchPageText, type PageText } from '../infra/fetchText.js';
 import { tokenProfile, type DexscreenerProfile } from '../api/dexscreener.js';
 import type { SkillResult } from '../api/cmc/skills.js';
 import { createLogger } from '../infra/logger.js';
@@ -55,6 +55,7 @@ export class LoreService {
     private readonly fetchProfile: (address: string, chainId?: string) => Promise<DexscreenerProfile | undefined> = tokenProfile,
     /** CMC skill 兜底；默认不注入（测试里绝不能碰真接口），组合根按 LORE_CMC_SKILL 决定。 */
     private readonly runSkill?: (name: string, params: Record<string, unknown>) => Promise<SkillResult>,
+    private readonly fetchArticle: (url: string) => Promise<string | undefined> = fetchArticleText,
   ) {}
 
   get enabled(): boolean {
@@ -80,6 +81,9 @@ export class LoreService {
     ]);
     // 横幅只在 DexScreener 资料里的链接和 CMC 登记的官网 / X 对得上时才用：它那边偶尔把别的项目的资料挂在这个合约上（4STOCK 拿到的是 Superstables 的图）
     const header = profile && profileMatches(profile, links) ? profile.header : undefined;
+    // 新闻只有标题和一句摘要；前两条的正文再抓一下（0 credits，CMC community 页的正文在 __NEXT_DATA__ 里），"What is X" 这类解释文就全了
+    const articles = await Promise.all(news.slice(0, 2).map(async (n) => ({ ...n, body: n.url ? await this.fetchArticle(n.url).catch(() => undefined) : undefined })));
+    const newsWithBodies = [...articles, ...news.slice(2)];
     const sources: string[] = [];
     if (page) sources.push('website');
     if (cmcInfo?.description) sources.push('cmc');
@@ -96,7 +100,7 @@ export class LoreService {
       else skill = undefined;
     }
 
-    const user = buildPrompt(c, page, cmcInfo?.description, news, skill?.ok ? skill : undefined);
+    const user = buildPrompt(c, page, cmcInfo?.description, newsWithBodies, skill?.ok ? skill : undefined);
     const started = Date.now();
     const out = await this.generate(SYSTEM, user);
     log.info('lore generated', { symbol: c.symbol, chain: loc.networkSlug, sources, elapsed: Date.now() - started, in: out.inputTokens, out: out.outputTokens });
@@ -159,6 +163,9 @@ export interface NewsItem {
   subtitle?: string;
   releasedAt?: string;
   source?: string;
+  url?: string;
+  /** 抓到的正文（前两条才抓）。 */
+  body?: string;
 }
 
 export function buildPrompt(c: TokenCandidate, page: PageText | undefined, cmcDescription: string | undefined, news: NewsItem[] = [], skill?: SkillResult): string {
@@ -168,7 +175,7 @@ export function buildPrompt(c: TokenCandidate, page: PageText | undefined, cmcDe
     `Token: ${c.symbol} (${c.name}). Contract scanned on ${chainRegistry.displayName(c.networkSlug)} (the project may also exist on other chains). Website: ${c.website ?? '-'}. X: ${c.twitter ?? '-'}. Telegram: ${c.telegram ?? '-'}.${c.listedAt ? ` First DEX pool was created on ${new Date(c.listedAt).toISOString().slice(0, 10)} (past event).` : ''}`,
     launchpad ? `The website field points to the ${launchpad} launchpad, so the token was launched there and has no separate project site.` : '',
     cmcDescription ? `CoinMarketCap description:\n${cmcDescription.slice(0, 1500)}` : 'Not listed on CoinMarketCap (no CMC description).',
-    news.length ? `Recent news about the project (headline — summary, source, date):\n${news.map((n) => `- ${n.title}${n.subtitle ? ` — ${n.subtitle}` : ''} (${n.source ?? 'unknown source'}${n.releasedAt ? `, ${n.releasedAt}` : ''})`).join('\n')}` : '',
+    news.length ? `Recent news about the project (headline — summary, source, date; full text where available):\n${news.map((n) => `- ${n.title}${n.subtitle ? ` — ${n.subtitle}` : ''} (${n.source ?? 'unknown source'}${n.releasedAt ? `, ${n.releasedAt}` : ''})${n.body ? `\n  Article text: ${n.body.slice(0, 2500)}` : ''}`).join('\n')}` : '',
     skill?.analysis ? `CoinMarketCap automated research note (${skill.status ?? 'ok'}, confidence ${skill.confidence ?? 'unknown'}):\n${skill.analysis.slice(0, 2500)}` : '',
     page
       ? `Project website text (${page.url})${page.kind === 'bundle' ? ' — extracted from the site\'s app bundle, so sentences may be fragmented or out of order; ignore UI labels and error messages' : ''}:\n${page.meta ? `${page.meta}\n` : ''}${page.text}`

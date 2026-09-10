@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { extractMetaDescription, extractProseFromScript, extractVisibleText } from '../src/domain/webText.js';
+import { extractArticleFromNextData, extractMetaDescription, extractProseFromScript, extractVisibleText } from '../src/domain/webText.js';
 import { LoreService, buildPrompt, launchpadOf, profileMatches } from '../src/services/loreService.js';
 import { renderLore } from '../src/bot/handlers/lore.js';
 import { openMemoryDatabase } from '../src/infra/db.js';
@@ -164,10 +164,10 @@ test('新闻进 prompt；官网和新闻都空时才调 CMC skill，skill 的 an
   let skillCalls: Array<[string, Record<string, unknown>]> = [];
   const skill = async (name: string, params: Record<string, unknown>) => (skillCalls.push([name, params]), { ok: true, status: 'ok', confidence: 'medium', analysis: 'Narrative summary: framed as a stock-themed memecoin.' });
   // 有新闻：不调 skill
-  const withNews = new LoreService(gateway({ cmcId: 42249, networkSlug: 'bnb', news: [{ title: 'What Is 4Stock?', subtitle: 'Tokenized US stocks on BNB Chain.' }] }), gen, undefined, async () => undefined, 60_000, async () => undefined, skill);
+  const withNews = new LoreService(gateway({ cmcId: 42249, networkSlug: 'bnb', news: [{ title: 'What Is 4Stock?', subtitle: 'Tokenized US stocks on BNB Chain.', url: 'https://coinmarketcap.com/community/articles/x' }] }), gen, undefined, async () => undefined, 60_000, async () => undefined, skill, async (url) => (url.endsWith('/x') ? 'Each 4Stock is backed 1:1 by the real underlying share.' : undefined));
   const a = await withNews.forToken({ networkSlug: 'bnb', address: '0x1' });
   assert.deepEqual(a.sources, ['news']);
-  assert.match(seen[0]!, /Recent news about the project[\s\S]*What Is 4Stock\? — Tokenized US stocks on BNB Chain\./);
+  assert.match(seen[0]!, /Recent news about the project[\s\S]*What Is 4Stock\? — Tokenized US stocks on BNB Chain\.[^\n]*\n  Article text: Each 4Stock is backed 1:1/);
   assert.equal(skillCalls.length, 0);
   // 没官网没新闻：调 skill，链名用 DexScreener 的 id（bnb → bsc）
   const bare = new LoreService(gateway({ cmcId: 42249, networkSlug: 'bnb' }), gen, undefined, async () => undefined, 60_000, async () => undefined, skill);
@@ -196,4 +196,15 @@ test('CMC MCP 返回解析：SSE 文本取最后一条 data，两种 result 外�
   assert.equal(parseSkillPayload(rpc2).analysis, 'B');
   assert.deepEqual(parseSkillPayload({}), { ok: false });
   assert.deepEqual(parseRpcBody('{"a":1}'), { a: 1 });
+});
+
+test('extractArticleFromNextData：从 Next.js 页面的 __NEXT_DATA__ 里取最长的文章 HTML 并剥标签；没有就 undefined', () => {
+  const body = '<p>' + 'Each 4Stock is backed 1:1 by the real underlying share. '.repeat(20) + '</p><p>How minting works: apply, buy, mint.</p>';
+  const html = `<html><head><script id="__NEXT_DATA__" type="application/json">${JSON.stringify({ props: { pageProps: { article: { title: 'What Is 4Stock?', content: body }, nav: ['Markets', 'DexScan'] } } })}</script></head><body><nav>Markets DexScan Exchanges</nav></body></html>`;
+  const t = extractArticleFromNextData(html)!;
+  assert.match(t, /^Each 4Stock is backed 1:1 by the real underlying share\./);
+  assert.match(t, /How minting works: apply, buy, mint\.$/);
+  assert.doesNotMatch(t, /<p>|Markets DexScan/);
+  assert.equal(extractArticleFromNextData('<html><body><p>short</p></body></html>'), undefined);
+  assert.equal(extractArticleFromNextData('<script id="__NEXT_DATA__">{bad json</script>'), undefined);
 });

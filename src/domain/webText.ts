@@ -97,3 +97,33 @@ function looksLikeProse(s: string): boolean {
   if (/^(expected|invalid|unsupported|unexpected|cannot|missing|failed|error|unknown|bad|incorrect)\b|does not support|must be|should be|is not (a|an|supported|valid)\b|mismatch|not implemented|already (been )?(called|sent|destroyed)|too (short|large|long|big)|exceeds?\b|is locked|not on curve|requires a\b/i.test(s)) return false;
   return true;
 }
+
+/**
+ * Next.js 页面（CMC community 的文章页等）的正文在 <script id="__NEXT_DATA__"> 的 JSON 里，
+ * 可见文本只有导航。取 JSON 里最长的、像文章的字符串值（含 <p> 或多段落、≥ minChars），剥标签。
+ * 找不到返回 undefined，调用方退回可见文本。
+ */
+export function extractArticleFromNextData(html: string, maxChars = 4000, minChars = 800): string | undefined {
+  const m = /<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i.exec(html);
+  if (!m) return undefined;
+  let data: unknown;
+  try {
+    data = JSON.parse(m[1]!);
+  } catch {
+    return undefined;
+  }
+  let best = '';
+  const walk = (o: unknown, depth: number): void => {
+    if (depth > 12 || o === null) return;
+    if (typeof o === 'string') {
+      if (o.length > best.length && o.length >= minChars && (/<p[\s>]/i.test(o) || o.split('\n\n').length >= 3)) best = o;
+      return;
+    }
+    if (Array.isArray(o)) for (const v of o) walk(v, depth + 1);
+    else if (typeof o === 'object') for (const v of Object.values(o as Record<string, unknown>)) walk(v, depth + 1);
+  };
+  walk(data, 0);
+  if (!best) return undefined;
+  const text = extractVisibleText(best, maxChars);
+  return text.length >= 200 ? text : undefined;
+}

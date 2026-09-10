@@ -155,7 +155,7 @@ export class CoreApi {
   }
 
   /** 该币的近期新闻（标题 + 摘要），0 credits，1 小时缓存。未收录币没有 cid 拿不到。 */
-  async news(cmcId: number, limit = 5): Promise<Array<{ title: string; subtitle?: string; releasedAt?: string; source?: string }>> {
+  async news(cmcId: number, limit = 5): Promise<Array<{ title: string; subtitle?: string; releasedAt?: string; source?: string; url?: string }>> {
     const data = await this.client.get<CmcNewsItem[]>(
       ENDPOINTS.core.news,
       { id: cmcId, limit, news_type: 'all', content_type: 'all' },
@@ -163,7 +163,7 @@ export class CoreApi {
     );
     return (Array.isArray(data) ? data : [])
       .filter((n) => typeof n.title === 'string' && n.title.trim() !== '')
-      .map((n) => ({ title: n.title!.trim(), subtitle: n.subtitle?.trim() || undefined, releasedAt: n.released_at?.slice(0, 10), source: n.source_name }));
+      .map((n) => ({ title: n.title!.trim(), subtitle: n.subtitle?.trim() || undefined, releasedAt: n.released_at?.slice(0, 10), source: n.source_name, url: n.source_url || undefined }));
   }
 
   /** 赛道分类、官方链接与项目描述（/lore 的素材之一；description 是 CMC 的模板句，信息量低但稳定）。1 小时缓存。 */
