@@ -49,8 +49,13 @@ export async function runLoreCommand(ctx: BotContext, arg: string): Promise<void
 /** 地址 → 链 + 地址；$ticker / 名称 → 搜索第一名。 */
 async function locate(ctx: BotContext, parsed: ReturnType<typeof parseInput>): Promise<{ networkSlug: string; address: string }> {
   if (parsed.kind === 'address') {
-    // 池子链接 / 无链提示的地址：走扫描的定链逻辑最稳，代价是一次扫描的 credits；这里只在必要时用
     if (parsed.chainSlug && !parsed.pair) return { networkSlug: parsed.chainSlug, address: parsed.address };
+    // 裸地址不知道链：search 反查（1 credit），同地址多链取流动性最高的；查不到（新币漏索引 / 池子链接）再退到完整扫描的定链逻辑
+    if (!parsed.pair) {
+      const found = await ctx.services.cmc.dex.search(parsed.address).catch(() => []);
+      const matched = found.filter((c) => c.address.toLowerCase() === parsed.address.toLowerCase()).sort((a, b) => (b.liquidityUsd ?? 0) - (a.liquidityUsd ?? 0));
+      if (matched[0]) return { networkSlug: matched[0].networkSlug, address: matched[0].address };
+    }
     const report = await ctx.services.scan.scanByAddress(parsed.address, { chainSlug: parsed.chainSlug, preferPair: parsed.pair });
     return { networkSlug: report.primary.networkSlug, address: report.primary.address };
   }
