@@ -8,6 +8,7 @@ import { detectChain } from '../domain/detectChain.js';
 import { concentrationFromHolders, tagDistributionFromHolders } from '../domain/holders.js';
 import { splitByChain } from '../domain/ranking.js';
 import { volumeChange24hPct } from '../domain/candles.js';
+import { caseLost, recoverPair, recoverToken } from '../api/dexscreener.js';
 import { evaluateRisks } from '../domain/risk.js';
 import { markOfficialContracts } from '../domain/verification.js';
 import { attachCoin, isNativeCoin } from '../domain/nativeProxy.js';
@@ -67,6 +68,15 @@ export class ScanService {
 
     if (opts.preferPair) {
       const chain = opts.chainSlug ?? detection.slug;
+      // DexScreener 链接里的 Solana 地址被转成了全小写（base58 大小写敏感，CMC 认不出来）：
+      // 用 DexScreener 自己的公开接口恢复大小写并直接拿到 base 代币地址，0 credit
+      if (chain && detection.family === 'solana' && caseLost(address)) {
+        const rec = await recoverPair(chainRegistry.get(chain).dexscreenerId ?? chain, address);
+        if (rec) {
+          log.info('lowercase pair address recovered via dexscreener', { pair: rec.pairAddress.slice(0, 12), token: rec.tokenAddress, symbol: rec.symbol });
+          return this.scanByAddress(rec.tokenAddress, { chainSlug: chain, nativeCmcId: opts.nativeCmcId });
+        }
+      }
       const token = chain ? await this.resolvePairToken(chain, address) : undefined;
       if (token) return this.scanByAddress(token.address, { chainSlug: token.networkSlug, nativeCmcId: opts.nativeCmcId });
       // 反查不到就当普通地址继续（DexScreener 偶尔也给代币地址）
@@ -110,6 +120,14 @@ export class ScanService {
         // 探测也全失败且 search 是网络问题 → 报网络错误而不是"未找到"
         const allNetwork = probed.every((r) => r.status === 'rejected');
         if (searchError instanceof AppError && allNetwork) throw searchError;
+        // 全小写的 Solana 代币地址（从小写链接 / 消息里复制的）：先试 DexScreener 恢复大小写
+        if (detection.family === 'solana' && caseLost(address)) {
+          const rec = await recoverToken(address);
+          if (rec && rec.tokenAddress.toLowerCase() === address.toLowerCase()) {
+            log.info('lowercase token address recovered via dexscreener', { token: rec.tokenAddress, symbol: rec.symbol });
+            return this.scanByAddress(rec.tokenAddress, { chainSlug: 'solana', nativeCmcId: opts.nativeCmcId });
+          }
+        }
         // DexScreener / GeckoTerminal 链接里是池子地址不是代币地址：按池子反查出代币再扫（链已知时才试，1 credit）
         if (known && opts.pairFallback !== false) {
           const token = await this.resolvePairToken(known, address);
