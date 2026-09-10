@@ -8,8 +8,10 @@ import type { Lore } from '../../services/loreService.js';
 const HTML = { parse_mode: 'HTML' as const, link_preview_options: { is_disabled: true } };
 
 /**
- * /lore：解析输入 → 定位代币（地址直接用；链接带链；$ticker 走搜索取第一名）→ 占位 → 生成 → 编辑。
+ * /lore：解析输入 → 占位 → （后台）定位代币 → 生成 → 编辑。
  * 定位用扫描同一套解析，但不出卡片，只多花 tokenDetail 的 1 credit。
+ * 生成可能要 40 多秒（官网 / 新闻都空时 CMC skill 兜底 14–50s），超过 Telegraf 的 handlerTimeout（30s），
+ * 所以占位消息发出后 handler 就返回，后面的活自己收尾、自己兜错，不让超时变成 unhandled rejection。
  */
 export async function runLoreCommand(ctx: BotContext, arg: string): Promise<void> {
   const svc = ctx.services.lore;
@@ -21,7 +23,13 @@ export async function runLoreCommand(ctx: BotContext, arg: string): Promise<void
   if (parsed.kind === 'none') throw new InvalidInputError('/lore needs a contract address, link or $TICKER');
 
   const msg = await ctx.reply('📖 Reading the project… this can take up to a minute.', { reply_parameters: ctx.message ? { message_id: ctx.message.message_id } : undefined });
-  const edit = (text: string) => ctx.telegram.editMessageText(ctx.chat!.id, msg.message_id, undefined, text, HTML);
+  void loreJob(ctx, parsed, msg.message_id).catch((err) => ctx.log.error('lore job crashed', { arg, err: String(err) }));
+}
+
+/** 占位消息之后的全部工作；任何异常都落到编辑占位消息，不向上抛。 */
+async function loreJob(ctx: BotContext, parsed: ReturnType<typeof parseInput>, placeholderId: number): Promise<void> {
+  const svc = ctx.services.lore;
+  const edit = (text: string) => ctx.telegram.editMessageText(ctx.chat!.id, placeholderId, undefined, text, HTML);
   const started = Date.now();
   try {
     const loc = await locate(ctx, parsed);
@@ -31,7 +39,7 @@ export async function runLoreCommand(ctx: BotContext, arg: string): Promise<void
     if (lore.headerImage && text.length <= 1024) {
       try {
         await ctx.replyWithPhoto(lore.headerImage, { caption: text, parse_mode: 'HTML', reply_parameters: ctx.message ? { message_id: ctx.message.message_id } : undefined });
-        await ctx.telegram.deleteMessage(ctx.chat!.id, msg.message_id).catch(() => undefined);
+        await ctx.telegram.deleteMessage(ctx.chat!.id, placeholderId).catch(() => undefined);
       } catch (err) {
         ctx.log.debug('lore photo failed, falling back to text', { err: String(err) });
         await edit(text);
@@ -41,7 +49,7 @@ export async function runLoreCommand(ctx: BotContext, arg: string): Promise<void
     }
     ctx.services.stats?.record({ kind: 'lore', userId: ctx.from?.id, chatId: ctx.chat?.id, chatType: ctx.chat?.type, token: `${lore.networkSlug}:${lore.symbol}`, elapsedMs: Date.now() - started, trigger: lore.cached ? 'cache' : 'generate' });
   } catch (err) {
-    ctx.log.warn('lore failed', { arg, err: String(err) });
+    ctx.log.warn('lore failed', { input: parsed.kind === 'address' ? parsed.address : parsed.kind === 'query' ? parsed.query : '', err: String(err) });
     await edit(escapeHtml(toUserMessage(err))).catch(() => undefined);
   }
 }

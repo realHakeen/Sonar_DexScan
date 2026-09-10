@@ -37,6 +37,12 @@ export function buildBot(services: Services = createServices()): BuiltBot {
     handlerTimeout: 30_000,
   });
 
+  // errorBoundary 只能接 handler 里抛的错；handler 超过 handlerTimeout 时 Telegraf 会绕过它直接进这里。
+  // 默认实现是 console.error 后再 throw（变成 unhandled rejection），换成只记日志。
+  bot.catch((err, ctx) => {
+    log.error('update failed outside handler', { updateId: ctx.update.update_id, err: String(err) });
+  });
+
   bot.use(requestContext(services));
   bot.use(errorBoundary);
 
