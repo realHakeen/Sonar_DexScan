@@ -40,6 +40,14 @@ function settled<T>(r: PromiseSettledResult<T>, label: string, degraded: string[
   return undefined;
 }
 
+/**
+ * 原生币占位地址：Uniswap v4 原生 ETH 池子里 ETH 是零地址，有些 DEX 用 0xeeee…。
+ * 拿它去 search 会命中所有链的原生币（零地址 → Monad 的 MON 排第一），所以池子的这一边不能扫，改扫另一边。
+ */
+function isNativePlaceholder(address: string): boolean {
+  return /^0x(?:0{40}|e{40})$/i.test(address);
+}
+
 /** 避免 undefined 把已有值覆盖掉。 */
 function stripUndefined<T extends object>(obj: T): Partial<T> {
   const out: Record<string, unknown> = {};
@@ -74,9 +82,12 @@ export class ScanService {
         // 报价币地址偏小时会把报价币当 base：Robinhood 的 GOOGL/FLYBRAIN、Base 的 WETH/Basecat（WETH 是 0x4200…）。
         // DexScreener 按每条链的报价币名单选边，和用户在页面上看到的一致；顺带把全小写的 Solana 池子地址恢复成正确大小写。
         const rec = await recoverPair(chainRegistry.get(chain).dexscreenerId ?? chain, address);
-        if (rec && rec.tokenAddress.toLowerCase() !== address.toLowerCase()) {
-          log.info('pair resolved to base token via dexscreener', { pair: address.slice(0, 12), token: rec.tokenAddress, symbol: rec.symbol });
-          return this.scanByAddress(rec.tokenAddress, { chainSlug: chain, nativeCmcId: opts.nativeCmcId });
+        // base 是原生币占位地址（ETH/USDC 这种 v4 原生池）就扫 quote 那一边；两边都是占位就交给下面的 CMC 兜底
+        const native = rec && isNativePlaceholder(rec.tokenAddress);
+        const target = !rec ? undefined : native ? (rec.quoteAddress && !isNativePlaceholder(rec.quoteAddress) ? { address: rec.quoteAddress, symbol: rec.quoteSymbol } : undefined) : { address: rec.tokenAddress, symbol: rec.symbol };
+        if (target && target.address.toLowerCase() !== address.toLowerCase()) {
+          log.info('pair resolved to token via dexscreener', { pair: address.slice(0, 12), token: target.address, symbol: target.symbol, side: native ? 'quote (base is native)' : 'base' });
+          return this.scanByAddress(target.address, { chainSlug: chain, nativeCmcId: opts.nativeCmcId });
         }
         // DexScreener 查不到 / 超时 / 限流才退到 CMC（1 credit）。这条路的 base 可能是报价币那边，必须留下痕迹
         log.warn('dexscreener pair lookup missed, falling back to CMC pairs/quotes (base may be the quote asset)', { chain, pair: address.slice(0, 12) });
@@ -161,8 +172,12 @@ export class ScanService {
       .catch(() => null);
     const c = res?.candidate;
     if (!c?.address || c.address.toLowerCase() === pairAddress.toLowerCase()) return undefined;
-    log.info('pair address resolved to token', { pair: pairAddress.slice(0, 12), token: c.address, chain: c.networkSlug || networkSlug });
-    return { address: c.address, networkSlug: c.networkSlug || networkSlug };
+    // base 是原生币占位地址时改用 quote（v4 原生 ETH 池子；CMC 的 base 只是地址较小的 token0，零地址永远排第一）
+    const quote = (c.raw as Record<string, unknown> | undefined)?.['quote_asset_contract_address'];
+    const address = isNativePlaceholder(c.address) ? (typeof quote === 'string' && quote !== '' && !isNativePlaceholder(quote) ? quote : undefined) : c.address;
+    if (!address) return undefined;
+    log.info('pair address resolved to token', { pair: pairAddress.slice(0, 12), token: address, chain: c.networkSlug || networkSlug, side: address === c.address ? 'base' : 'quote (base is native)' });
+    return { address, networkSlug: c.networkSlug || networkSlug };
   }
 
   async scanByLocator(loc: { networkSlug: string; address: string; nativeCmcId?: number }): Promise<TokenReport> {

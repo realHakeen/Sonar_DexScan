@@ -14,8 +14,11 @@ export function caseLost(address: string): boolean {
 
 export interface DexscreenerPair {
   pairAddress: string;
+  /** DexScreener 的 base 代币（按它每条链的报价币名单选边）。Uniswap v4 原生币池子里 ETH 是零地址。 */
   tokenAddress: string;
   symbol?: string;
+  quoteAddress?: string;
+  quoteSymbol?: string;
 }
 
 function firstPair(data: unknown): DexscreenerPair | undefined {
@@ -24,10 +27,10 @@ function firstPair(data: unknown): DexscreenerPair | undefined {
   // 按流动性取最大的一条（tokens 端点会返回该币全部池子）
   let best: { liq: number; pair: DexscreenerPair } | undefined;
   for (const raw of pairs) {
-    const p = raw as { pairAddress?: string; baseToken?: { address?: string; symbol?: string }; liquidity?: { usd?: number } };
+    const p = raw as { pairAddress?: string; baseToken?: { address?: string; symbol?: string }; quoteToken?: { address?: string; symbol?: string }; liquidity?: { usd?: number } };
     if (!p.pairAddress || !p.baseToken?.address) continue;
     const liq = Number(p.liquidity?.usd ?? 0);
-    if (!best || liq > best.liq) best = { liq, pair: { pairAddress: p.pairAddress, tokenAddress: p.baseToken.address, symbol: p.baseToken.symbol } };
+    if (!best || liq > best.liq) best = { liq, pair: { pairAddress: p.pairAddress, tokenAddress: p.baseToken.address, symbol: p.baseToken.symbol, quoteAddress: p.quoteToken?.address, quoteSymbol: p.quoteToken?.symbol } };
   }
   return best?.pair;
 }

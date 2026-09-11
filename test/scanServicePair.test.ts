@@ -117,3 +117,39 @@ test('DexScreener 把池子本身当 base 时不递归，照常退到 CMC', asyn
     restore();
   }
 });
+
+const ZERO = '0x0000000000000000000000000000000000000000';
+const USDC = '0x078D782b760474a361dDA0AF3839290b0EF57AD6';
+
+test('v4 原生币池子：DexScreener 的 base 是零地址（ETH）时扫 quote 那一边，而不是拿零地址去 search', async () => {
+  const calls: string[] = [];
+  const restore = stubFetch(async () =>
+    new Response(JSON.stringify({ pairs: [{ chainId: 'unichain', pairAddress: POOL, baseToken: { address: ZERO, symbol: 'ETH' }, quoteToken: { address: USDC, symbol: 'USDC' }, liquidity: { usd: 1 } }] }), { status: 200 }),
+  );
+  try {
+    const svc = new ScanService(gateway(calls));
+    const scanned = await scannedAddress(() => svc.scanByAddress(POOL, { chainSlug: 'unichain', preferPair: true }));
+    assert.equal(scanned, USDC);
+    assert.deepEqual(calls, []);
+  } finally {
+    restore();
+  }
+});
+
+test('CMC 兜底同样处理零地址 base：改用 quote_asset_contract_address', async () => {
+  const calls: string[] = [];
+  const restore = stubFetch(async () => new Response('{}', { status: 404 }));
+  const gw = gateway(calls);
+  (gw.dex as unknown as { pairQuote: unknown }).pairQuote = async (loc: { pairAddress: string }) => {
+    calls.push(loc.pairAddress);
+    return { candidate: { address: ZERO, networkSlug: 'unichain', platform: 'Unichain', symbol: 'ETH', name: 'ETH', raw: { base_asset_contract_address: ZERO, quote_asset_contract_address: USDC.toLowerCase() } }, security: undefined };
+  };
+  try {
+    const svc = new ScanService(gw);
+    const scanned = await scannedAddress(() => svc.scanByAddress(POOL, { chainSlug: 'unichain', preferPair: true }));
+    assert.equal(scanned, USDC.toLowerCase());
+    assert.deepEqual(calls, [POOL]);
+  } finally {
+    restore();
+  }
+});

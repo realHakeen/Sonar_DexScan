@@ -162,3 +162,22 @@ test('无 scheme 的 DexScreener 链接和 GeckoTerminal 的链名别名', () =>
   const avax = parseLink('https://www.geckoterminal.com/avax/pools/0xf79478d5a6bae4546f7e489e80b2fc690b558944');
   assert.equal(avax.kind === 'address' && avax.chainSlug, 'avalanche');
 });
+
+test('GeckoTerminal：/pools/ 是池子、/tokens/ 是代币页，语言前缀和链名别名', () => {
+  const pool = parseLink('https://www.geckoterminal.com/eth/pools/0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640');
+  assert.deepEqual(pool, { kind: 'address', address: '0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640', chainSlug: 'ethereum', source: 'link', pair: true });
+  const token = parseLink('https://www.geckoterminal.com/eth/tokens/0x6982508145454ce325ddbe47a25d4ec3d2311933');
+  assert.deepEqual(token, { kind: 'address', address: '0x6982508145454ce325ddbe47a25d4ec3d2311933', chainSlug: 'ethereum', source: 'link' });
+  const zh = parseLink('https://www.geckoterminal.com/zh/eth/pools/0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640');
+  assert.equal(zh.kind === 'address' && zh.chainSlug, 'ethereum');
+  assert.equal(zh.kind === 'address' && zh.pair, true);
+  const ja = parseLink('https://www.geckoterminal.com/ja/solana/tokens/EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm');
+  assert.deepEqual(ja, { kind: 'address', address: 'EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm', chainSlug: 'solana', source: 'link' });
+  for (const [id, slug] of [['xdai', 'gnosis'], ['hedera-hashgraph', 'hedera'], ['starknet-alpha', 'starknet'], ['manta-pacific', 'manta'], ['sei-evm', 'sei'], ['polygon_pos', 'polygon'], ['bsc', 'bnb']] as const) {
+    const r = parseLink(`https://www.geckoterminal.com/${id}/pools/0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640`);
+    assert.equal(r.kind === 'address' && r.chainSlug, slug, id);
+  }
+  // 没登记的 network：地址还认，链留空
+  const unk = parseLink('https://www.geckoterminal.com/movr/pools/0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640');
+  assert.equal(unk.kind === 'address' && unk.chainSlug, undefined);
+});

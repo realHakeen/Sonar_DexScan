@@ -72,10 +72,13 @@ const URL_RE = /https?:\/\/[^\s<>()]+/gi;
  */
 const POOL_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:~-]{2,}$/;
 
-/** GeckoTerminal 的链名和 DexScreener 不同的几个。 */
+/** GeckoTerminal 的链名和 DexScreener 不同的几个（GeckoTerminal 共 227 个 network，只映射注册表里有的）。 */
 const GECKOTERMINAL_CHAIN: Record<string, string> = {
   eth: 'ethereum', 'sui-network': 'sui', polygon_pos: 'polygon', avax: 'avalanche', ftm: 'fantom', cro: 'cronos', 'sei-evm': 'seiv2', 'arbitrum_nova': 'arbitrumnova',
+  xdai: 'gnosischain', 'manta-pacific': 'manta', 'hedera-hashgraph': 'hedera', 'starknet-alpha': 'starknet', ethw: 'ethereumpow',
 };
+/** GeckoTerminal 的页面类型段：/{network}/pools/{池子} 是池子页，/{network}/tokens/{代币} 是代币页（站上会 307 跳到主池子）。 */
+const GECKOTERMINAL_PAGE = new Set(['pools', 'tokens']);
 
 /** 无 scheme 的链接（Telegram 会自动给 dexscreener.com/… 加链接，用户也常这么贴）。 */
 const BARE_LINK_RE = /(?:^|[^\w/.])((?:www\.)?(?:dexscreener\.com|geckoterminal\.com|dex\.coinmarketcap\.com)\/[^\s<>()]+)/gi;
@@ -112,18 +115,16 @@ export function parseLink(rawUrl: string): ParsedInput {
 
   // dexscreener.com/{chain}/{address}  |  geckoterminal.com/{chain}/pools/{address}
   if (host === 'dexscreener.com' || host === 'geckoterminal.com') {
-    const chainSeg = segments[0];
-    const address = segments.filter((s) => !PATH_NOISE.has(s.toLowerCase())).at(-1);
+    const gecko = host === 'geckoterminal.com';
+    // GeckoTerminal 支持语言前缀：/zh/eth/pools/… → 第二段不是页面类型、第三段才是时，第一段是语言
+    const segs = gecko && segments.length >= 3 && !GECKOTERMINAL_PAGE.has(segments[1]!.toLowerCase()) && GECKOTERMINAL_PAGE.has(segments[2]!.toLowerCase()) ? segments.slice(1) : segments;
+    const chainSeg = segs[0];
+    const address = segs.filter((s) => !PATH_NOISE.has(s.toLowerCase())).at(-1);
     const spec = chainSeg ? chainRegistry.fromDexscreenerId(GECKOTERMINAL_CHAIN[chainSeg.toLowerCase()] ?? chainSeg) : undefined;
-    if (chainSeg && address && segments.length >= 2 && (looksLikeAddress(address) || (spec && POOL_ID_RE.test(address)))) {
-      return {
-        kind: 'address',
-        address,
-        chainSlug: spec?.slug,
-        source: 'link',
-        // DexScreener / GeckoTerminal 的 URL 都是池子地址（EVM 上池子本身也是个 LP 代币，直接扫会扫出 UNI-V2）
-        pair: true,
-      };
+    // GeckoTerminal 的 /tokens/{address} 是代币地址，按普通地址扫；其余都是池子（EVM 上池子本身也是个 LP 代币，直接扫会扫出 UNI-V2）
+    const isToken = gecko && segs.some((s) => s.toLowerCase() === 'tokens');
+    if (chainSeg && address && segs.length >= 2 && (looksLikeAddress(address) || (spec && !isToken && POOL_ID_RE.test(address)))) {
+      return { kind: 'address', address, chainSlug: spec?.slug, source: 'link', ...(isToken ? {} : { pair: true }) };
     }
   }
 
