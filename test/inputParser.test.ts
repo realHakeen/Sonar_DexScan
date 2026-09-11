@@ -129,8 +129,36 @@ test('DexScreener 小写分享链接：Solana 池子地址含 L、TON 地址 eq 
   // 消息里带着也一样
   const msg = parseInput('看看这个 https://dexscreener.com/solana/ep2ib6dydeeqd8mfe2ezhcxx3kp3k2elkkirfpm5eymx');
   assert.equal(msg.kind, 'address');
-  // 只放宽 DexScreener / GeckoTerminal 分支：裸小写串不算地址，短串 / 带其它字符的也不算
+  // 只放宽 DexScreener / GeckoTerminal 分支：裸小写串不算地址
   assert.notEqual(parseInput('ep2ib6dydeeqd8mfe2ezhcxx3kp3k2elkkirfpm5eymx').kind, 'address');
-  assert.equal(parseLink('https://dexscreener.com/solana/ep2ib6dydeeq').kind, 'none');
-  assert.equal(parseLink('https://dexscreener.com/ton/eqcay8ifl2s6lrbmbjey35liumxpc8jfitwg4tl7lbgrso').kind, 'none');
+});
+
+test('DexScreener 池子 id 每条链一套格式：链已登记就整段当池子 id，交给 DexScreener 反查', () => {
+  const cases: Array<[string, string, string]> = [
+    ['https://dexscreener.com/aptos/pcs-1', 'aptos', 'pcs-1'],
+    ['https://dexscreener.com/aptos/liquidswap-82', 'aptos', 'liquidswap-82'],
+    ['https://dexscreener.com/near/refv1-6458', 'near', 'refv1-6458'],
+    ['https://dexscreener.com/near/refv2-17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1:token.rhealab.near:100', 'near', 'refv2-17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1:token.rhealab.near:100'],
+    ['https://dexscreener.com/starknet/0x033068f6539f8e6e6b131e6b2b814e6c34a5224bc66947c47dab9dfee93b35fb-0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d-170141183460469235273462165868118016-1000-0x0', 'starknet', '0x033068f6539f8e6e6b131e6b2b814e6c34a5224bc66947c47dab9dfee93b35fb-0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d-170141183460469235273462165868118016-1000-0x0'],
+    ['https://dexscreener.com/tron/thu6conqvzpqwqbbrzqhqwqbbrzqhqwqbbrz', 'tron', 'thu6conqvzpqwqbbrzqhqwqbbrzqhqwqbbrz'],
+  ];
+  for (const [url, slug, id] of cases) {
+    const r = parseLink(url);
+    assert.deepEqual(r, { kind: 'address', address: id, chainSlug: slug, source: 'link', pair: true }, url);
+  }
+  // 链没登记：仍要求像地址，页面路径不能被当成池子
+  assert.equal(parseLink('https://dexscreener.com/icp/3s6gf-uqaaa-aaaag-qcdlq-cai').kind, 'none');
+  assert.equal(parseLink('https://dexscreener.com/solana').kind, 'none');
+  assert.equal(parseLink('https://dexscreener.com/new-pairs/solana').kind, 'none');
+  assert.equal(parseLink('https://dexscreener.com/').kind, 'none');
+});
+
+test('无 scheme 的 DexScreener 链接和 GeckoTerminal 的链名别名', () => {
+  const bare = parseInput('看这个 dexscreener.com/solana/ep2ib6dydeeqd8mfe2ezhcxx3kp3k2elkkirfpm5eymx 冲不冲');
+  assert.deepEqual(bare, { kind: 'address', address: 'ep2ib6dydeeqd8mfe2ezhcxx3kp3k2elkkirfpm5eymx', chainSlug: 'solana', source: 'link', pair: true });
+  assert.equal(parseInput('www.dexscreener.com/base/0xf79478d5a6bae4546f7e489e80b2fc690b558944').kind, 'address');
+  const gt = parseLink('https://www.geckoterminal.com/sui-network/pools/0xd978d331772a5b90d5a4781e1232d18afd12019d0c35db79e3674beeda8f9126');
+  assert.equal(gt.kind === 'address' && gt.chainSlug, 'sui');
+  const avax = parseLink('https://www.geckoterminal.com/avax/pools/0xf79478d5a6bae4546f7e489e80b2fc690b558944');
+  assert.equal(avax.kind === 'address' && avax.chainSlug, 'avalanche');
 });

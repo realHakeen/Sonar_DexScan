@@ -64,11 +64,21 @@ const PATH_NOISE = new Set([
 const URL_RE = /https?:\/\/[^\s<>()]+/gi;
 
 /**
- * DexScreener 的分享链接把地址整个转成小写。Solana 池子地址里的大写 L 变成小写 l 之后就不在 base58 字母表里，
- * TON 地址的 EQ/UQ 前缀变成 eq/uq，两者都过不了 looksLikeAddress，整条链接会被当成普通文本。
- * 链接里链名已知，这种小写形态也认作池子地址；扫描时用 DexScreener 自己的接口（大小写不敏感）恢复大小写并拿到 base 代币。
+ * DexScreener 的池子 id 不是链上地址，每条链一套规则，跟 CMC 完全不同：
+ * Solana / TON / Tron 地址整个转小写（大写 L 变成 l 就不在 base58 字母表里，EQ 前缀变成 eq）、
+ * Aptos 是 `pcs-1` / `liquidswap-82`、NEAR 是 `refv1-6458`、Starknet 是几个 0x 段用连字符拼起来、ICP 是 principal id。
+ * 所以链名已登记时，最后一段路径不管长什么样都当池子 id，交给 DexScreener 自己的接口（大小写不敏感）反查 base 代币；
+ * 链没登记的才要求它长得像地址，避免把 /solana/new-pairs 这类页面路径当成地址。
  */
-const LOWERCASED_POOL_RE = /^(?:[1-9a-z]{32,44}|[eu]q[a-z0-9_-]{46})$/;
+const POOL_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:~-]{2,}$/;
+
+/** GeckoTerminal 的链名和 DexScreener 不同的几个。 */
+const GECKOTERMINAL_CHAIN: Record<string, string> = {
+  eth: 'ethereum', 'sui-network': 'sui', polygon_pos: 'polygon', avax: 'avalanche', ftm: 'fantom', cro: 'cronos', 'sei-evm': 'seiv2', 'arbitrum_nova': 'arbitrumnova',
+};
+
+/** 无 scheme 的链接（Telegram 会自动给 dexscreener.com/… 加链接，用户也常这么贴）。 */
+const BARE_LINK_RE = /(?:^|[^\w/.])((?:www\.)?(?:dexscreener\.com|geckoterminal\.com|dex\.coinmarketcap\.com)\/[^\s<>()]+)/gi;
 
 /**
  * PRD F5：从 DexScreener / DexScan / 区块浏览器链接里直接解析链名和地址。
@@ -104,8 +114,8 @@ export function parseLink(rawUrl: string): ParsedInput {
   if (host === 'dexscreener.com' || host === 'geckoterminal.com') {
     const chainSeg = segments[0];
     const address = segments.filter((s) => !PATH_NOISE.has(s.toLowerCase())).at(-1);
-    if (chainSeg && address && (looksLikeAddress(address) || LOWERCASED_POOL_RE.test(address))) {
-      const spec = chainRegistry.fromDexscreenerId(chainSeg);
+    const spec = chainSeg ? chainRegistry.fromDexscreenerId(GECKOTERMINAL_CHAIN[chainSeg.toLowerCase()] ?? chainSeg) : undefined;
+    if (chainSeg && address && segments.length >= 2 && (looksLikeAddress(address) || (spec && POOL_ID_RE.test(address)))) {
       return {
         kind: 'address',
         address,
@@ -178,8 +188,8 @@ export function parseInput(text: string): ParsedInput {
   const withFallback = (r: ParsedInput): ParsedInput =>
     r.kind === 'address' && cashtagInText && cashtagInText.toLowerCase() !== r.address.toLowerCase() ? { ...r, fallbackQuery: cashtagInText } : r;
 
-  const urls = trimmed.match(URL_RE);
-  if (urls) {
+  const urls = [...(trimmed.match(URL_RE) ?? []), ...[...trimmed.matchAll(BARE_LINK_RE)].map((m) => `https://${m[1]}`)];
+  if (urls.length > 0) {
     for (const u of urls) {
       const parsed = parseLink(u.replace(/[.,;]+$/, ''));
       if (parsed.kind !== 'none') return withFallback(parsed);
