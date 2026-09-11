@@ -64,6 +64,13 @@ const PATH_NOISE = new Set([
 const URL_RE = /https?:\/\/[^\s<>()]+/gi;
 
 /**
+ * DexScreener 的分享链接把地址整个转成小写。Solana 池子地址里的大写 L 变成小写 l 之后就不在 base58 字母表里，
+ * TON 地址的 EQ/UQ 前缀变成 eq/uq，两者都过不了 looksLikeAddress，整条链接会被当成普通文本。
+ * 链接里链名已知，这种小写形态也认作池子地址；扫描时用 DexScreener 自己的接口（大小写不敏感）恢复大小写并拿到 base 代币。
+ */
+const LOWERCASED_POOL_RE = /^(?:[1-9a-z]{32,44}|[eu]q[a-z0-9_-]{46})$/;
+
+/**
  * PRD F5：从 DexScreener / DexScan / 区块浏览器链接里直接解析链名和地址。
  * 这是高频场景，全程零 API 消耗。
  */
@@ -97,7 +104,7 @@ export function parseLink(rawUrl: string): ParsedInput {
   if (host === 'dexscreener.com' || host === 'geckoterminal.com') {
     const chainSeg = segments[0];
     const address = segments.filter((s) => !PATH_NOISE.has(s.toLowerCase())).at(-1);
-    if (chainSeg && address && looksLikeAddress(address)) {
+    if (chainSeg && address && (looksLikeAddress(address) || LOWERCASED_POOL_RE.test(address))) {
       const spec = chainRegistry.fromDexscreenerId(chainSeg);
       return {
         kind: 'address',

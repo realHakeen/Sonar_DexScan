@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { extractCashtag, parseInput, parseMessage } from '../src/domain/inputParser.js';
+import { extractCashtag, parseInput, parseLink, parseMessage } from '../src/domain/inputParser.js';
 
 const USDT = '0xdAC17F958D2ee523a2206206994597C13D831ec7';
 
@@ -117,4 +117,20 @@ test('不认识的域名（padre / gmgn）：从路径段取链名；消息里�
   assert.equal(g.kind === 'address' && g.fallbackQuery, undefined);
   const raw = parseInput(`ca ${USDT} $USDT`);
   assert.equal(raw.kind === 'address' && raw.fallbackQuery, 'USDT');
+});
+
+test('DexScreener 小写分享链接：Solana 池子地址含 L、TON 地址 eq 前缀，仍认作池子地址', () => {
+  // WIF/SOL 池 EP2ib6dYdEeqD8MfE2ezHCxX3kP3K2eLKkirfPm5eyMx，DexScreener 的 url 字段就是全小写
+  const sol = parseLink('https://dexscreener.com/solana/ep2ib6dydeeqd8mfe2ezhcxx3kp3k2elkkirfpm5eymx');
+  assert.deepEqual(sol, { kind: 'address', address: 'ep2ib6dydeeqd8mfe2ezhcxx3kp3k2elkkirfpm5eymx', chainSlug: 'solana', source: 'link', pair: true });
+  // NOT/TON 池 EQCaY8Ifl2S6lRBMBJeY35LIuMXPc8JfItWG4tl7lBGrSoR2
+  const ton = parseLink('https://dexscreener.com/ton/eqcay8ifl2s6lrbmbjey35liumxpc8jfitwg4tl7lbgrsor2');
+  assert.deepEqual(ton, { kind: 'address', address: 'eqcay8ifl2s6lrbmbjey35liumxpc8jfitwg4tl7lbgrsor2', chainSlug: 'ton', source: 'link', pair: true });
+  // 消息里带着也一样
+  const msg = parseInput('看看这个 https://dexscreener.com/solana/ep2ib6dydeeqd8mfe2ezhcxx3kp3k2elkkirfpm5eymx');
+  assert.equal(msg.kind, 'address');
+  // 只放宽 DexScreener / GeckoTerminal 分支：裸小写串不算地址，短串 / 带其它字符的也不算
+  assert.notEqual(parseInput('ep2ib6dydeeqd8mfe2ezhcxx3kp3k2elkkirfpm5eymx').kind, 'address');
+  assert.equal(parseLink('https://dexscreener.com/solana/ep2ib6dydeeq').kind, 'none');
+  assert.equal(parseLink('https://dexscreener.com/ton/eqcay8ifl2s6lrbmbjey35liumxpc8jfitwg4tl7lbgrso').kind, 'none');
 });

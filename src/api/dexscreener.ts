@@ -32,22 +32,25 @@ function firstPair(data: unknown): DexscreenerPair | undefined {
   return best?.pair;
 }
 
-async function get(path: string): Promise<unknown> {
+async function get(path: string, timeoutMs = 10_000): Promise<unknown> {
   // 走代理时实测 3s 左右，4s 会擦边超时
-  const res = await fetch(`${BASE}${path}`, { signal: AbortSignal.timeout(10_000), headers: { Accept: 'application/json' } });
+  const res = await fetch(`${BASE}${path}`, { signal: AbortSignal.timeout(timeoutMs), headers: { Accept: 'application/json' } });
   if (!res.ok) throw new Error(`dexscreener ${res.status}`);
   return res.json();
 }
 
 /**
- * 用 DexScreener 公开接口（免费、无 key、大小写不敏感）把小写的池子 / 代币地址恢复成正确大小写，
- * 顺带拿到 base 代币地址，省掉 CMC 的 pairs/quotes 反查（1 credit）。任何失败都返回 undefined，调用方走原路径。
+ * 池子 → base 代币，用 DexScreener 公开接口（免费、无 key、大小写不敏感）。
+ * 这是 DexScreener / GeckoTerminal 池子链接的主路径：它的 base/quote 按每条链的报价币名单选边，
+ * 而 CMC pairs/quotes 的 base 只是合约里地址较小的 token0，报价币常被当成 base。
+ * 顺带把小写的池子地址恢复成正确大小写。任何失败都返回 undefined，调用方退到 CMC。
+ * 每条池子链接都要经过这里，超时压在 6s：扫描 handler 总预算 30s，不能让一个免费接口吃掉三分之一。
  */
 export async function recoverPair(chainId: string, pairAddress: string): Promise<DexscreenerPair | undefined> {
   try {
-    return firstPair(await get(`/pairs/${encodeURIComponent(chainId)}/${encodeURIComponent(pairAddress)}`));
+    return firstPair(await get(`/pairs/${encodeURIComponent(chainId)}/${encodeURIComponent(pairAddress)}`, 6_000));
   } catch (err) {
-    log.warn('pair case recovery failed', { chainId, pairAddress, err: String(err) });
+    log.warn('pair lookup failed', { chainId, pairAddress, err: String(err) });
     return undefined;
   }
 }

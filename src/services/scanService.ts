@@ -68,17 +68,21 @@ export class ScanService {
 
     if (opts.preferPair) {
       const chain = opts.chainSlug ?? detection.slug;
-      // DexScreener 链接里的 Solana 地址被转成了全小写（base58 大小写敏感，CMC 认不出来）：
-      // 用 DexScreener 自己的公开接口恢复大小写并直接拿到 base 代币地址，0 credit
-      if (chain && detection.family === 'solana' && caseLost(address)) {
+      if (chain) {
+        // 链接来自 DexScreener / GeckoTerminal，base 代币就以 DexScreener 为准（0 credit）。
+        // CMC pairs/quotes 的 base/quote 只是合约里的 token0/token1（按地址大小排，见 reverse_order 参数），
+        // 报价币地址偏小时会把报价币当 base：Robinhood 的 GOOGL/FLYBRAIN、Base 的 WETH/Basecat（WETH 是 0x4200…）。
+        // DexScreener 按每条链的报价币名单选边，和用户在页面上看到的一致；顺带把全小写的 Solana 池子地址恢复成正确大小写。
         const rec = await recoverPair(chainRegistry.get(chain).dexscreenerId ?? chain, address);
-        if (rec) {
-          log.info('lowercase pair address recovered via dexscreener', { pair: rec.pairAddress.slice(0, 12), token: rec.tokenAddress, symbol: rec.symbol });
+        if (rec && rec.tokenAddress.toLowerCase() !== address.toLowerCase()) {
+          log.info('pair resolved to base token via dexscreener', { pair: address.slice(0, 12), token: rec.tokenAddress, symbol: rec.symbol });
           return this.scanByAddress(rec.tokenAddress, { chainSlug: chain, nativeCmcId: opts.nativeCmcId });
         }
+        // DexScreener 查不到 / 超时 / 限流才退到 CMC（1 credit）。这条路的 base 可能是报价币那边，必须留下痕迹
+        log.warn('dexscreener pair lookup missed, falling back to CMC pairs/quotes (base may be the quote asset)', { chain, pair: address.slice(0, 12) });
+        const token = await this.resolvePairToken(chain, address);
+        if (token) return this.scanByAddress(token.address, { chainSlug: token.networkSlug, nativeCmcId: opts.nativeCmcId });
       }
-      const token = chain ? await this.resolvePairToken(chain, address) : undefined;
-      if (token) return this.scanByAddress(token.address, { chainSlug: token.networkSlug, nativeCmcId: opts.nativeCmcId });
       // 反查不到就当普通地址继续（DexScreener 偶尔也给代币地址）
     }
 
